@@ -6,10 +6,20 @@ const { Store } = require('./src/store');
 const { MpvController, findMpv } = require('./src/mpv');
 const { ExeWallpaper } = require('./src/exe-wallpaper');
 const { StatsCollector } = require('./src/widgets-stats');
-const { MouseHook } = require('./src/mouse-hook');
 const desktop = require('./src/desktop');
 const { detectType, DIALOG_FILTERS } = require('./src/file-types');
 const lockscreen = require('./src/lockscreen');
+
+// ---------- 全局异常防护 ----------
+// 背景：Electron 主进程的定时器/事件回调若抛出未捕获异常，默认行为是弹出
+// 模态错误对话框并冻结事件循环（壁纸黑屏、mpv 无法启动/恢复）。
+// 作为常驻桌面软件，必须吞掉异常并记录日志，保证主进程永远存活。
+process.on('uncaughtException', (err) => {
+  console.error('[main] 未捕获异常:', err && (err.stack || err.message));
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[main] 未处理的 Promise 拒绝:', reason && (reason.stack || reason));
+});
 
 // ---------- 全局状态 ----------
 // 支持通过环境变量重定向数据目录（开发/调试用；正常使用时为系统 AppData）
@@ -26,13 +36,14 @@ let exeWallpaper = null;
 let rotationTimer = null;
 let isQuitting = false;
 
-// 桌面 DIY 组件（叠加窗口 + 数据采集 + 鼠标钩子）
+// 桌面 DIY 组件（覆盖层窗口 + 数据采集 + 光标轮询输入开关）
 let widgetsWindow = null;
 let widgetsHwnd = 0;
 let widgetRects = [];      // 组件可交互矩形（物理像素，相对组件窗口）
 let statsCollector = null;
-let mouseHook = null;
-let hookCapturing = false; // 组件拖动中（move/up 也吞掉）
+let widgetsInputTimer = null; // 光标轮询定时器
+let widgetsInputOn = false;   // 当前是否允许组件接收鼠标（非穿透）
+let widgetsInteracting = false; // 组件交互中（拖动等，保持可点击直到鼠标释放）
 
 // 全局暂停（视频冻结 + 轮换停止）
 let globalPaused = false;
@@ -154,10 +165,9 @@ function scheduleWallpaperRecovery() {
 function setupWallpaperWatch() {
   setInterval(() => {
     if (isQuitting) return;
-    // 组件窗口保活 + 置顶（必须在壁纸窗口之上，防止被后挂载的窗口遮挡）
+    // 组件覆盖层保活（保持在图标层之上、普通窗口之下）
     if (widgetsWindow && !widgetsWindow.isDestroyed() && widgetsHwnd) {
-      desktop.ensureAttached(widgetsHwnd);
-      desktop.raiseToTopInParent(widgetsHwnd);
+      desktop.ensureWidgetsOverlay(widgetsHwnd);
     }
     if (!wallpaperWindow || wallpaperWindow.isDestroyed()) {
       if (currentWallpaper) scheduleWallpaperRecovery();
@@ -182,23 +192,15 @@ function widgetsActive() {
   return Object.values(w.items || {}).some(i => i && i.on);
 }
 
-/** 是否存在可交互组件（需要鼠标钩子转发） */
-function widgetsInteractive() {
-  const items = store?.settings?.widgets?.items || {};
-  return !!(items.clock?.on || items.volume?.on);
-}
-
-/** 应用组件配置：创建/销毁组件窗口，启停采集与鼠标钩子 */
+/** 应用组件配置：创建/销毁组件窗口，启停采集与输入轮询 */
 function applyWidgetsConfig() {
   const active = widgetsActive();
   if (active) {
     createWidgetsWindow();
     startStatsCollector();
-    startMouseHook();
   } else {
     destroyWidgetsWindow();
     stopStatsCollector();
-    stopMouseHook();
   }
   sendWidgetsConfig();
 }
@@ -242,21 +244,22 @@ function createWidgetsWindow() {
   widgetsWindow.once('ready-to-show', () => {
     widgetsWindow.showInactive();
     widgetsHwnd = Number(widgetsWindow.getNativeWindowHandle().readBigInt64LE(0));
-    // 挂到 WorkerW（与壁纸窗口同级），置顶以覆盖壁纸（含 mpv 视频层）
-    desktop.attachToDesktop(widgetsHwnd);
-    desktop.raiseToTopInParent(widgetsHwnd);
+    // 挂为 Progman 子窗口、置于图标层之上（普通窗口之下），默认鼠标穿透
+    desktop.attachWidgetsOverlay(widgetsHwnd);
+    widgetsWindow.setIgnoreMouseEvents(true);
+    widgetsInputOn = false;
     sendWidgetsConfig();
-    startMouseHook(); // HWND 就绪后才能安装钩子
-    console.log(`[widgets] 组件窗口已嵌入桌面 hwnd=${widgetsHwnd}`);
+    startWidgetsInput();
+    console.log(`[widgets] 组件覆盖层已嵌入桌面（图标层之上）hwnd=${widgetsHwnd}`);
     setTimeout(() => {
-      if (widgetsHwnd) { desktop.ensureAttached(widgetsHwnd); desktop.raiseToTopInParent(widgetsHwnd); }
+      if (widgetsHwnd) desktop.ensureWidgetsOverlay(widgetsHwnd);
     }, 1500);
   });
   widgetsWindow.on('closed', () => {
     widgetsWindow = null;
     widgetsHwnd = 0;
     widgetRects = [];
-    hookCapturing = false;
+    widgetsInteracting = false;
   });
 }
 
@@ -265,7 +268,7 @@ function destroyWidgetsWindow() {
   widgetsWindow = null;
   widgetsHwnd = 0;
   widgetRects = [];
-  hookCapturing = false;
+  widgetsInteracting = false;
 }
 
 function startStatsCollector() {
@@ -288,38 +291,29 @@ function stopStatsCollector() {
   statsCollector?.stop();
 }
 
-/** 鼠标钩子：命中组件矩形时转发事件给组件页面并吞掉系统事件 */
-function startMouseHook() {
-  if (!mouseHook) {
-    mouseHook = new MouseHook();
-  }
-  if (!widgetsHwnd || !widgetsInteractive()) { stopMouseHook(); return; }
-  mouseHook.start(widgetsHwnd, (ev) => {
-    const sf = screen.getPrimaryDisplay().scaleFactor || 1;
-    // 拖动中：move/up 持续转发并吞掉（防止桌面框选）
-    if (hookCapturing) {
-      if (ev.type === 'up' || ev.type === 'rup') hookCapturing = false;
-      if (widgetsWindow && !widgetsWindow.isDestroyed()) {
-        widgetsWindow.webContents.send('widgets:mouse', { ...ev, x: ev.x / sf, y: ev.y / sf });
-      }
-      return true;
+/**
+ * 组件输入轮询：默认整窗鼠标穿透（不影响桌面操作）；
+ * 光标进入任一组件矩形（或组件交互中）时切换为可点击，
+ * 组件收到原生 DOM 鼠标事件（点击/拖动/滚轮），桌面不再响应。
+ * 替代低级鼠标钩子方案（WH_MOUSE_LL 钩子回调会与主线程消息泵
+ * 互相等待导致事件循环死锁、mpv 崩溃后无法自动恢复）。
+ */
+function startWidgetsInput() {
+  if (widgetsInputTimer) return;
+  widgetsInputTimer = setInterval(() => {
+    if (!widgetsWindow || widgetsWindow.isDestroyed() || !widgetsHwnd) return;
+    const hit = widgetsInteracting || desktop.cursorInRects(widgetsHwnd, widgetRects);
+    if (hit !== widgetsInputOn) {
+      widgetsInputOn = hit;
+      try { widgetsWindow.setIgnoreMouseEvents(!hit); } catch (_) {}
     }
-    const hit = widgetRects.some(r =>
-      ev.x >= r.x && ev.x <= r.x + r.w && ev.y >= r.y && ev.y <= r.y + r.h
-    );
-    if (!hit) return false;
-    if (ev.type === 'down') hookCapturing = true;
-    if (widgetsWindow && !widgetsWindow.isDestroyed()) {
-      widgetsWindow.webContents.send('widgets:mouse', { ...ev, x: ev.x / sf, y: ev.y / sf });
-    }
-    // move 转发但不吞（悬停反馈），按键/滚轮吞掉（阻止桌面响应）
-    return ev.type !== 'move';
-  });
+  }, 30);
 }
 
-function stopMouseHook() {
-  mouseHook?.stop();
-  hookCapturing = false;
+function stopWidgetsInput() {
+  if (widgetsInputTimer) { clearInterval(widgetsInputTimer); widgetsInputTimer = null; }
+  widgetsInputOn = false;
+  widgetsInteracting = false;
 }
 
 // ---------- 壁纸引擎 ----------
@@ -347,6 +341,19 @@ function initEngine() {
       raiseMpvWindow();
       syncMpvPause(); // 启动后对齐暂停状态（params.paused || fsPaused）
     }, 150);
+  };
+  // mpv 异常退出自动恢复（限流防崩溃循环；正常切换壁纸由 stop() 触发，不在此路径）
+  let lastMpvRecoverAt = 0;
+  mpv.onExit = () => {
+    if (isQuitting || !currentWallpaper || currentWallpaper.type !== 'video') return;
+    const now = Date.now();
+    if (now - lastMpvRecoverAt < 5000) return;
+    lastMpvRecoverAt = now;
+    console.log('[engine] mpv 异常退出，2 秒后自动重启…');
+    setTimeout(() => {
+      if (isQuitting || !currentWallpaper || currentWallpaper.type !== 'video' || mpv.isRunning) return;
+      mpv.start(currentWallpaper.path, wallpaperHwnd, currentParams);
+    }, 2000);
   };
   exeWallpaper = new ExeWallpaper();
   exeWallpaper.onExit = () => {
@@ -393,12 +400,17 @@ function applyWallpaper(wp, params) {
       // 壁纸窗口作为黑色底 + mpv 嵌入渲染
       if (wallpaperWindow && !wallpaperWindow.isVisible()) wallpaperWindow.show();
       sendToWallpaper({ type: 'video', params: currentParams, rect });
-      // 稍等壁纸窗口切到黑屏，再启动 mpv
-      setTimeout(() => {
-        if (currentWallpaper && currentWallpaper.id === wp.id) {
-          mpv.start(wp.path, wallpaperHwnd, currentParams);
+      // 稍等壁纸窗口切到黑屏再启动 mpv；若窗口尚未就绪（ready-to-show 未触发，
+      // 启动恢复与窗口初始化存在竞态）则等待其可见后再启动，避免 mpv 渲染失败退出
+      const tryStart = (retries) => {
+        if (isQuitting || !(currentWallpaper && currentWallpaper.id === wp.id)) return;
+        if (wallpaperWindow && !wallpaperWindow.isDestroyed() && !wallpaperWindow.isVisible() && retries > 0) {
+          setTimeout(() => tryStart(retries - 1), 300);
+          return;
         }
-      }, 250);
+        mpv.start(wp.path, wallpaperHwnd, currentParams);
+      };
+      setTimeout(() => tryStart(6), 250);
       break;
     }
     case 'exe': {
@@ -717,9 +729,13 @@ function setupIpc() {
   });
 
   // ---------- 桌面组件 ----------
-  // 组件窗口上报可交互矩形（钩子命中检测用）
+  // 组件窗口上报可交互矩形（输入轮询命中检测用）
   ipcMain.on('widgets:report-rects', (_e, rects) => {
     widgetRects = Array.isArray(rects) ? rects : [];
+  });
+  // 组件交互状态（按下时保持可点击直到释放，保证拖动不中断）
+  ipcMain.on('widgets:set-interacting', (_e, v) => {
+    widgetsInteracting = !!v;
   });
   // 音量组件调节（更新当前壁纸参数 → mpv）
   ipcMain.on('widgets:set-volume', (_e, v) => {
@@ -940,10 +956,10 @@ app.on('before-quit', () => {
 });
 
 app.on('will-quit', () => {
-  // 清理所有子进程与钩子
+  // 清理所有子进程与定时器
   mpv?.stop();
   exeWallpaper?.stop();
-  stopMouseHook();
+  stopWidgetsInput();
   stopStatsCollector();
 });
 

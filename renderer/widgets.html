@@ -184,14 +184,22 @@
         `<div class="v-hint">拖动调节 · 点击图标静音</div>`;
     }
 
-    // ---------- 交互（合成鼠标事件驱动） ----------
+    // ---------- 交互（原生 DOM 事件驱动） ----------
+    // 覆盖层默认鼠标穿透；主进程轮询光标，命中组件矩形时切换为可点击，
+    // 之后浏览器原生鼠标事件（点击/拖动/滚轮）直达组件 DOM。
     function bindWidgetEvents() {
+      // 交互锁：按下期间保持可点击（拖出矩形也不中断），释放后恢复
+      window.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.wg')) window.widgetHost.setInteracting(true);
+      }, true);
+      window.addEventListener('mouseup', () => window.widgetHost.setInteracting(false), true);
+
       // 时钟：点击切换 12/24h
       const clock = stage.querySelector('[data-widget="clock"]');
       if (clock) {
         clock.addEventListener('click', () => { h24 = !h24; renderClock(); });
       }
-      // 音量：拖动轨道 / 点击图标静音
+      // 音量：拖动轨道 / 点击图标静音 / 滚轮调节
       const vol = stage.querySelector('[data-widget="volume"]');
       if (vol) {
         const setFromX = (clientX) => {
@@ -212,10 +220,17 @@
           volDragging = true;
           setFromX(e.clientX);
         });
-        vol.addEventListener('mousemove', (e) => {
+        window.addEventListener('mousemove', (e) => {
           if (volDragging) setFromX(e.clientX);
         });
-        vol.addEventListener('mouseup', () => { volDragging = false; });
+        window.addEventListener('mouseup', () => { volDragging = false; });
+        vol.addEventListener('wheel', (e) => {
+          e.preventDefault();
+          stats.volume = Math.min(100, Math.max(0, (stats.volume || 0) - Math.sign(e.deltaY) * 5));
+          stats.mute = false;
+          window.widgetHost.setVolume(stats.volume);
+          renderVolume();
+        }, { passive: false });
       }
     }
 
@@ -230,25 +245,7 @@
       renderVolume();
     });
 
-    // 合成鼠标事件：主进程钩子转发 → 找到坐标处元素 → 派发对应 DOM 事件
-    window.widgetHost.onMouse((ev) => {
-      const el = document.elementFromPoint(ev.x, ev.y);
-      if (!el) return;
-      const target = el.closest('.wg');
-      if (!target) return;
-      const opts = { clientX: ev.x, clientY: ev.y, bubbles: true, cancelable: true, button: 0 };
-      if (ev.type === 'move') {
-        target.dispatchEvent(new MouseEvent('mousemove', opts));
-      } else if (ev.type === 'down') {
-        target.dispatchEvent(new MouseEvent('mousedown', opts));
-      } else if (ev.type === 'up') {
-        target.dispatchEvent(new MouseEvent('mouseup', opts));
-      } else if (ev.type === 'wheel') {
-        target.dispatchEvent(new WheelEvent('wheel', { ...opts, deltaY: ev.delta }));
-      }
-    });
-
-    // ---------- 交互矩形上报（物理像素，供主进程钩子命中检测） ----------
+    // ---------- 交互矩形上报（物理像素，供主进程光标轮询命中检测） ----------
     let rectsTimer = null;
     function scheduleRects() {
       if (rectsTimer) clearTimeout(rectsTimer);

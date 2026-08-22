@@ -248,6 +248,95 @@ function findChildByClass(parentHwnd, className) {
   return 0;
 }
 
+// ---------- 桌面组件覆盖层（位于图标层之上、普通窗口之下） ----------
+// 组件窗口挂为 Progman 子窗口并置于图标层(SHELLDLL_DefView)之上：
+// 既能渲染在壁纸/图标上方，又始终位于所有普通窗口之下。
+// 配合 setIgnoreMouseEvents 轮询切换，实现"组件区域可点击、其余穿透"。
+const D_POINT = koffi.struct('D_POINT', { x: 'int32_t', y: 'int32_t' });
+const GetCursorPos = user32.func('GetCursorPos', 'int', [koffi.inout(koffi.pointer(D_POINT))]);
+const DScreenToClient = user32.func('ScreenToClient', 'int', ['intptr_t', koffi.inout(koffi.pointer(D_POINT))]);
+
+/** 查找图标层窗口 SHELLDLL_DefView */
+function findDefView() {
+  const progman = findDesktopHost();
+  if (!progman) return 0;
+  return findChildByClass(progman, 'SHELLDLL_DefView');
+}
+
+/** 把组件覆盖层挂到 Progman、置于图标层之上并铺满虚拟桌面 */
+function attachWidgetsOverlay(hwnd) {
+  if (!hwnd || !IsWindow(hwnd)) return false;
+  const progman = findDesktopHost();
+  if (!progman) return false;
+  // 与 attachToHost 相同：转为 WS_CHILD 子窗口
+  pmv2(() => {
+    const style = BigIntAsInt(GetWindowLongPtrW(hwnd, GWL_STYLE));
+    const newStyle = (style & ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_POPUP)) | WS_CHILD;
+    SetWindowLongPtrW(hwnd, GWL_STYLE, newStyle);
+  });
+  SetParent(hwnd, progman);
+  const defView = findDefView();
+  pmv2(() => {
+    // 紧贴图标层之上（普通窗口永远在我们之上，因为整个 Progman 位于 Z 序底部）
+    SetWindowPos(hwnd, defView || 0, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+  });
+  fillDesktop(hwnd);
+  ShowWindow(hwnd, SW_SHOW);
+  return true;
+}
+
+/** 看门狗：确保组件覆盖层仍挂在 Progman 且位于图标层之上 */
+function ensureWidgetsOverlay(hwnd) {
+  if (!hwnd || !IsWindow(hwnd)) return 'dead';
+  const progman = findDesktopHost();
+  if (!progman) return 'ok';
+  const parent = Number(BigIntAsInt(GetAncestor(hwnd, GA_PARENT)));
+  if (parent !== progman) {
+    attachWidgetsOverlay(hwnd);
+    return 'reattached';
+  }
+  // Explorer 重启等会重建 DefView；确认仍在图标层之上
+  const defView = findDefView();
+  if (defView) {
+    const first = Number(BigIntAsInt(FindWindowExW(progman, 0, null, null)));
+    let prev = 0;
+    let h = first;
+    while (h) {
+      if (h === hwnd) break;
+      if (h === defView) { prev = h; }
+      h = Number(BigIntAsInt(FindWindowExW(progman, h, null, null)));
+    }
+    // 若 DefView 位于我们之上 → 重新抬高
+    if (prev) {
+      pmv2(() => {
+        SetWindowPos(hwnd, defView, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+      });
+    }
+  }
+  fillDesktop(hwnd);
+  return 'ok';
+}
+
+/**
+ * 光标是否命中任一矩形（物理像素，相对 hwnd 客户区）。
+ * 用于组件覆盖层的输入开关轮询（替代低级鼠标钩子，避免主线程死锁）。
+ */
+function cursorInRects(hwnd, rects) {
+  if (!hwnd || !rects || !rects.length) return false;
+  // 注意：koffi 的 struct pointer 参数必须传对象字面量（{x,y}），
+  // 传数组 [0,0] 会抛 TypeError —— 在 Electron 主进程的定时器回调里
+  // 未捕获异常会弹出模态错误对话框，冻结整个事件循环（表现为
+  // 视频壁纸黑屏、mpv 无法启动/恢复）。
+  const pt = { x: 0, y: 0 };
+  if (!GetCursorPos(pt)) return false;
+  if (!DScreenToClient(hwnd, pt)) return false;
+  const x = pt.x, y = pt.y;
+  for (const r of rects) {
+    if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return true;
+  }
+  return false;
+}
+
 /**
  * 将子窗口在其父窗口内提到 Z 序顶部。
  * 用途：mpv 渲染窗口（--wid 挂入壁纸窗口）默认位于 Chromium 渲染层
@@ -373,5 +462,8 @@ module.exports = {
   findChildByClass,
   raiseToTopInParent,
   ensureChildOnTop,
+  attachWidgetsOverlay,
+  ensureWidgetsOverlay,
+  cursorInRects,
   isWindowVisible: (hwnd) => !!IsWindowVisible(hwnd),
 };
