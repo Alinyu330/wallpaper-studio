@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Widgets</title>
+  <style>
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%;
+      overflow: hidden; background: transparent;
+      font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      user-select: none;
+    }
+    /* 九宫格容器：组件按配置锚定到对应区域 */
+    #stage {
+      position: absolute; inset: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: 1fr 1fr 1fr;
+      pointer-events: none;
+    }
+    .slot { position: relative; }
+    .slot.tl, .slot.tc, .slot.tr { grid-row: 1; }
+    .slot.ml, .slot.mc, .slot.mr { grid-row: 2; }
+    .slot.bl, .slot.bc, .slot.br { grid-row: 3; }
+    .slot.tl, .slot.ml, .slot.bl { grid-column: 1; }
+    .slot.tc, .slot.mc, .slot.bc { grid-column: 2; }
+    .slot.tr, .slot.mr, .slot.br { grid-column: 3; }
+    .slot.tl, .slot.ml, .slot.bl { justify-items: start; align-items: end; }
+    .slot.tc, .slot.mc, .slot.bc { justify-items: center; align-items: end; }
+    .slot.tr, .slot.mr, .slot.br { justify-items: end; align-items: end; }
+    .slot.tl, .slot.tc, .slot.tr { padding-top: 26px; }
+    .slot.ml, .slot.mc, .slot.mr { padding-top: 0; }
+    .slot.bl, .slot.bc, .slot.br { padding-top: 0; }
+
+    /* 组件卡片：毛玻璃 */
+    .wg {
+      pointer-events: auto;
+      margin: 0 26px 26px 0;
+      border-radius: 14px;
+      padding: 14px 18px;
+      color: #fff;
+      line-height: 1.15;
+      backdrop-filter: blur(14px) saturate(1.3);
+      -webkit-backdrop-filter: blur(14px) saturate(1.3);
+      box-shadow: 0 4px 22px rgba(0,0,0,.22);
+      transition: background .2s;
+      cursor: default;
+    }
+    body.theme-dark .wg { background: rgba(10, 12, 18, var(--op)); border: 1px solid rgba(255,255,255,.09); }
+    body.theme-light .wg { background: rgba(245, 247, 252, var(--op)); border: 1px solid rgba(255,255,255,.5); color: #16181f; }
+    body:not(.theme-dark):not(.theme-light) .wg { background: rgba(14, 16, 24, var(--op)); border: 1px solid rgba(255,255,255,.10); }
+
+    /* 时钟 */
+    .wg.clock { text-align: center; cursor: pointer; }
+    .wg .time { font-weight: 600; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
+    .wg .time .sec { opacity: .55; font-size: .45em; font-weight: 400; }
+    .wg .date { margin-top: 4px; opacity: .75; font-size: 13px; }
+    .size-s .time { font-size: 30px; } .size-s .date { font-size: 11px; }
+    .size-m .time { font-size: 46px; } .size-m .date { font-size: 13px; }
+    .size-l .time { font-size: 68px; } .size-l .date { font-size: 16px; }
+
+    /* 指标（CPU/GPU/内存） */
+    .wg.metric { min-width: 148px; }
+    .wg .m-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+    .wg .m-label { font-size: 12px; font-weight: 600; letter-spacing: 2px; opacity: .8; }
+    .wg .m-val { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .size-s .m-val { font-size: 17px; } .size-l .m-val { font-size: 28px; }
+    .wg .m-bar { margin-top: 8px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.16); overflow: hidden; }
+    body.theme-light .wg .m-bar { background: rgba(0,0,0,.12); }
+    .wg .m-bar i { display: block; height: 100%; width: 0; border-radius: 3px;
+      background: linear-gradient(90deg, #6ee7a8, #34d399); transition: width .5s ease; }
+    .wg .m-bar i.warn { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+    .wg .m-bar i.crit { background: linear-gradient(90deg, #fb7185, #f43f5e); }
+
+    /* 音量（可交互） */
+    .wg.vol { cursor: pointer; }
+    .wg .v-head { display: flex; align-items: center; gap: 10px; }
+    .wg .v-ico { font-size: 18px; line-height: 1; opacity: .9; }
+    .wg .v-val { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 38px; }
+    .wg .v-track { margin-top: 10px; width: 160px; height: 22px; display: flex; align-items: center; cursor: pointer; }
+    .size-s .v-track { width: 110px; } .size-l .v-track { width: 200px; }
+    .wg .v-rail { position: relative; width: 100%; height: 5px; border-radius: 3px; background: rgba(255,255,255,.16); }
+    body.theme-light .wg .v-rail { background: rgba(0,0,0,.12); }
+    .wg .v-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px;
+      background: linear-gradient(90deg, #7c5cff, #4f8cff); }
+    .wg .v-knob { position: absolute; top: 50%; width: 13px; height: 13px; border-radius: 50%;
+      background: #fff; transform: translate(-50%, -50%); box-shadow: 0 1px 5px rgba(0,0,0,.4); }
+    .wg .v-hint { margin-top: 6px; font-size: 10.5px; opacity: .55; }
+    .wg:hover .v-hint { opacity: .8; }
+  </style>
+</head>
+<body>
+  <div id="stage"></div>
+  <script>
+    const stage = document.getElementById('stage');
+    let cfg = null;        // { theme, opacity, items, scaleFactor }
+    let stats = { cpu: null, gpu: null, mem: null, volume: 0, mute: false };
+    let h24 = true;        // 时钟 12/24 小时制（点击切换）
+    let clockTimer = null;
+    let volDragging = false;
+
+    const SLOTS = ['tl','tc','tr','ml','mc','mr','bl','bc','br'];
+
+    // ---------- 渲染 ----------
+    function build() {
+      if (!cfg) return;
+      document.body.className = 'theme-' + (cfg.theme || 'auto');
+      document.documentElement.style.setProperty('--op', cfg.opacity ?? 0.72);
+      stage.innerHTML = '';
+      for (const s of SLOTS) {
+        const el = document.createElement('div');
+        el.className = 'slot ' + s;
+        el.dataset.slot = s;
+        stage.appendChild(el);
+      }
+      for (const [key, item] of Object.entries(cfg.items || {})) {
+        if (!item || !item.on) continue;
+        const slot = stage.querySelector('.slot.' + (item.pos || 'tl'));
+        if (!slot) continue;
+        const wg = document.createElement('div');
+        wg.className = `wg ${key} size-${item.size || 'm'}`;
+        wg.dataset.widget = key;
+        if (key === 'clock') wg.title = '点击切换 12/24 小时制';
+        slot.appendChild(wg);
+      }
+      bindWidgetEvents();
+      renderAll();
+      scheduleRects();
+    }
+
+    function renderAll() {
+      renderClock();
+      renderMetrics();
+      renderVolume();
+    }
+
+    function renderClock() {
+      const el = stage.querySelector('[data-widget="clock"]');
+      if (!el) return;
+      const d = new Date();
+      let h = d.getHours();
+      let suffix = '';
+      if (!h24) { suffix = h >= 12 ? ' PM' : ' AM'; h = h % 12 || 12; }
+      const hh = String(h).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      const ss = String(d.getSeconds()).padStart(2, '0');
+      const week = ['日','一','二','三','四','五','六'][d.getDay()];
+      el.innerHTML =
+        `<div class="time">${hh}:${mm}<span class="sec"> ${ss}${suffix}</span></div>` +
+        `<div class="date">${d.getMonth()+1}月${d.getDate()}日 星期${week}</div>`;
+    }
+
+    function metricEl(key, label) {
+      const el = stage.querySelector(`[data-widget="${key}"]`);
+      if (!el) return;
+      const v = stats[key];
+      const txt = (v === null || v === undefined) ? '--' : Math.round(v) + '%';
+      let cls = '';
+      if (typeof v === 'number') {
+        if (v >= 85) cls = 'crit'; else if (v >= 60) cls = 'warn';
+      }
+      el.innerHTML =
+        `<div class="m-head"><span class="m-label">${label}</span><span class="m-val">${txt}</span></div>` +
+        `<div class="m-bar"><i class="${cls}" style="width:${typeof v === 'number' ? Math.min(100, v) : 0}%"></i></div>`;
+    }
+
+    function renderMetrics() {
+      metricEl('cpu', 'CPU');
+      metricEl('gpu', 'GPU');
+      metricEl('mem', '内存');
+    }
+
+    function renderVolume() {
+      const el = stage.querySelector('[data-widget="volume"]');
+      if (!el) return;
+      const v = Math.round(stats.volume || 0);
+      const mute = !!stats.mute;
+      const ico = mute || v === 0 ? '🔇' : v < 40 ? '🔈' : v < 75 ? '🔉' : '🔊';
+      el.innerHTML =
+        `<div class="v-head"><span class="v-ico">${ico}</span><span class="v-val">${v}%</span></div>` +
+        `<div class="v-track"><div class="v-rail">` +
+        `<div class="v-fill" style="width:${mute ? 0 : v}%"></div>` +
+        `<div class="v-knob" style="left:${mute ? 0 : v}%"></div></div></div>` +
+        `<div class="v-hint">拖动调节 · 点击图标静音</div>`;
+    }
+
+    // ---------- 交互（合成鼠标事件驱动） ----------
+    function bindWidgetEvents() {
+      // 时钟：点击切换 12/24h
+      const clock = stage.querySelector('[data-widget="clock"]');
+      if (clock) {
+        clock.addEventListener('click', () => { h24 = !h24; renderClock(); });
+      }
+      // 音量：拖动轨道 / 点击图标静音
+      const vol = stage.querySelector('[data-widget="volume"]');
+      if (vol) {
+        const setFromX = (clientX) => {
+          const rail = vol.querySelector('.v-rail');
+          if (!rail) return;
+          const r = rail.getBoundingClientRect();
+          const pct = Math.min(100, Math.max(0, ((clientX - r.left) / r.width) * 100));
+          stats.volume = Math.round(pct);
+          stats.mute = false;
+          window.widgetHost.setVolume(stats.volume);
+          renderVolume();
+        };
+        vol.addEventListener('mousedown', (e) => {
+          if (e.target.closest('.v-ico')) {
+            window.widgetHost.toggleMute();
+            return;
+          }
+          volDragging = true;
+          setFromX(e.clientX);
+        });
+        vol.addEventListener('mousemove', (e) => {
+          if (volDragging) setFromX(e.clientX);
+        });
+        vol.addEventListener('mouseup', () => { volDragging = false; });
+      }
+    }
+
+    // ---------- 主进程消息 ----------
+    window.widgetHost.onConfig((c) => {
+      cfg = c;
+      build();
+    });
+    window.widgetHost.onStats((s) => {
+      stats = { ...stats, ...s };
+      renderMetrics();
+      renderVolume();
+    });
+
+    // 合成鼠标事件：主进程钩子转发 → 找到坐标处元素 → 派发对应 DOM 事件
+    window.widgetHost.onMouse((ev) => {
+      const el = document.elementFromPoint(ev.x, ev.y);
+      if (!el) return;
+      const target = el.closest('.wg');
+      if (!target) return;
+      const opts = { clientX: ev.x, clientY: ev.y, bubbles: true, cancelable: true, button: 0 };
+      if (ev.type === 'move') {
+        target.dispatchEvent(new MouseEvent('mousemove', opts));
+      } else if (ev.type === 'down') {
+        target.dispatchEvent(new MouseEvent('mousedown', opts));
+      } else if (ev.type === 'up') {
+        target.dispatchEvent(new MouseEvent('mouseup', opts));
+      } else if (ev.type === 'wheel') {
+        target.dispatchEvent(new WheelEvent('wheel', { ...opts, deltaY: ev.delta }));
+      }
+    });
+
+    // ---------- 交互矩形上报（物理像素，供主进程钩子命中检测） ----------
+    let rectsTimer = null;
+    function scheduleRects() {
+      if (rectsTimer) clearTimeout(rectsTimer);
+      rectsTimer = setTimeout(reportRects, 150);
+    }
+    function reportRects() {
+      if (!cfg) return;
+      const sf = cfg.scaleFactor || 1;
+      const rects = [];
+      stage.querySelectorAll('.wg').forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0) {
+          rects.push({ x: r.left * sf, y: r.top * sf, w: r.width * sf, h: r.height * sf });
+        }
+      });
+      window.widgetHost.reportRects(rects);
+    }
+    // 定期上报（位置/大小变化兜底）
+    setInterval(scheduleRects, 2000);
+
+    // 时钟走秒
+    clockTimer = setInterval(renderClock, 1000);
+  </script>
+</body>
+</html>

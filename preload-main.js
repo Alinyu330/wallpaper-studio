@@ -19,6 +19,11 @@ contextBridge.exposeInMainWorld('api', {
   checkMpv: () => ipcRenderer.invoke('mpv:check'),
   openMpvDownload: () => ipcRenderer.invoke('mpv:open-download'),
   showInFolder: (p) => ipcRenderer.invoke('shell:show-in-folder', p),
+  // 壁纸站点跳转（默认浏览器打开）
+  openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
+  // 全局暂停 / 轮换
+  pauseAll: (paused) => ipcRenderer.invoke('wallpaper:pause-all', paused),
+  rotationNext: () => ipcRenderer.invoke('rotation:next'),
   // 显示器信息（预览比例）
   getDisplays: () => ipcRenderer.invoke('system:get-displays'),
   // 预览弹出窗口

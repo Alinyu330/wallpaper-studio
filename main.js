@@ -5,6 +5,8 @@ const fs = require('fs');
 const { Store } = require('./src/store');
 const { MpvController, findMpv } = require('./src/mpv');
 const { ExeWallpaper } = require('./src/exe-wallpaper');
+const { StatsCollector } = require('./src/widgets-stats');
+const { MouseHook } = require('./src/mouse-hook');
 const desktop = require('./src/desktop');
 const { detectType, DIALOG_FILTERS } = require('./src/file-types');
 const lockscreen = require('./src/lockscreen');
@@ -23,6 +25,17 @@ let mpv = null;
 let exeWallpaper = null;
 let rotationTimer = null;
 let isQuitting = false;
+
+// 桌面 DIY 组件（叠加窗口 + 数据采集 + 鼠标钩子）
+let widgetsWindow = null;
+let widgetsHwnd = 0;
+let widgetRects = [];      // 组件可交互矩形（物理像素，相对组件窗口）
+let statsCollector = null;
+let mouseHook = null;
+let hookCapturing = false; // 组件拖动中（move/up 也吞掉）
+
+// 全局暂停（视频冻结 + 轮换停止）
+let globalPaused = false;
 
 // 预览弹出窗口（独立预览壁纸效果）
 let previewWindow = null;
@@ -141,6 +154,11 @@ function scheduleWallpaperRecovery() {
 function setupWallpaperWatch() {
   setInterval(() => {
     if (isQuitting) return;
+    // 组件窗口保活 + 置顶（必须在壁纸窗口之上，防止被后挂载的窗口遮挡）
+    if (widgetsWindow && !widgetsWindow.isDestroyed() && widgetsHwnd) {
+      desktop.ensureAttached(widgetsHwnd);
+      desktop.raiseToTopInParent(widgetsHwnd);
+    }
     if (!wallpaperWindow || wallpaperWindow.isDestroyed()) {
       if (currentWallpaper) scheduleWallpaperRecovery();
       return;
@@ -154,6 +172,154 @@ function setupWallpaperWatch() {
       syncMpvPause();
     }
   }, 4000);
+}
+
+// ---------- 桌面 DIY 组件（叠加在壁纸上、图标层之下） ----------
+/** 是否有任一组件启用 */
+function widgetsActive() {
+  const w = store?.settings?.widgets;
+  if (!w || !w.enabled) return false;
+  return Object.values(w.items || {}).some(i => i && i.on);
+}
+
+/** 是否存在可交互组件（需要鼠标钩子转发） */
+function widgetsInteractive() {
+  const items = store?.settings?.widgets?.items || {};
+  return !!(items.clock?.on || items.volume?.on);
+}
+
+/** 应用组件配置：创建/销毁组件窗口，启停采集与鼠标钩子 */
+function applyWidgetsConfig() {
+  const active = widgetsActive();
+  if (active) {
+    createWidgetsWindow();
+    startStatsCollector();
+    startMouseHook();
+  } else {
+    destroyWidgetsWindow();
+    stopStatsCollector();
+    stopMouseHook();
+  }
+  sendWidgetsConfig();
+}
+
+function sendWidgetsConfig() {
+  if (!widgetsWindow || widgetsWindow.isDestroyed()) return;
+  const sf = screen.getPrimaryDisplay().scaleFactor || 1;
+  widgetsWindow.webContents.send('widgets:config', {
+    ...store.settings.widgets,
+    scaleFactor: sf,
+  });
+}
+
+function createWidgetsWindow() {
+  if (widgetsWindow && !widgetsWindow.isDestroyed()) return;
+  const displays = screen.getAllDisplays();
+  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+  for (const d of displays) {
+    x1 = Math.min(x1, d.bounds.x); y1 = Math.min(y1, d.bounds.y);
+    x2 = Math.max(x2, d.bounds.x + d.bounds.width); y2 = Math.max(y2, d.bounds.y + d.bounds.height);
+  }
+  widgetsWindow = new BrowserWindow({
+    x: x1, y: y1, width: x2 - x1, height: y2 - y1,
+    frame: false,
+    show: false,
+    resizable: true,
+    movable: false,
+    skipTaskbar: true,
+    focusable: false,
+    transparent: true,
+    hasShadow: false,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload-widgets.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      backgroundThrottling: false, // 组件需要实时更新（时钟/占用率）
+    },
+  });
+  widgetsWindow.loadFile(path.join(__dirname, 'renderer', 'widgets.html'));
+  widgetsWindow.once('ready-to-show', () => {
+    widgetsWindow.showInactive();
+    widgetsHwnd = Number(widgetsWindow.getNativeWindowHandle().readBigInt64LE(0));
+    // 挂到 WorkerW（与壁纸窗口同级），置顶以覆盖壁纸（含 mpv 视频层）
+    desktop.attachToDesktop(widgetsHwnd);
+    desktop.raiseToTopInParent(widgetsHwnd);
+    sendWidgetsConfig();
+    startMouseHook(); // HWND 就绪后才能安装钩子
+    console.log(`[widgets] 组件窗口已嵌入桌面 hwnd=${widgetsHwnd}`);
+    setTimeout(() => {
+      if (widgetsHwnd) { desktop.ensureAttached(widgetsHwnd); desktop.raiseToTopInParent(widgetsHwnd); }
+    }, 1500);
+  });
+  widgetsWindow.on('closed', () => {
+    widgetsWindow = null;
+    widgetsHwnd = 0;
+    widgetRects = [];
+    hookCapturing = false;
+  });
+}
+
+function destroyWidgetsWindow() {
+  if (widgetsWindow && !widgetsWindow.isDestroyed()) widgetsWindow.close();
+  widgetsWindow = null;
+  widgetsHwnd = 0;
+  widgetRects = [];
+  hookCapturing = false;
+}
+
+function startStatsCollector() {
+  if (!statsCollector) {
+    statsCollector = new StatsCollector();
+    statsCollector.on((data) => {
+      if (widgetsWindow && !widgetsWindow.isDestroyed()) {
+        widgetsWindow.webContents.send('widgets:stats', {
+          ...data,
+          volume: currentParams?.volume ?? 0,
+          mute: !!currentParams?.mute,
+        });
+      }
+    });
+  }
+  statsCollector.start(1000);
+}
+
+function stopStatsCollector() {
+  statsCollector?.stop();
+}
+
+/** 鼠标钩子：命中组件矩形时转发事件给组件页面并吞掉系统事件 */
+function startMouseHook() {
+  if (!mouseHook) {
+    mouseHook = new MouseHook();
+  }
+  if (!widgetsHwnd || !widgetsInteractive()) { stopMouseHook(); return; }
+  mouseHook.start(widgetsHwnd, (ev) => {
+    const sf = screen.getPrimaryDisplay().scaleFactor || 1;
+    // 拖动中：move/up 持续转发并吞掉（防止桌面框选）
+    if (hookCapturing) {
+      if (ev.type === 'up' || ev.type === 'rup') hookCapturing = false;
+      if (widgetsWindow && !widgetsWindow.isDestroyed()) {
+        widgetsWindow.webContents.send('widgets:mouse', { ...ev, x: ev.x / sf, y: ev.y / sf });
+      }
+      return true;
+    }
+    const hit = widgetRects.some(r =>
+      ev.x >= r.x && ev.x <= r.x + r.w && ev.y >= r.y && ev.y <= r.y + r.h
+    );
+    if (!hit) return false;
+    if (ev.type === 'down') hookCapturing = true;
+    if (widgetsWindow && !widgetsWindow.isDestroyed()) {
+      widgetsWindow.webContents.send('widgets:mouse', { ...ev, x: ev.x / sf, y: ev.y / sf });
+    }
+    // move 转发但不吞（悬停反馈），按键/滚轮吞掉（阻止桌面响应）
+    return ev.type !== 'move';
+  });
+}
+
+function stopMouseHook() {
+  mouseHook?.stop();
+  hookCapturing = false;
 }
 
 // ---------- 壁纸引擎 ----------
@@ -276,10 +442,10 @@ function updateParams(patch) {
 // ---------- 性能：全屏应用自动暂停 ----------
 let fsPaused = false; // 全屏应用导致的暂停（区别于用户手动暂停）
 
-/** 统一同步 mpv 暂停状态 = 用户暂停 || 全屏暂停 */
+/** 统一同步 mpv 暂停状态 = 用户暂停 || 全局暂停 || 全屏暂停 */
 function syncMpvPause() {
   if (!currentWallpaper || currentWallpaper.type !== 'video' || !mpv.isRunning) return;
-  const shouldPause = !!currentParams?.paused || fsPaused;
+  const shouldPause = !!currentParams?.paused || globalPaused || fsPaused;
   mpv.setProperty('pause', shouldPause);
 }
 
@@ -297,29 +463,75 @@ function setupFullscreenWatch() {
   }, 3000);
 }
 
-/** 暂停/恢复视频播放（用户手动） */
+/** 暂停/恢复视频播放（用户手动，仅当前壁纸参数） */
 function setVideoPaused(paused) {
   updateParams({ paused });
 }
 
+// ---------- 全局暂停（视频冻结 + 轮换停止） ----------
+function setWallpaperPaused(paused) {
+  globalPaused = !!paused;
+  store.updateSettings({ wallpaperPaused: globalPaused });
+  if (globalPaused) {
+    if (rotationTimer) { clearInterval(rotationTimer); rotationTimer = null; }
+    console.log('[engine] 壁纸已全局暂停');
+  } else {
+    setupRotation();
+    console.log('[engine] 壁纸已恢复');
+  }
+  syncMpvPause();
+  notifyMain('wallpaper:paused-changed', globalPaused);
+  if (trayRebuild) trayRebuild();
+}
+
 // ---------- 定时轮换 ----------
+/** 当前轮换候选列表（按 scope 过滤） */
+function getRotationList() {
+  const rot = store.settings.rotation || {};
+  if (rot.scope === 'favorite') return store.wallpapers.filter(w => w.favorite);
+  if (rot.scope === 'custom') {
+    return (rot.list || []).map(id => store.wallpapers.find(w => w.id === id)).filter(Boolean);
+  }
+  return store.wallpapers;
+}
+
+/** 挑选下一张轮换壁纸（随机或顺序） */
+function pickNextWallpaper() {
+  const rot = store.settings.rotation || {};
+  const list = getRotationList();
+  if (list.length < 2) return null;
+  const curId = currentWallpaper?.id;
+  if (rot.order === 'sequential') {
+    let idx = list.findIndex(w => w.id === curId);
+    idx = (idx + 1) % list.length;
+    if (list[idx].id === curId) return null; // 列表只有一张
+    return list[idx];
+  }
+  const pool = list.filter(w => w.id !== curId);
+  if (!pool.length) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 function setupRotation() {
   if (rotationTimer) { clearInterval(rotationTimer); rotationTimer = null; }
   const rot = store.settings.rotation;
-  if (!rot || !rot.enabled) return;
+  if (!rot || !rot.enabled || globalPaused) return;
   const ms = Math.max(1, rot.intervalMin) * 60 * 1000;
   rotationTimer = setInterval(() => {
-    const list = store.wallpapers.filter(w =>
-      rot.scope === 'favorite' ? w.favorite : true
-    );
-    if (list.length < 2) return;
-    // 随机选一张非当前的壁纸
-    const pool = list.filter(w => !currentWallpaper || w.id !== currentWallpaper.id);
-    if (!pool.length) return;
-    const next = pool[Math.floor(Math.random() * pool.length)];
-    applyWallpaper(next, next.params);
+    const next = pickNextWallpaper();
+    if (next) applyWallpaper(next, next.params);
   }, ms);
-  console.log(`[rotation] 定时轮换已开启，间隔 ${rot.intervalMin} 分钟`);
+  console.log(`[rotation] 定时轮换已开启，间隔 ${rot.intervalMin} 分钟，范围 ${rot.scope}，${rot.order === 'sequential' ? '顺序' : '随机'}`);
+}
+
+/** 手动切换到下一张（托盘/主界面按钮） */
+function rotationNext() {
+  const next = pickNextWallpaper();
+  if (next) {
+    applyWallpaper(next, next.params);
+    return { ok: true, name: next.name };
+  }
+  return { ok: false, error: '轮换列表不足两张壁纸' };
 }
 
 // ---------- 主窗口 ----------
@@ -380,14 +592,18 @@ function createTray() {
   tray.on('double-click', () => { mainWindow.show(); mainWindow.focus(); });
 
   const rebuild = () => {
-    const paused = currentParams?.paused && currentWallpaper?.type === 'video';
     tray.setContextMenu(Menu.buildFromTemplate([
       { label: '显示主界面', click: () => { mainWindow.show(); mainWindow.focus(); } },
       { type: 'separator' },
       {
-        label: paused ? '恢复播放' : '暂停播放',
-        enabled: currentWallpaper?.type === 'video',
-        click: () => setVideoPaused(!paused),
+        label: globalPaused ? '恢复壁纸' : '暂停壁纸',
+        enabled: !!currentWallpaper,
+        click: () => setWallpaperPaused(!globalPaused),
+      },
+      {
+        label: '下一张壁纸',
+        enabled: getRotationList().length >= 2,
+        click: () => rotationNext(),
       },
       { label: '静音', type: 'checkbox', checked: !!currentParams?.mute, enabled: currentWallpaper?.type === 'video', click: (mi) => updateParams({ mute: mi.checked }) },
       { type: 'separator' },
@@ -477,11 +693,53 @@ function setupIpc() {
 
   // 设置更新
   ipcMain.handle('settings:update', (_e, patch) => {
+    // widgets 深合并（items 单项更新）
+    if (patch && patch.widgets) {
+      const old = store.settings.widgets || {};
+      const w = patch.widgets;
+      patch = {
+        ...patch,
+        widgets: {
+          ...old,
+          ...w,
+          items: { ...(old.items || {}), ...(w.items || {}) },
+        },
+      };
+    }
     store.updateSettings(patch);
     if (patch.autoStart !== undefined) {
       app.setLoginItemSettings({ openAtLogin: !!patch.autoStart, path: process.execPath });
     }
     if (patch.rotation !== undefined) setupRotation();
+    if (patch.widgets !== undefined) applyWidgetsConfig();
+    if (patch.wallpaperPaused !== undefined) setWallpaperPaused(patch.wallpaperPaused);
+    return { ok: true };
+  });
+
+  // ---------- 桌面组件 ----------
+  // 组件窗口上报可交互矩形（钩子命中检测用）
+  ipcMain.on('widgets:report-rects', (_e, rects) => {
+    widgetRects = Array.isArray(rects) ? rects : [];
+  });
+  // 音量组件调节（更新当前壁纸参数 → mpv）
+  ipcMain.on('widgets:set-volume', (_e, v) => {
+    if (currentWallpaper) updateParams({ volume: Math.min(100, Math.max(0, Math.round(v))) });
+  });
+  ipcMain.on('widgets:toggle-mute', () => {
+    if (currentWallpaper) updateParams({ mute: !currentParams?.mute });
+  });
+
+  // ---------- 全局暂停 / 轮换 ----------
+  ipcMain.handle('wallpaper:pause-all', (_e, paused) => {
+    setWallpaperPaused(!!paused);
+    return { ok: true, paused: globalPaused };
+  });
+  ipcMain.handle('rotation:next', () => rotationNext());
+
+  // ---------- 壁纸站点跳转 ----------
+  ipcMain.handle('shell:open-external', (_e, url) => {
+    if (!/^https?:\/\//i.test(url)) return { ok: false, error: '仅支持 http/https 链接' };
+    shell.openExternal(url);
     return { ok: true };
   });
 
@@ -630,13 +888,21 @@ app.whenReady().then(() => {
   createMainWindow();
   setupIpc();
   createTray();
+
+  // 恢复全局暂停状态（暂停时轮换不启动）
+  globalPaused = !!store.settings.wallpaperPaused;
+
   setupRotation();
   setupFullscreenWatch();
   setupWallpaperWatch();
 
+  // 恢复桌面 DIY 组件（配置了则创建组件窗口）
+  applyWidgetsConfig();
+
   // 监听屏幕分辨率变化，重新铺满（只注册一次）
   screen.on('display-metrics-changed', () => {
     if (wallpaperHwnd) desktop.ensureAttached(wallpaperHwnd);
+    if (widgetsHwnd) { desktop.ensureAttached(widgetsHwnd); desktop.raiseToTopInParent(widgetsHwnd); }
     if (exeWallpaper && exeWallpaper.isRunning && exeWallpaper.hwnd) desktop.fillDesktop(exeWallpaper.hwnd);
   });
 
@@ -674,9 +940,11 @@ app.on('before-quit', () => {
 });
 
 app.on('will-quit', () => {
-  // 清理所有子进程
+  // 清理所有子进程与钩子
   mpv?.stop();
   exeWallpaper?.stop();
+  stopMouseHook();
+  stopStatsCollector();
 });
 
 app.on('window-all-closed', () => {

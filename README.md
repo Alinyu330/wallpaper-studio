@@ -4,7 +4,14 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Version](https://img.shields.io/badge/version-1.1.0-7c5cff)
+![Version](https://img.shields.io/badge/version-1.2.0-7c5cff)
+
+> **官网介绍页**：https://alinyu330.github.io/wallpaper-studio/ （功能介绍 / 版本对比 / 历史版本下载）
+>
+> **安装包下载**（v1.2.0，Windows x64）：
+> - 国内加速①：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.2.0/WallpaperStudio-Setup-1.2.0.exe)
+> - 国内加速②：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.2.0/WallpaperStudio-Setup-1.2.0.exe)
+> - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
 ## 功能特性
 
@@ -12,14 +19,18 @@
 - **mpv 播放引擎**：全格式硬解直读，无需转码，内置完整解码器
 - **参数精确调节**：播放速度（0.25×–4×）、音量、亮度、对比度、饱和度；每项参数均有固定调整点一键跳转 + 数值精确输入
 - **实时预览**：按主显示器真实比例预览；预览区可放大缩小；支持弹出独立预览窗口，参数实时同步
+- **桌面 DIY 组件**（v1.2.0）：时钟（12/24 小时制点击切换）、CPU / GPU / 内存占用率实时监控条、音量控制条 — 自由搭配融入壁纸，桌面直接拖动调音量、点击静音，全部可交互
+- **壁纸暂停**（v1.2.0）：一键暂停视频播放与轮换，恢复桌面清爽；支持托盘操作，重启后保持状态
+- **多壁纸定时轮换**（v1.2.0）：全部/收藏/自定义列表三种范围，随机或顺序切换，间隔自由设定，工具栏一键"下一张"
+- **壁纸站点导航**（v1.2.0）：内置 Wallhaven、必应壁纸、Unsplash 等热门免费壁纸站点，点击直达
 - **深度性能优化**：GPU 硬解 · 渲染分辨率限制（原生/1080P/720P/480P）· 渲染质量三档 · 全屏应用自动暂停/恢复
 - **桌面与锁屏**：壁纸嵌入系统 WorkerW 层（图标层之下），多显示器铺满；图片壁纸一键同步为 Windows 锁屏背景
-- **壁纸管理**：收藏 · 搜索 · 类型筛选 · 自动轮换 · 双击应用 · 托盘常驻
+- **壁纸管理**：收藏 · 搜索 · 类型筛选 · 双击应用 · 托盘常驻
 - **稳定看门狗**：壁纸窗口丢失自动恢复、桌面层级变化自动重挂载、播放状态自动对账
 
 ## 下载
 
-前往 [Releases](https://github.com/Alinyu330/wallpaper-studio/releases) 下载最新版安装包。
+前往 [Releases](https://github.com/Alinyu330/wallpaper-studio/releases) 下载最新版及历史版本安装包（国内访问慢可用上方加速链接）。
 
 官网介绍页：[GitHub Pages](https://alinyu330.github.io/wallpaper-studio/)
 
@@ -41,18 +52,21 @@ npm run build   # 生成 Windows 安装包（dist/ 目录）
 ### 目录结构
 
 ```
-├── main.js               # 主进程：窗口/壁纸引擎调度/IPC/托盘
+├── main.js               # 主进程：窗口/壁纸引擎调度/IPC/托盘/组件窗口/轮换
 ├── preload-main.js       # 主界面桥接
 ├── preload-wallpaper.js  # 壁纸窗口桥接
 ├── preload-preview.js    # 预览弹窗桥接
+├── preload-widgets.js    # 桌面组件窗口桥接
 ├── src/
 │   ├── desktop.js        # 桌面嵌入（WorkerW 挂载/全屏检测/多显示器）
 │   ├── mpv.js            # mpv 播放控制器（IPC/参数/分辨率限制）
 │   ├── exe-wallpaper.js  # EXE 壁纸嵌入控制器
 │   ├── lockscreen.js     # 锁屏壁纸（PersonalizationCSP）
+│   ├── widgets-stats.js  # 系统信息采集（CPU/GPU/内存，PDH 计数器）
+│   ├── mouse-hook.js     # 低级鼠标钩子（桌面组件交互）
 │   ├── store.js          # 配置持久化
 │   └── file-types.js     # 文件类型识别
-├── renderer/             # 界面（主界面/壁纸窗口/预览弹窗）
+├── renderer/             # 界面（主界面/壁纸窗口/预览弹窗/组件窗口）
 ├── assets/mpv/           # mpv 播放器（npm run get-mpv 下载，不入库）
 ├── scripts/              # 辅助脚本（mpv 下载）
 └── docs/                 # 官网（GitHub Pages）

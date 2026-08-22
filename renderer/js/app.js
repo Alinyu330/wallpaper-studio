@@ -10,6 +10,7 @@ const state = {
   filter: 'all',
   search: '',
   display: null,       // 主显示器信息（预览比例用）
+  pausedAll: false,    // 全局暂停（视频冻结 + 轮换停止）
 };
 
 const TYPE_LABEL = { image: '图片', video: '视频', exe: '程序', web: '网页' };
@@ -39,6 +40,8 @@ async function init() {
   renderGrid();
   renderParamsPanel();
   renderRotationSettings();
+  renderWidgetsSettings();
+  renderSites();
   renderSettingsPage();
   checkMpv();
   loadDisplayInfo();
@@ -51,6 +54,10 @@ async function init() {
   bindParamsPanel();
   bindModal();
   bindWindowControls();
+
+  // 全局暂停状态恢复
+  state.pausedAll = !!state.settings.wallpaperPaused;
+  updatePauseAllButton();
 
   // 默认选中当前应用的壁纸，直接预览
   if (state.current) {
@@ -80,6 +87,27 @@ async function init() {
     }
   });
   window.api.on('wallpaper:exe-exited', ({ name }) => toast(`程序壁纸「${name}」已退出`, 'error'));
+  window.api.on('wallpaper:paused-changed', (paused) => {
+    state.pausedAll = !!paused;
+    state.settings.wallpaperPaused = !!paused;
+    updatePauseAllButton();
+  });
+}
+
+// ---------- 全局暂停 / 下一张 ----------
+function updatePauseAllButton() {
+  const btn = $('#btn-pause-all');
+  if (!btn) return;
+  const label = btn.querySelector('span');
+  label.textContent = state.pausedAll ? '恢复壁纸' : '暂停壁纸';
+  btn.title = state.pausedAll ? '恢复视频播放与定时轮换' : '暂停视频播放与轮换，恢复桌面清爽';
+}
+
+async function togglePauseAll() {
+  const res = await window.api.pauseAll(!state.pausedAll);
+  state.pausedAll = !!res.paused;
+  updatePauseAllButton();
+  toast(state.pausedAll ? '壁纸已暂停（视频冻结、轮换停止）' : '壁纸已恢复');
 }
 
 // ---------- 导航 ----------
@@ -103,6 +131,12 @@ function bindToolbar() {
   $('#btn-add-web').addEventListener('click', () => {
     $('#modal-web').classList.remove('hidden');
     $('#web-url-input').focus();
+  });
+  $('#btn-pause-all').addEventListener('click', togglePauseAll);
+  $('#btn-rotation-next').addEventListener('click', async () => {
+    const r = await window.api.rotationNext();
+    if (r.ok) toast(`已切换到「${r.name}」`);
+    else toast(r.error || '暂无可切换的壁纸', 'error');
   });
 }
 
@@ -661,11 +695,75 @@ async function refreshLockScreenDetail() {
 }
 
 // ---------- 定时轮换 ----------
+const ROT_INTERVAL_PRESETS = [1, 5, 15, 30, 60, 120, 360, 1440];
+
 function renderRotationSettings() {
   const rot = state.settings.rotation || {};
   $('#rot-enabled').checked = !!rot.enabled;
   $('#rot-interval').value = rot.intervalMin || 30;
   $$('#rot-scope button').forEach(b => b.classList.toggle('active', b.dataset.scope === (rot.scope || 'all')));
+  $$('#rot-order button').forEach(b => b.classList.toggle('active', b.dataset.order === (rot.order || 'random')));
+  // 间隔固定调整点
+  const row = $('#rot-interval-presets');
+  row.innerHTML = '';
+  ROT_INTERVAL_PRESETS.forEach(v => {
+    const b = document.createElement('button');
+    b.className = 'preset-chip' + ((rot.intervalMin || 30) === v ? ' active' : '');
+    b.textContent = v < 60 ? `${v}分钟` : (v % 60 === 0 ? `${v / 60}小时` : `${Math.round(v / 60 * 10) / 10}小时`);
+    b.addEventListener('click', () => {
+      $('#rot-interval').value = v;
+      saveRotation({ intervalMin: v });
+      renderRotationSettings();
+    });
+    row.appendChild(b);
+  });
+  renderRotationPickGrid();
+}
+
+/** 自定义轮换列表：多选网格 */
+function renderRotationPickGrid() {
+  const rot = state.settings.rotation || {};
+  const card = $('#rot-custom-card');
+  const grid = $('#rot-pick-grid');
+  if (!card || !grid) return;
+  card.style.display = rot.scope === 'custom' ? '' : 'none';
+  if (rot.scope !== 'custom') return;
+  const list = rot.list || [];
+  $('#rot-custom-count').textContent = `已选 ${list.length} 张`;
+  grid.innerHTML = '';
+  for (const wp of state.wallpapers) {
+    const picked = list.includes(wp.id);
+    const item = document.createElement('button');
+    item.className = 'rot-pick' + (picked ? ' picked' : '');
+    item.title = wp.name;
+    // 缩略图
+    if (wp.type === 'image') {
+      const img = document.createElement('img');
+      img.src = 'file:///' + wp.path.replace(/\\/g, '/');
+      img.onerror = () => img.remove();
+      item.appendChild(img);
+    } else {
+      const ic = document.createElement('div');
+      ic.className = 'pick-icon';
+      ic.innerHTML = ICONS[wp.type] || ICONS.web;
+      item.appendChild(ic);
+    }
+    const name = document.createElement('span');
+    name.className = 'pick-name';
+    name.textContent = wp.name;
+    item.appendChild(name);
+    const mark = document.createElement('i');
+    mark.className = 'pick-mark';
+    mark.textContent = picked ? '✓' : '';
+    item.appendChild(mark);
+    item.addEventListener('click', () => {
+      const cur = state.settings.rotation.list || [];
+      const next = cur.includes(wp.id) ? cur.filter(id => id !== wp.id) : [...cur, wp.id];
+      saveRotation({ list: next });
+      renderRotationPickGrid();
+    });
+    grid.appendChild(item);
+  }
 }
 
 function bindRotation() {
@@ -674,19 +772,187 @@ function bindRotation() {
   });
   $('#rot-interval').addEventListener('change', (e) => {
     saveRotation({ intervalMin: Math.max(1, parseInt(e.target.value) || 30) });
+    renderRotationSettings();
   });
   $$('#rot-scope button').forEach(b => {
     b.addEventListener('click', () => {
       $$('#rot-scope button').forEach(x => x.classList.toggle('active', x === b));
       saveRotation({ scope: b.dataset.scope });
+      renderRotationPickGrid();
+    });
+  });
+  $$('#rot-order button').forEach(b => {
+    b.addEventListener('click', () => {
+      $$('#rot-order button').forEach(x => x.classList.toggle('active', x === b));
+      saveRotation({ order: b.dataset.order });
     });
   });
 }
 
 function saveRotation(patch) {
-  const rot = { ...(state.settings.rotation || { enabled: false, intervalMin: 30, scope: 'all' }), ...patch };
+  const rot = {
+    ...(state.settings.rotation || { enabled: false, intervalMin: 30, scope: 'all', order: 'random', list: [] }),
+    ...patch,
+  };
   state.settings.rotation = rot;
   window.api.updateSettings({ rotation: rot });
+}
+
+// ---------- 桌面组件 ----------
+const WIDGET_META = {
+  clock:  { name: '时钟', desc: '时间 + 日期，点击切换 12/24 小时制', interactive: true },
+  cpu:    { name: 'CPU 占用率', desc: '实时处理器占用 + 占用条', interactive: false },
+  gpu:    { name: 'GPU 占用率', desc: '实时显卡占用 + 占用条', interactive: false },
+  mem:    { name: '内存占用率', desc: '实时内存占用 + 占用条', interactive: false },
+  volume: { name: '音量', desc: '壁纸播放音量，桌面直接拖动调节，点击图标静音', interactive: true },
+};
+const POS_LABELS = {
+  tl: '左上', tc: '上中', tr: '右上',
+  ml: '左中', mc: '居中', mr: '右中',
+  bl: '左下', bc: '下中', br: '右下',
+};
+
+function saveWidgets(patch) {
+  const w = { ...(state.settings.widgets || {}), ...patch };
+  state.settings.widgets = w;
+  window.api.updateSettings({ widgets: w });
+}
+
+function renderWidgetsSettings() {
+  const w = state.settings.widgets || {};
+  $('#wg-enabled').checked = !!w.enabled;
+  $$('#wg-theme button').forEach(b => b.classList.toggle('active', b.dataset.theme === (w.theme || 'auto')));
+  const op = Math.round((w.opacity ?? 0.72) * 100);
+  $('#wg-opacity').value = op;
+  $('#wg-opacity-num').value = op;
+  // 组件卡片
+  const wrap = $('#wg-items');
+  wrap.innerHTML = '';
+  for (const [key, meta] of Object.entries(WIDGET_META)) {
+    const item = w.items?.[key] || { on: false, pos: 'tl', size: 'm' };
+    const card = document.createElement('div');
+    card.className = 'settings-card wg-card';
+
+    const head = document.createElement('label');
+    head.className = 'switch-row';
+    head.innerHTML = `
+      <div>
+        <div class="row-title">${meta.name}${meta.interactive ? ' <span class="title-hint">可交互</span>' : ''}</div>
+        <div class="row-sub">${meta.desc}</div>
+      </div>
+      <span class="switch"><input type="checkbox" data-wg-toggle="${key}" ${item.on ? 'checked' : ''}><i></i></span>`;
+    card.appendChild(head);
+
+    const body = document.createElement('div');
+    body.className = 'wg-card-body';
+    // 位置九宫格
+    const posWrap = document.createElement('div');
+    posWrap.className = 'wg-pos';
+    posWrap.innerHTML = '<span class="wg-pos-label">位置</span>';
+    const grid = document.createElement('div');
+    grid.className = 'pos-grid';
+    for (const pos of Object.keys(POS_LABELS)) {
+      const pb = document.createElement('button');
+      pb.className = 'pos-cell' + (item.pos === pos ? ' active' : '');
+      pb.title = POS_LABELS[pos];
+      pb.dataset.pos = pos;
+      pb.addEventListener('click', () => {
+        saveWidgets({ items: { [key]: { ...item, pos } } });
+        renderWidgetsSettings();
+      });
+      grid.appendChild(pb);
+    }
+    posWrap.appendChild(grid);
+    body.appendChild(posWrap);
+    // 大小
+    const sizeWrap = document.createElement('div');
+    sizeWrap.className = 'wg-size';
+    sizeWrap.innerHTML = '<span class="wg-pos-label">大小</span>';
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    for (const s of [['s', '小'], ['m', '中'], ['l', '大']]) {
+      const sb = document.createElement('button');
+      sb.textContent = s[1];
+      if ((item.size || 'm') === s[0]) sb.classList.add('active');
+      sb.addEventListener('click', () => {
+        saveWidgets({ items: { [key]: { ...item, size: s[0] } } });
+        renderWidgetsSettings();
+      });
+      seg.appendChild(sb);
+    }
+    sizeWrap.appendChild(seg);
+    body.appendChild(sizeWrap);
+    card.appendChild(body);
+    wrap.appendChild(card);
+  }
+
+  // 开关事件
+  wrap.querySelectorAll('[data-wg-toggle]').forEach(t => {
+    t.addEventListener('change', () => {
+      const key = t.dataset.wgToggle;
+      const item = state.settings.widgets?.items?.[key] || { on: false, pos: 'tl', size: 'm' };
+      saveWidgets({ items: { [key]: { ...item, on: t.checked } } });
+    });
+  });
+}
+
+function bindWidgetsSettings() {
+  $('#wg-enabled').addEventListener('change', (e) => {
+    saveWidgets({ enabled: e.target.checked });
+    toast(e.target.checked ? '桌面组件已开启，回到桌面查看效果' : '桌面组件已关闭');
+  });
+  $$('#wg-theme button').forEach(b => {
+    b.addEventListener('click', () => {
+      $$('#wg-theme button').forEach(x => x.classList.toggle('active', x === b));
+      saveWidgets({ theme: b.dataset.theme });
+    });
+  });
+  const applyOpacity = (v) => {
+    v = Math.min(100, Math.max(20, Math.round(v) || 72));
+    $('#wg-opacity').value = v;
+    $('#wg-opacity-num').value = v;
+    saveWidgets({ opacity: v / 100 });
+  };
+  $('#wg-opacity').addEventListener('input', (e) => {
+    $('#wg-opacity-num').value = e.target.value;
+  });
+  $('#wg-opacity').addEventListener('change', (e) => applyOpacity(parseFloat(e.target.value)));
+  $('#wg-opacity-num').addEventListener('change', (e) => applyOpacity(parseFloat(e.target.value)));
+}
+
+// ---------- 壁纸站点 ----------
+const SITES = [
+  { name: 'Wallhaven', url: 'https://wallhaven.cc', desc: '全球热门壁纸社区，海量 4K/8K 壁纸，分类检索强大', tags: ['4K/8K', '动漫', '游戏'] },
+  { name: 'Unsplash', url: 'https://unsplash.com', desc: '高质量摄影壁纸，可免费商用', tags: ['摄影', '免费商用'] },
+  { name: 'Pexels', url: 'https://www.pexels.com', desc: '免费高清图片与视频素材库', tags: ['图片', '视频'] },
+  { name: 'Pixabay', url: 'https://pixabay.com', desc: '海量免费图片 / 视频 / 插画', tags: ['免费', '插画'] },
+  { name: 'Wallpaper Abyss', url: 'https://wall.alphacoders.com', desc: '超大壁纸库，游戏 / 动漫 / 影视专题', tags: ['游戏', '动漫'] },
+  { name: '必应壁纸', url: 'https://bing.ioliu.cn', desc: '微软必应每日一图，可下载历史全部图片', tags: ['每日一图', '4K'] },
+  { name: '极像素', url: 'https://www.sigoo.com', desc: '国内超高清原创壁纸，风光大片', tags: ['国内', '超高清'] },
+  { name: '彼岸图网', url: 'https://www.netbian.com', desc: '国内老牌壁纸站，4K 分类齐全', tags: ['国内', '4K'] },
+  { name: 'Simple Desktops', url: 'https://simpledesktops.com', desc: '极简主义壁纸，清爽不花哨', tags: ['极简'] },
+];
+
+function renderSites() {
+  const grid = $('#sites-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  for (const s of SITES) {
+    const card = document.createElement('button');
+    card.className = 'site-card';
+    card.title = `在新窗口打开 ${s.url}`;
+    const host = s.url.replace(/^https?:\/\//, '');
+    card.innerHTML = `
+      <div class="site-head">
+        <span class="site-name">${s.name}</span>
+        <span class="site-open">前往 →</span>
+      </div>
+      <div class="site-desc">${s.desc}</div>
+      <div class="site-tags">${s.tags.map(t => `<span>${t}</span>`).join('')}</div>
+      <div class="site-host">${host}</div>`;
+    card.addEventListener('click', () => window.api.openExternal(s.url));
+    grid.appendChild(card);
+  }
 }
 
 // ---------- 设置页 ----------

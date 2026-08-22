@@ -9,7 +9,20 @@ const DEFAULT_CONFIG = {
   settings: {
     mpvPath: 'auto',            // auto=自动查找内置/PATH
     autoStart: false,           // 开机自启
-    rotation: { enabled: false, intervalMin: 30, scope: 'all' }, // 定时轮换
+    wallpaperPaused: false,     // 全局暂停（视频冻结 + 轮换停止）
+    rotation: { enabled: false, intervalMin: 30, scope: 'all', order: 'random', list: [] }, // 定时轮换
+    widgets: {                  // 桌面 DIY 组件
+      enabled: false,
+      theme: 'auto',            // auto/light/dark
+      opacity: 0.72,            // 组件面板底透明度
+      items: {
+        clock:  { on: false, pos: 'tl', size: 'l' }, // 时钟（可点击切换12/24小时制）
+        cpu:    { on: false, pos: 'tr', size: 'm' },
+        gpu:    { on: false, pos: 'tr', size: 'm' },
+        mem:    { on: false, pos: 'tr', size: 'm' },
+        volume: { on: false, pos: 'br', size: 'm' }, // 音量（可拖动调节/点击静音）
+      },
+    },
     lastWindowBounds: null,     // 主窗口位置记忆
     performance: { fullscreenPause: true }, // 性能：全屏应用时自动暂停视频壁纸
   },
@@ -32,6 +45,12 @@ class Store {
           settings: {
             ...DEFAULT_CONFIG.settings,
             ...(raw.settings || {}),
+            rotation: { ...DEFAULT_CONFIG.settings.rotation, ...((raw.settings || {}).rotation || {}) },
+            widgets: {
+              ...DEFAULT_CONFIG.settings.widgets,
+              ...((raw.settings || {}).widgets || {}),
+              items: { ...DEFAULT_CONFIG.settings.widgets.items, ...(((raw.settings || {}).widgets || {}).items || {}) },
+            },
             performance: { ...DEFAULT_CONFIG.settings.performance, ...((raw.settings || {}).performance || {}) },
           },
         };

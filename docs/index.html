@@ -192,6 +192,18 @@ thead th:nth-child(2)::after {
 .ver-block li { color: var(--dim); font-size: 14px; padding: 3.5px 0; padding-left: 18px; position: relative; }
 .ver-block li::before { content: '·'; position: absolute; left: 4px; color: var(--accent); font-weight: 700; }
 .ver-block li b { color: var(--text); font-weight: 600; }
+.ver-dl { display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+.ver-dl a {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 600;
+  padding: 7px 16px; border-radius: 9px;
+  border: 1px solid var(--border); color: var(--text);
+  background: rgba(255,255,255,.03);
+  transition: border-color .15s, transform .15s;
+}
+.ver-dl a:first-child { color: #fff; background: var(--grad); border-color: transparent; box-shadow: 0 4px 16px rgba(100,110,255,.25); }
+.ver-dl a:hover { transform: translateY(-1px); border-color: var(--accent); }
+.ver-dl a:first-child:hover { border-color: transparent; }
 
 /* 底部 CTA */
 .final {
@@ -263,17 +275,18 @@ footer {
 
 <header>
   <div class="wrap hero-inner">
-    <div class="ver-badge"><i></i>v1.1.0 · 全新参数调节与独立预览窗口</div>
+    <div class="ver-badge"><i></i>v1.2.0 · 桌面 DIY 组件 · 定时轮换 · 壁纸站点导航</div>
     <h1>让桌面<span class="grad">动起来</span></h1>
-    <p class="tagline">壁纸工坊是一款免费开源的 Windows 桌面壁纸软件 — 视频、图片、网页、EXE 程序皆可设为壁纸，参数精确可调，性能深度优化。</p>
+    <p class="tagline">壁纸工坊是一款免费开源的 Windows 桌面壁纸软件 — 视频、图片、网页、EXE 程序皆可设为壁纸，时钟/CPU/GPU/音量组件融入桌面，参数精确可调，性能深度优化。</p>
     <div class="cta-row">
-      <a class="btn btn-primary" href="https://github.com/Alinyu330/wallpaper-studio/releases/latest/download/WallpaperStudio-Setup-1.1.0.exe" onclick="trackDownload(this)">
+      <a class="btn btn-primary" href="https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.2.0/WallpaperStudio-Setup-1.2.0.exe" onclick="trackDownload(this)">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        下载 Windows 安装包
+        国内高速下载 v1.2.0
       </a>
+      <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.2.0/WallpaperStudio-Setup-1.2.0.exe" onclick="trackDownload(this)">GitHub 直连下载</a>
       <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio" target="_blank" rel="noopener">查看源码</a>
     </div>
-    <p class="cta-note"><span>Windows 10 / 11 · x64</span><span>v1.1.0 · 约 200 MB（内置全格式解码器）</span><span>MIT 开源协议</span></p>
+    <p class="cta-note"><span>Windows 10 / 11 · x64</span><span>v1.2.0 · 约 200 MB（内置全格式解码器）</span><span>MIT 开源协议</span><span>下载慢？试试 <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.2.0/WallpaperStudio-Setup-1.2.0.exe" style="color:var(--accent2)">备用加速节点</a></span></p>
     <div class="shot-wrap">
       <img src="app-screenshot.png" alt="壁纸工坊主界面 — 壁纸库、实时预览与参数调节面板" loading="eager">
     </div>
@@ -317,6 +330,18 @@ footer {
     <p class="sec-sub">每一个参数都有固定调整点与精确数值输入，每一帧渲染都为低占用而优化。</p>
     <div class="feat-grid">
       <div class="feat">
+        <h3><span class="dot"></span>桌面 DIY 组件 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.2.0 新增</em></h3>
+        <p>时钟（点击切换 12/24 小时制）、CPU / GPU / 内存实时占用条、音量控制条 — 自由搭配融入壁纸，桌面直接拖动调音量、点击静音，全部可交互。</p>
+      </div>
+      <div class="feat">
+        <h3><span class="dot"></span>暂停壁纸 · 定时轮换 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.2.0 新增</em></h3>
+        <p>一键暂停视频与轮换恢复桌面清爽（托盘亦可操作）；多壁纸定时轮换支持全部/收藏/自定义列表，随机或顺序切换，工具栏一键"下一张"。</p>
+      </div>
+      <div class="feat">
+        <h3><span class="dot"></span>壁纸站点导航 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.2.0 新增</em></h3>
+        <p>内置 Wallhaven、必应壁纸、Unsplash、Pexels 等热门免费壁纸站点，点击直达浏览器，找壁纸不用再到处搜。</p>
+      </div>
+      <div class="feat">
         <h3><span class="dot"></span>参数精确调节</h3>
         <p>播放速度（0.25×–4×）、音量、亮度、对比度、饱和度全部可调。每项参数提供固定调整点一键跳转，也支持直接输入数值精确设定，调节实时生效。</p>
       </div>
@@ -334,11 +359,15 @@ footer {
       </div>
       <div class="feat">
         <h3><span class="dot"></span>壁纸管理</h3>
-        <p>收藏、搜索、类型筛选、自动轮换（间隔/范围可配）。双击卡片即可应用，托盘常驻随时暂停/恢复/切换。</p>
+        <p>收藏、搜索、类型筛选、双击卡片即可应用，托盘常驻随时暂停/恢复/切换。</p>
       </div>
       <div class="feat">
         <h3><span class="dot"></span>稳定看门狗</h3>
         <p>壁纸窗口丢失自动恢复、桌面层级变化自动重挂载、播放状态自动对账 — 关掉资源管理器、切换显示器，壁纸始终稳定显示。</p>
+      </div>
+      <div class="feat">
+        <h3><span class="dot"></span>全格式 mpv 内核</h3>
+        <p>MP4 / AVI / MKV / FLV / WebM / MOV 全格式硬解直读，无需转码；内置完整解码器，安装即用。</p>
       </div>
     </div>
   </div>
@@ -366,6 +395,9 @@ footer {
           <tr><td>全格式视频（MP4/AVI/MKV/FLV…）</td><td class="yes">✓ mpv 内核</td><td class="yes">✓</td><td class="no">仅常见格式</td><td class="no">仅常见格式</td></tr>
           <tr><td>EXE 程序壁纸</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">✕</td><td class="no">✕</td></tr>
           <tr><td>播放速度调节</td><td class="yes">✓ 0.25×–4×</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
+          <tr><td>桌面 DIY 组件（时钟/CPU/GPU/音量）</td><td class="self">✓ 内置可交互</td><td class="no">需创意工坊资产</td><td class="no">✕</td><td class="no">✕</td></tr>
+          <tr><td>多壁纸定时轮换</td><td class="yes">✓ 随机/顺序/自定义列表</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">✕</td></tr>
+          <tr><td>壁纸站点导航</td><td class="yes">✓ 内置热门站点</td><td class="yes">✓ 创意工坊</td><td class="no">✕</td><td class="yes">✓ 内容社区</td></tr>
           <tr><td>亮度/对比度/饱和度调节</td><td class="yes">✓ 含预设点</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
           <tr><td>渲染分辨率限制</td><td class="yes">✓</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
           <tr><td>锁屏壁纸设置</td><td class="yes">✓</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
@@ -382,18 +414,35 @@ footer {
 <section id="changelog" style="background: var(--bg2);">
   <div class="wrap reveal">
     <div class="sec-tag">版本信息</div>
-    <h2>更新日志</h2>
-    <p class="sec-sub">当前版本 <b style="color: var(--text)">v1.1.0</b> · 持续迭代中</p>
+    <h2>更新日志与历史版本</h2>
+    <p class="sec-sub">当前版本 <b style="color: var(--text)">v1.2.0</b> · 持续迭代中 · 每个版本均可下载安装包</p>
     <div class="ver-block">
-      <h3>v1.1.0 <span class="tag">最新</span></h3>
+      <h3>v1.2.0 <span class="tag">最新</span></h3>
+      <ul>
+        <li><b>新增</b> 桌面 DIY 组件 — 时钟（12/24 小时制点击切换）、CPU / GPU / 内存实时占用条、音量控制条，位置/大小/透明度自由搭配，融入壁纸可交互</li>
+        <li><b>新增</b> 壁纸暂停功能 — 一键暂停视频播放与轮换，托盘同步操作，重启保持状态</li>
+        <li><b>新增</b> 多壁纸定时轮换升级 — 随机/顺序切换、全部/收藏/自定义列表三种范围、工具栏"下一张"按钮</li>
+        <li><b>新增</b> 壁纸站点导航 — 内置 Wallhaven、必应壁纸、Unsplash、Pexels 等 9 个热门免费壁纸站点</li>
+        <li><b>新增</b> 音量组件桌面直接拖动调节、点击静音</li>
+      </ul>
+      <div class="ver-dl">
+        <a href="https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.2.0/WallpaperStudio-Setup-1.2.0.exe" onclick="trackDownload(this)">国内加速下载 v1.2.0</a>
+        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.2.0/WallpaperStudio-Setup-1.2.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
+      </div>
+    </div>
+    <div class="ver-block" style="border-left-color: var(--border);">
+      <h3>v1.1.0</h3>
       <ul>
         <li><b>新增</b> 每项参数的固定调整点，点击快速跳转到指定值</li>
         <li><b>新增</b> 参数数值精确输入框（支持回车/失焦应用，自动钳制范围）</li>
         <li><b>新增</b> 独立预览窗口 — 弹出后可自由缩放，参数实时同步</li>
-        <li><b>新增</b> 内嵌预览区放大缩小（参数面板宽度自适应）</li>
         <li><b>修复</b> 动态壁纸偶发停留在暂停状态不恢复的问题（播放状态周期对账）</li>
         <li><b>优化</b> 全屏检测防误判 — 最大化窗口与系统覆盖层不再触发暂停</li>
       </ul>
+      <div class="ver-dl">
+        <a href="https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe" onclick="trackDownload(this)">国内加速下载 v1.1.0</a>
+        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
+      </div>
     </div>
     <div class="ver-block" style="border-left-color: var(--border);">
       <h3>v1.0.0</h3>
@@ -404,6 +453,7 @@ footer {
         <li>性能优化：渲染分辨率限制、渲染质量三档、全屏自动暂停</li>
         <li>锁屏壁纸设置（PersonalizationCSP 策略）</li>
       </ul>
+      <p style="color:var(--dim);font-size:12.5px;margin-top:12px;">* v1.0.0 为内部首发版本，未提供公开安装包；公开发布自 v1.1.0 起。</p>
     </div>
   </div>
 </section>
@@ -413,10 +463,11 @@ footer {
     <h2>把桌面交给想象力</h2>
     <p>免费、开源、开箱即用。</p>
     <div class="cta-row" style="justify-content: center;">
-      <a class="btn btn-primary" href="https://github.com/Alinyu330/wallpaper-studio/releases/latest/download/WallpaperStudio-Setup-1.1.0.exe" onclick="trackDownload(this)">
+      <a class="btn btn-primary" href="https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.2.0/WallpaperStudio-Setup-1.2.0.exe" onclick="trackDownload(this)">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        下载 v1.1.0 安装包
+        国内高速下载 v1.2.0
       </a>
+      <a class="btn btn-ghost" href="#changelog">历史版本下载</a>
       <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases" target="_blank" rel="noopener">全部版本</a>
     </div>
   </div>
@@ -424,7 +475,7 @@ footer {
 
 <footer>
   <div class="wrap foot-inner">
-    <div>壁纸工坊 Wallpaper Studio · v1.1.0 · MIT License</div>
+    <div>壁纸工坊 Wallpaper Studio · v1.2.0 · MIT License</div>
     <div class="foot-links">
       <a href="https://github.com/Alinyu330/wallpaper-studio" target="_blank" rel="noopener">GitHub</a>
       <a href="https://github.com/Alinyu330/wallpaper-studio/releases" target="_blank" rel="noopener">发布版本</a>
