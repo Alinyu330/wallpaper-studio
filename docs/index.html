@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>壁纸工坊 Wallpaper Studio — 免费/开源的桌面壁纸软件</title>
+<meta name="description" content="壁纸工坊：免费开源的 Windows 桌面壁纸软件。支持静态图片、动态视频（MP4/AVI/MKV）、网页与 EXE 壁纸，播放速度/亮度/分辨率等参数自由调节，实时预览、性能优化、一键设置桌面与锁屏。">
+<link rel="icon" href="favicon.png" type="image/png">
+<style>
+:root {
+  --bg: #0d0f14;
+  --bg2: #10131b;
+  --text: #e8eaf2;
+  --dim: #8b91a5;
+  --accent: #7c5cff;
+  --accent2: #4f8cff;
+  --grad: linear-gradient(135deg, #7c5cff, #4f8cff);
+  --border: #232938;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
+
+/* ---------- 顶部导航 ---------- */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+  background: rgba(13,15,20,.82);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-inner {
+  max-width: 1080px; margin: 0 auto; padding: 0 28px;
+  height: 58px; display: flex; align-items: center; justify-content: space-between;
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15.5px; }
+.brand-mark { width: 18px; height: 18px; border-radius: 5px; background: var(--grad); }
+.nav-links { display: flex; align-items: center; gap: 26px; font-size: 13.5px; color: var(--dim); }
+.nav-links a:hover { color: var(--text); }
+.nav-github { display: flex; align-items: center; gap: 6px; }
+
+/* ---------- Hero ---------- */
+header {
+  padding: 138px 0 72px;
+  position: relative;
+  overflow: hidden;
+}
+header::before {
+  content: '';
+  position: absolute; inset: -40% -20% auto;
+  height: 130%;
+  background:
+    radial-gradient(42% 55% at 24% 28%, rgba(124,92,255,.16), transparent 70%),
+    radial-gradient(38% 50% at 76% 18%, rgba(79,140,255,.13), transparent 70%);
+  pointer-events: none;
+}
+.hero-inner { position: relative; }
+.ver-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12.5px; color: var(--dim);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 4px 14px; margin-bottom: 22px;
+  background: rgba(255,255,255,.02);
+}
+.ver-badge i { width: 7px; height: 7px; border-radius: 50%; background: #5fd39a; display: inline-block; }
+h1 {
+  font-size: clamp(38px, 6vw, 64px);
+  font-weight: 700;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+  margin-bottom: 18px;
+}
+h1 .grad { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tagline {
+  font-size: clamp(15.5px, 2vw, 19px);
+  color: var(--dim);
+  max-width: 620px;
+  margin-bottom: 36px;
+}
+.cta-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+.btn {
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 13px 30px; border-radius: 12px;
+  font-size: 15px; font-weight: 600;
+  border: 1px solid transparent;
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s;
+  cursor: pointer;
+}
+.btn-primary { background: var(--grad); color: #fff; box-shadow: 0 8px 28px rgba(100,110,255,.32); }
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 34px rgba(100,110,255,.44); }
+.btn-ghost { background: rgba(255,255,255,.03); border-color: var(--border); color: var(--text); }
+.btn-ghost:hover { border-color: var(--accent); transform: translateY(-2px); }
+.cta-note { font-size: 12.5px; color: var(--dim); margin-top: 16px; }
+.cta-note span { margin-right: 16px; }
+
+/* 截图 */
+.shot-wrap { margin-top: 58px; position: relative; }
+.shot-wrap img {
+  display: block; width: 100%;
+  border-radius: 14px;
+  border: 1px solid #2a3040;
+  box-shadow: 0 30px 80px rgba(0,0,0,.55), 0 8px 30px rgba(0,0,0,.4);
+}
+.shot-wrap::after {
+  content: '';
+  position: absolute; left: 0; right: 0; bottom: -1px; height: 120px;
+  background: linear-gradient(to bottom, transparent, var(--bg) 92%);
+  border-radius: 0 0 14px 14px;
+}
+
+/* ---------- 章节 ---------- */
+section { padding: 84px 0; }
+.sec-tag {
+  font-size: 12.5px; font-weight: 600; letter-spacing: .16em;
+  color: var(--accent2); text-transform: uppercase;
+  margin-bottom: 12px;
+}
+h2 { font-size: clamp(26px, 3.6vw, 36px); font-weight: 700; letter-spacing: -.01em; margin-bottom: 14px; }
+.sec-sub { color: var(--dim); font-size: 15.5px; max-width: 640px; margin-bottom: 46px; }
+
+/* 四类壁纸：分栏列表 */
+.type-list { border-top: 1px solid var(--border); }
+.type-row {
+  display: grid; grid-template-columns: 92px 1fr 1.2fr;
+  gap: 28px; align-items: baseline;
+  padding: 26px 4px;
+  border-bottom: 1px solid var(--border);
+  transition: background .15s;
+}
+.type-row:hover { background: rgba(255,255,255,.015); }
+.type-icon { font-size: 30px; }
+.type-name { font-size: 18px; font-weight: 600; }
+.type-name small { display: block; font-weight: 400; font-size: 12.5px; color: var(--accent2); margin-top: 3px; }
+.type-desc { color: var(--dim); font-size: 14.5px; }
+
+/* 功能特性 */
+.feat-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 0;
+  border: 1px solid var(--border); border-radius: 16px;
+  overflow: hidden;
+}
+.feat {
+  padding: 30px 32px;
+  border-bottom: 1px solid var(--border);
+  transition: background .15s;
+}
+.feat:nth-child(odd) { border-right: 1px solid var(--border); }
+.feat:nth-last-child(-n+2) { border-bottom: none; }
+.feat:hover { background: rgba(255,255,255,.015); }
+.feat h3 { font-size: 16.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+.feat h3 .dot { width: 8px; height: 8px; border-radius: 3px; background: var(--grad); flex: none; }
+.feat p { color: var(--dim); font-size: 14px; }
+
+/* 对比表 */
+.compare { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 660px; }
+th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--border); }
+th { color: var(--dim); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
+td:first-child { color: var(--dim); white-space: nowrap; }
+td:not(:first-child) { text-align: center; }
+thead th:not(:first-child) { text-align: center; }
+thead th:nth-child(2) { color: var(--text); }
+tbody tr:hover { background: rgba(255,255,255,.015); }
+.yes { color: #5fd39a; font-weight: 600; }
+.no { color: #565d70; }
+.self { color: var(--accent2); font-weight: 600; }
+thead th:nth-child(2)::after {
+  content: '本软件';
+  display: inline-block; margin-left: 7px;
+  font-size: 10px; font-weight: 600; color: #fff;
+  background: var(--grad); border-radius: 999px; padding: 1.5px 8px;
+  vertical-align: 1px;
+}
+
+/* 版本信息 */
+.ver-block { border-left: 2px solid var(--accent); padding: 4px 0 4px 24px; margin-bottom: 34px; }
+.ver-block h3 { font-size: 17px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
+.ver-block h3 .tag {
+  font-size: 10.5px; font-weight: 600; color: var(--accent2);
+  background: rgba(79,140,255,.12); padding: 2px 9px; border-radius: 999px;
+}
+.ver-block ul { list-style: none; }
+.ver-block li { color: var(--dim); font-size: 14px; padding: 3.5px 0; padding-left: 18px; position: relative; }
+.ver-block li::before { content: '·'; position: absolute; left: 4px; color: var(--accent); font-weight: 700; }
+.ver-block li b { color: var(--text); font-weight: 600; }
+
+/* 底部 CTA */
+.final {
+  text-align: center;
+  padding: 96px 0;
+  border-top: 1px solid var(--border);
+  position: relative; overflow: hidden;
+}
+.final::before {
+  content: '';
+  position: absolute; left: 50%; top: 0; transform: translateX(-50%);
+  width: 600px; height: 300px;
+  background: radial-gradient(50% 100% at 50% 0%, rgba(124,92,255,.14), transparent 70%);
+  pointer-events: none;
+}
+.final h2 { margin-bottom: 12px; }
+.final p { color: var(--dim); margin-bottom: 32px; }
+
+footer {
+  border-top: 1px solid var(--border);
+  padding: 26px 0 34px;
+  color: var(--dim); font-size: 13px;
+}
+.foot-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; }
+.foot-links { display: flex; gap: 22px; }
+.foot-links a:hover { color: var(--text); }
+
+/* ---------- 动效 ---------- */
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.hero-inner > * { animation: riseIn .7s cubic-bezier(.2,.7,.3,1) both; }
+.hero-inner > *:nth-child(2) { animation-delay: .08s; }
+.hero-inner > *:nth-child(3) { animation-delay: .16s; }
+.hero-inner > *:nth-child(4) { animation-delay: .24s; }
+.hero-inner > *:nth-child(5) { animation-delay: .3s; }
+.shot-wrap { animation: riseIn .8s cubic-bezier(.2,.7,.3,1) .35s both; }
+.reveal { opacity: 0; transform: translateY(26px); transition: opacity .7s cubic-bezier(.2,.7,.3,1), transform .7s cubic-bezier(.2,.7,.3,1); }
+.reveal.in { opacity: 1; transform: translateY(0); }
+
+@media (max-width: 860px) {
+  .type-row { grid-template-columns: 56px 1fr; }
+  .type-desc { grid-column: 2; }
+  .feat-grid { grid-template-columns: 1fr; }
+  .feat:nth-child(odd) { border-right: none; }
+  .feat:nth-last-child(-n+2) { border-bottom: 1px solid var(--border); }
+  .feat:last-child { border-bottom: none; }
+  .nav-links a.hide-m { display: none; }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <div class="brand"><span class="brand-mark"></span>壁纸工坊</div>
+    <div class="nav-links">
+      <a href="#features" class="hide-m">功能</a>
+      <a href="#compare" class="hide-m">对比</a>
+      <a href="#changelog" class="hide-m">版本</a>
+      <a href="https://github.com/Alinyu330/wallpaper-studio" target="_blank" rel="noopener" class="nav-github">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56 0-.27-.01-1.17-.02-2.12-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.75 2.69 1.25 3.34.95.1-.74.4-1.25.72-1.54-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 5.79 0c2.21-1.49 3.18-1.18 3.18-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.38-5.25 5.67.41.35.77 1.05.77 2.12 0 1.53-.01 2.76-.01 3.14 0 .31.21.68.8.56A10.52 10.52 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<header>
+  <div class="wrap hero-inner">
+    <div class="ver-badge"><i></i>v1.1.0 · 全新参数调节与独立预览窗口</div>
+    <h1>让桌面<span class="grad">动起来</span></h1>
+    <p class="tagline">壁纸工坊是一款免费开源的 Windows 桌面壁纸软件 — 视频、图片、网页、EXE 程序皆可设为壁纸，参数精确可调，性能深度优化。</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/Alinyu330/wallpaper-studio/releases/latest/download/WallpaperStudio-Setup-1.1.0.exe" onclick="trackDownload(this)">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        下载 Windows 安装包
+      </a>
+      <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio" target="_blank" rel="noopener">查看源码</a>
+    </div>
+    <p class="cta-note"><span>Windows 10 / 11 · x64</span><span>v1.1.0 · 约 200 MB（内置全格式解码器）</span><span>MIT 开源协议</span></p>
+    <div class="shot-wrap">
+      <img src="app-screenshot.png" alt="壁纸工坊主界面 — 壁纸库、实时预览与参数调节面板" loading="eager">
+    </div>
+  </div>
+</header>
+
+<section id="types">
+  <div class="wrap reveal">
+    <div class="sec-tag">支持四类壁纸</div>
+    <h2>不止是视频壁纸</h2>
+    <p class="sec-sub">从静态图片到可交互网页、再到任意 EXE 程序，桌面可以是你想要的任何样子。</p>
+    <div class="type-list">
+      <div class="type-row">
+        <div class="type-icon">🖼️</div>
+        <div class="type-name">静态图片<small>JPG · PNG · BMP · WEBP · GIF</small></div>
+        <div class="type-desc">一键设为桌面壁纸，并可同步设置为 Windows 锁屏与登录界面背景。</div>
+      </div>
+      <div class="type-row">
+        <div class="type-icon">🎬</div>
+        <div class="type-name">动态视频<small>MP4 · AVI · MKV · FLV · WebM · MOV</small></div>
+        <div class="type-desc">mpv 播放引擎驱动，全格式硬解直读，无需转码。速度、音量、亮度实时可调。</div>
+      </div>
+      <div class="type-row">
+        <div class="type-icon">🌐</div>
+        <div class="type-name">网页壁纸<small>任意 URL · 本地 HTML</small></div>
+        <div class="type-desc">把网页挂在桌面上 — 直播流、数据面板、粒子特效页面皆可。</div>
+      </div>
+      <div class="type-row">
+        <div class="type-icon">⚡</div>
+        <div class="type-name">程序壁纸<small>任意 EXE 应用</small></div>
+        <div class="type-desc">主流壁纸软件中少见的完整支持 — 启动第三方场景程序并自动去边框嵌入桌面层。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="features" style="background: var(--bg2);">
+  <div class="wrap reveal">
+    <div class="sec-tag">核心特性</div>
+    <h2>为壁纸而生，为性能而调</h2>
+    <p class="sec-sub">每一个参数都有固定调整点与精确数值输入，每一帧渲染都为低占用而优化。</p>
+    <div class="feat-grid">
+      <div class="feat">
+        <h3><span class="dot"></span>参数精确调节</h3>
+        <p>播放速度（0.25×–4×）、音量、亮度、对比度、饱和度全部可调。每项参数提供固定调整点一键跳转，也支持直接输入数值精确设定，调节实时生效。</p>
+      </div>
+      <div class="feat">
+        <h3><span class="dot"></span>实时预览 · 独立窗口</h3>
+        <p>按主显示器真实比例预览壁纸效果，预览区可放大缩小，还可弹出独立预览窗口自由调整大小，参数调节实时同步反馈。</p>
+      </div>
+      <div class="feat">
+        <h3><span class="dot"></span>深度性能优化</h3>
+        <p>GPU 硬件解码 + 渲染分辨率限制（原生/1080P/720P/480P）+ 渲染质量三档 + 全屏应用自动暂停。游戏时自动释放 CPU/GPU，退出全屏自动恢复。</p>
+      </div>
+      <div class="feat">
+        <h3><span class="dot"></span>桌面与锁屏一键设置</h3>
+        <p>壁纸窗口嵌入系统 WorkerW 图标层之下，多显示器铺满虚拟桌面；图片壁纸可一键同步设置为 Windows 锁屏与登录背景。</p>
+      </div>
+      <div class="feat">
+        <h3><span class="dot"></span>壁纸管理</h3>
+        <p>收藏、搜索、类型筛选、自动轮换（间隔/范围可配）。双击卡片即可应用，托盘常驻随时暂停/恢复/切换。</p>
+      </div>
+      <div class="feat">
+        <h3><span class="dot"></span>稳定看门狗</h3>
+        <p>壁纸窗口丢失自动恢复、桌面层级变化自动重挂载、播放状态自动对账 — 关掉资源管理器、切换显示器，壁纸始终稳定显示。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="compare">
+  <div class="wrap reveal">
+    <div class="sec-tag">横向对比</div>
+    <h2>与主流壁纸软件对比</h2>
+    <p class="sec-sub">免费、开源、全格式、可深度调参 — 一张表看清差异。</p>
+    <div class="compare">
+      <table>
+        <thead>
+          <tr>
+            <th>能力</th>
+            <th>壁纸工坊</th>
+            <th>Wallpaper Engine</th>
+            <th>Lively Wallpaper</th>
+            <th>火萤视频桌面</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>价格</td><td class="self">免费开源</td><td class="no">付费（¥19）</td><td class="yes">免费</td><td class="yes">免费</td></tr>
+          <tr><td>视频壁纸</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          <tr><td>全格式视频（MP4/AVI/MKV/FLV…）</td><td class="yes">✓ mpv 内核</td><td class="yes">✓</td><td class="no">仅常见格式</td><td class="no">仅常见格式</td></tr>
+          <tr><td>EXE 程序壁纸</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">✕</td><td class="no">✕</td></tr>
+          <tr><td>播放速度调节</td><td class="yes">✓ 0.25×–4×</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
+          <tr><td>亮度/对比度/饱和度调节</td><td class="yes">✓ 含预设点</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
+          <tr><td>渲染分辨率限制</td><td class="yes">✓</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
+          <tr><td>锁屏壁纸设置</td><td class="yes">✓</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
+          <tr><td>全屏应用自动暂停</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
+          <tr><td>安装体积</td><td class="self">约 200 MB</td><td class="no">约 700 MB</td><td class="yes">约 200 MB</td><td class="yes">约 100 MB</td></tr>
+          <tr><td>开源可审计</td><td class="yes">✓ MIT</td><td class="no">✕</td><td class="yes">✓</td><td class="no">✕</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="color: var(--dim); font-size: 12.5px; margin-top: 18px;">* 对比基于各软件 2026 年公开版本的默认功能，仅供参考。</p>
+  </div>
+</section>
+
+<section id="changelog" style="background: var(--bg2);">
+  <div class="wrap reveal">
+    <div class="sec-tag">版本信息</div>
+    <h2>更新日志</h2>
+    <p class="sec-sub">当前版本 <b style="color: var(--text)">v1.1.0</b> · 持续迭代中</p>
+    <div class="ver-block">
+      <h3>v1.1.0 <span class="tag">最新</span></h3>
+      <ul>
+        <li><b>新增</b> 每项参数的固定调整点，点击快速跳转到指定值</li>
+        <li><b>新增</b> 参数数值精确输入框（支持回车/失焦应用，自动钳制范围）</li>
+        <li><b>新增</b> 独立预览窗口 — 弹出后可自由缩放，参数实时同步</li>
+        <li><b>新增</b> 内嵌预览区放大缩小（参数面板宽度自适应）</li>
+        <li><b>修复</b> 动态壁纸偶发停留在暂停状态不恢复的问题（播放状态周期对账）</li>
+        <li><b>优化</b> 全屏检测防误判 — 最大化窗口与系统覆盖层不再触发暂停</li>
+      </ul>
+    </div>
+    <div class="ver-block" style="border-left-color: var(--border);">
+      <h3>v1.0.0</h3>
+      <ul>
+        <li>图片 / 视频 / 网页 / EXE 四类壁纸支持</li>
+        <li>mpv 播放引擎（全格式硬解）、播放速度/音量/亮度/对比度/饱和度调节</li>
+        <li>实时预览、收藏/搜索/筛选、自动轮换、托盘常驻</li>
+        <li>性能优化：渲染分辨率限制、渲染质量三档、全屏自动暂停</li>
+        <li>锁屏壁纸设置（PersonalizationCSP 策略）</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="final">
+  <div class="wrap reveal">
+    <h2>把桌面交给想象力</h2>
+    <p>免费、开源、开箱即用。</p>
+    <div class="cta-row" style="justify-content: center;">
+      <a class="btn btn-primary" href="https://github.com/Alinyu330/wallpaper-studio/releases/latest/download/WallpaperStudio-Setup-1.1.0.exe" onclick="trackDownload(this)">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        下载 v1.1.0 安装包
+      </a>
+      <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases" target="_blank" rel="noopener">全部版本</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-inner">
+    <div>壁纸工坊 Wallpaper Studio · v1.1.0 · MIT License</div>
+    <div class="foot-links">
+      <a href="https://github.com/Alinyu330/wallpaper-studio" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/Alinyu330/wallpaper-studio/releases" target="_blank" rel="noopener">发布版本</a>
+      <a href="https://github.com/Alinyu330/wallpaper-studio/issues" target="_blank" rel="noopener">问题反馈</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+// 滚动渐入
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+}, { threshold: 0.08 });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+// 下载按钮反馈
+function trackDownload(a) {
+  const original = a.innerHTML;
+  a.innerHTML = '正在开始下载…';
+  setTimeout(() => { a.innerHTML = original; }, 2200);
+}
+</script>
+</body>
+</html>

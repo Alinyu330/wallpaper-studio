@@ -1,0 +1,10 @@
+node_modules/
+.electron-cache/
+.electron-builder-cache/
+.userdata/
+dist/
+assets/mpv/
+*.log
+*.tmp
+.DS_Store
+Thumbs.db

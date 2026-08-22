@@ -1,0 +1,67 @@
+{
+  "name": "wallpaper-studio",
+  "productName": "壁纸工坊",
+  "version": "1.1.0",
+  "description": "PC 桌面壁纸软件：支持静态图片、动态视频(MP4/AVI/MKV等)、网页与 EXE 壁纸，可调节播放速度、亮度、分辨率等参数",
+  "main": "main.js",
+  "author": "WallPaper Studio",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Alinyu330/wallpaper-studio.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "get-mpv": "powershell -ExecutionPolicy Bypass -File scripts/get-mpv.ps1",
+    "build": "electron-builder --win",
+    "build:nsis": "electron-builder --win nsis",
+    "build:portable": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "koffi": "^2.9.0"
+  },
+  "build": {
+    "appId": "com.alinyu.wallpaperstudio",
+    "productName": "壁纸工坊",
+    "copyright": "Copyright © 2026 WallPaper Studio",
+    "directories": {
+      "output": "dist"
+    },
+    "asar": false,
+    "files": [
+      "main.js",
+      "preload-main.js",
+      "preload-wallpaper.js",
+      "preload-preview.js",
+      "src/**/*",
+      "renderer/**/*",
+      "assets/icon.png",
+      "assets/mpv/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "壁纸工坊",
+      "artifactName": "WallpaperStudio-Setup-${version}.${ext}"
+    }
+  }
+}

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Wallpaper</title>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
+    #img {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      display: none;
+    }
+    #web {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      border: none; display: none; background: #000;
+    }
+  </style>
+</head>
+<body>
+  <img id="img" alt="">
+  <iframe id="web" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" sandbox="allow-scripts allow-same-origin allow-popups"></iframe>
+  <script>
+    const imgEl = document.getElementById('img');
+    const webEl = document.getElementById('web');
+    let webLoadedUrl = null;
+
+    // 参数 → CSS 滤镜（mpv 语义: -100~100 → CSS: 0~2）
+    function buildFilter(p) {
+      const b = (100 + (p.brightness || 0)) / 100;
+      const c = (100 + (p.contrast || 0)) / 100;
+      const s = (100 + (p.saturation || 0)) / 100;
+      return `brightness(${b}) contrast(${c}) saturate(${s})`;
+    }
+
+    // 适配模式 → object-fit
+    function fitOf(p) {
+      return p.fit === 'contain' ? 'contain' : (p.fit === 'stretch' ? 'fill' : 'cover');
+    }
+
+    function renderImage(payload) {
+      webEl.style.display = 'none';
+      imgEl.style.display = 'block';
+      imgEl.src = 'file:///' + payload.src.replace(/\\/g, '/');
+      imgEl.style.objectFit = fitOf(payload.params);
+      imgEl.style.filter = buildFilter(payload.params);
+    }
+
+    function renderWeb(payload) {
+      imgEl.style.display = 'none';
+      webEl.style.display = 'block';
+      const url = payload.url || payload.src;
+      if (webLoadedUrl !== url) {
+        webEl.src = url;
+        webLoadedUrl = url;
+      }
+      webEl.style.filter = buildFilter(payload.params);
+    }
+
+    function renderBlank() {
+      imgEl.style.display = 'none';
+      webEl.style.display = 'none';
+      webEl.src = 'about:blank';
+      webLoadedUrl = null;
+      imgEl.src = '';
+    }
+
+    window.wallpaperHost.onRender((payload) => {
+      switch (payload.type) {
+        case 'image': return renderImage(payload);
+        case 'web': return renderWeb(payload);
+        case 'video': return renderBlank(); // mpv 子窗口负责渲染，底层保持纯黑
+        default: return renderBlank();
+      }
+    });
+  </script>
+</body>
+</html>

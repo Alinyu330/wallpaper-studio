@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>壁纸预览</title>
+  <style>
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%;
+      overflow: hidden; background: #05060a;
+      font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      color: #e8eaf2;
+      display: flex; flex-direction: column;
+    }
+    #bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 12px; background: #12151d; border-bottom: 1px solid #232938;
+      font-size: 12px; color: #8b91a5; flex: none; user-select: none;
+    }
+    #name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #res { flex: none; }
+    #stage {
+      position: relative; flex: 1; overflow: hidden; background: #000;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #stage img, #stage video, #stage iframe {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      border: none; background: #000;
+    }
+    #placeholder {
+      position: absolute; inset: 0; display: flex; flex-direction: column; gap: 10px;
+      align-items: center; justify-content: center; color: #8b91a5; font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div id="bar"><span id="name">预览</span><span id="res"></span></div>
+  <div id="stage">
+    <div id="placeholder">等待预览数据…</div>
+  </div>
+  <script>
+    const stage = document.getElementById('stage');
+    const placeholder = document.getElementById('placeholder');
+    const nameEl = document.getElementById('name');
+    const resEl = document.getElementById('res');
+
+    function buildFilter(p) {
+      const b = (100 + (p.brightness || 0)) / 100;
+      const c = (100 + (p.contrast || 0)) / 100;
+      const s = (100 + (p.saturation || 0)) / 100;
+      return `brightness(${b}) contrast(${c}) saturate(${s})`;
+    }
+    function fitOf(p) {
+      return p.fit === 'contain' ? 'contain' : (p.fit === 'stretch' ? 'fill' : 'cover');
+    }
+
+    let media = null;
+
+    function clearMedia() {
+      if (media) { media.remove(); media = null; }
+      stage.appendChild(placeholder);
+      placeholder.style.display = 'flex';
+    }
+
+    function render(data) {
+      const wp = data.wallpaper;
+      const p = data.params || {};
+      nameEl.textContent = wp ? wp.name : '预览';
+      if (data.display) resEl.textContent = `${data.display.physical.width}×${data.display.physical.height} · 主显示器`;
+      if (!wp) { clearMedia(); placeholder.textContent = '未选择壁纸'; return; }
+
+      clearMedia();
+      placeholder.style.display = 'none';
+
+      if (wp.type === 'image') {
+        const img = document.createElement('img');
+        img.src = 'file:///' + wp.path.replace(/\\/g, '/');
+        img.onerror = () => { clearMedia(); placeholder.textContent = '无法加载图片'; };
+        stage.appendChild(img); media = img;
+      } else if (wp.type === 'video') {
+        const v = document.createElement('video');
+        v.autoplay = true; v.muted = true; v.loop = p.loop !== false; v.playsInline = true;
+        v.src = 'file:///' + wp.path.replace(/\\/g, '/');
+        v.onerror = () => { clearMedia(); placeholder.textContent = '浏览器不支持该视频编码，实际壁纸由 mpv 播放'; };
+        stage.appendChild(v); media = v;
+      } else if (wp.type === 'web') {
+        const f = document.createElement('iframe');
+        const url = wp.url || wp.path;
+        f.src = /^https?:/i.test(url) ? url : 'file:///' + wp.path.replace(/\\/g, '/');
+        f.setAttribute('allow', 'autoplay; fullscreen');
+        stage.appendChild(f); media = f;
+      } else {
+        placeholder.style.display = 'flex';
+        placeholder.textContent = '程序壁纸 · 应用后嵌入桌面显示';
+        return;
+      }
+      applyParams(p);
+    }
+
+    function applyParams(p) {
+      if (!media) return;
+      media.style.objectFit = fitOf(p);
+      if (media.tagName !== 'IFRAME') media.style.filter = buildFilter(p);
+      if (media.tagName === 'VIDEO') {
+        media.playbackRate = Math.min(4, Math.max(0.25, Number(p.speed) || 1));
+        media.loop = p.loop !== false;
+        if (p.paused) media.pause();
+        else media.play().catch(() => {});
+      }
+    }
+
+    window.previewHost.onData((data) => {
+      // 数据带 type 区分：整份数据（换壁纸）或仅参数补丁
+      if (data.patch) {
+        applyParams({ ...(window.__lastParams || {}), ...data.patch });
+        window.__lastParams = { ...(window.__lastParams || {}), ...data.patch };
+      } else {
+        window.__lastParams = data.params || {};
+        render(data);
+      }
+    });
+    window.previewHost.request().then((data) => { if (data) { window.__lastParams = data.params || {}; render(data); } });
+  </script>
+</body>
+</html>
