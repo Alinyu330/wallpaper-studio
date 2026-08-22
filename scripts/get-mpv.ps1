@@ -1,34 +1,69 @@
-# get-mpv.ps1 — 下载 mpv 播放器到 assets/mpv/（本地开发用）
-# 仓库不包含 mpv 二进制（超过 GitHub 100MB 单文件限制），克隆后请先运行本脚本：
+# get-mpv.ps1 - Download mpv player into assets/mpv/ (for local development)
+# The repo does NOT include the mpv binary (exceeds GitHub 100MB file limit).
+# Run this after cloning:
 #   powershell -ExecutionPolicy Bypass -File scripts/get-mpv.ps1
+# Override destination for testing: $env:MPV_DEST = 'C:\temp\mpv'
 
 $ErrorActionPreference = 'Stop'
-$dest = Join-Path $PSScriptRoot '..\assets\mpv'
+$dest = if ($env:MPV_DEST) { $env:MPV_DEST } else { Join-Path $PSScriptRoot '..\assets\mpv' }
 $mpvExe = Join-Path $dest 'mpv.exe'
 
 if (Test-Path $mpvExe) {
-  Write-Host "mpv 已存在: $mpvExe（如需更新请先删除 assets/mpv 目录）" -ForegroundColor Green
+  Write-Host "mpv already present: $mpvExe (delete the folder to force update)" -ForegroundColor Green
   exit 0
 }
 
-Write-Host '正在获取 mpv 最新版本信息...'
-$release = Invoke-RestMethod 'https://api.github.com/repos/mpv-player/mpv/releases/latest'
-$asset = $release.assets | Where-Object { $_.name -match '^mpv-x86_64.*\.7z$' } | Select-Object -First 1
-if (-not $asset) { throw '未找到 mpv Windows x86_64 构建资产' }
+try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
-Write-Host "下载 $($asset.name)（$([math]::Round($asset.size/1MB,1)) MB）..."
+Write-Host 'Fetching latest mpv release info...'
+$release = Invoke-RestMethod 'https://api.github.com/repos/mpv-player/mpv/releases/latest'
+$assets = $release.assets
+
+# Asset naming changed across versions:
+#   new (v0.41+): mpv-v0.41.0-x86_64-w64-mingw32.zip  (zip containing an inner zip)
+#   old:          mpv-x86_64-xxxxxxxx-git-0.xx.x.7z
+$asset = $assets | Where-Object { $_.name -match '^mpv-v.*-x86_64-w64-mingw32\.zip$' } | Select-Object -First 1
+if (-not $asset) { $asset = $assets | Where-Object { $_.name -match '^mpv-v.*-x86_64-pc-windows-msvc\.zip$' } | Select-Object -First 1 }
+if (-not $asset) { $asset = $assets | Where-Object { $_.name -match '^mpv-x86_64.*\.7z$' } | Select-Object -First 1 }
+if (-not $asset) { throw 'mpv Windows x86_64 asset not found in latest release' }
+
+Write-Host "Downloading $($asset.name) ($([math]::Round($asset.size/1MB,1)) MB)..."
 $tmp = Join-Path $env:TEMP $asset.name
 Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tmp
 
-New-Item -ItemType Directory -Force -Path $dest | Out-Null
-Write-Host '解压中...'
-if (Get-Command 7z -ErrorAction SilentlyContinue) {
-  7z x $tmp "-o$dest" -y | Out-Null
-} else {
-  # Windows 11 自带 tar 支持 7z 解压；否则回退到 Expand-Archive（需 zip）
-  tar -xf $tmp -C $dest
-}
-Remove-Item $tmp -Force
+$work = Join-Path $env:TEMP ("mpv-extract-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
+New-Item -ItemType Directory -Force -Path $work | Out-Null
 
-if (-not (Test-Path $mpvExe)) { throw '解压后未找到 mpv.exe，请手动下载：https://github.com/mpv-player/mpv/releases' }
-Write-Host "mpv 就绪: $mpvExe" -ForegroundColor Green
+function Expand-Any($file, $outDir) {
+  if ($file -match '\.zip$') {
+    Expand-Archive -Path $file -DestinationPath $outDir -Force
+  } elseif (Get-Command 7z -ErrorAction SilentlyContinue) {
+    7z x $file "-o$outDir" -y | Out-Null
+  } else {
+    tar -xf $file -C $outDir
+    if ($LASTEXITCODE -ne 0) { throw "failed to extract $file" }
+  }
+}
+
+Write-Host 'Extracting...'
+Expand-Any $tmp $work
+
+# v0.41+ official zips wrap the real archive inside another zip - unwrap it
+Get-ChildItem $work -Filter *.zip -Recurse -File | ForEach-Object {
+  $sub = Join-Path $_.DirectoryName ($_.BaseName + '-inner')
+  New-Item -ItemType Directory -Force -Path $sub | Out-Null
+  Expand-Any $_.FullName $sub
+}
+
+# Locate the directory that contains mpv.exe (deepest match wins)
+$found = Get-ChildItem $work -Recurse -Filter mpv.exe -File |
+  Sort-Object { $_.FullName.Length } -Descending | Select-Object -First 1
+if (-not $found) { throw 'mpv.exe not found after extraction. Manual download: https://github.com/mpv-player/mpv/releases' }
+
+New-Item -ItemType Directory -Force -Path $dest | Out-Null
+Copy-Item (Join-Path $found.DirectoryName '*') $dest -Recurse -Force
+Remove-Item $tmp -Force -ErrorAction SilentlyContinue
+Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
+
+if (-not (Test-Path $mpvExe)) { throw 'unexpected: mpv.exe still missing' }
+Write-Host "mpv ready: $mpvExe" -ForegroundColor Green
