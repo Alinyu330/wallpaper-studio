@@ -279,14 +279,14 @@ footer {
     <h1>让桌面<span class="grad">动起来</span></h1>
     <p class="tagline">壁纸工坊是一款免费开源的 Windows 桌面壁纸软件 — 视频、图片、网页、EXE 程序皆可设为壁纸，时钟/CPU/GPU/音量组件融入桌面，参数精确可调，性能深度优化。</p>
     <div class="cta-row">
-      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.2/WallpaperStudio-Setup-1.3.2.exe" onclick="trackDownload(this)">
+      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        国内高速下载 v1.3.2
+        国内高速下载 v1.4.0
       </a>
-      <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.2/WallpaperStudio-Setup-1.3.2.exe" onclick="trackDownload(this)">GitHub 直连下载</a>
+      <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">GitHub 直连下载</a>
       <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio" target="_blank" rel="noopener">查看源码</a>
     </div>
-    <p class="cta-note"><span>Windows 10 / 11 · x64</span><span>v1.3.2 · 约 200 MB（内置全格式解码器）</span><span>MIT 开源协议</span><span>下载慢？试试 <a href="https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.2/WallpaperStudio-Setup-1.3.2.exe" style="color:var(--accent2)">备用加速节点</a></span><span>本站国内镜像：<a href="https://wallpaper-studio.pages.dev/" style="color:var(--accent2)">wallpaper-studio.pages.dev</a></span></p>
+    <p class="cta-note"><span>Windows 10 / 11 · x64</span><span>v1.4.0 · 约 200 MB（内置全格式解码器）</span><span>MIT 开源协议</span><span>下载慢？试试 <a href="https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" style="color:var(--accent2)">备用加速节点</a></span><span>本站国内镜像：<a href="https://wallpaper-studio.pages.dev/" style="color:var(--accent2)">wallpaper-studio.pages.dev</a></span></p>
     <div class="shot-wrap">
       <img src="app-screenshot.png" alt="壁纸工坊主界面 — 壁纸库、实时预览与参数调节面板" loading="eager">
     </div>
@@ -423,17 +423,31 @@ footer {
   <div class="wrap reveal">
     <div class="sec-tag">版本信息</div>
     <h2>更新日志与历史版本</h2>
-    <p class="sec-sub">当前版本 <b style="color: var(--text)">v1.3.2</b> · 持续迭代中 · 每个版本均可下载安装包</p>
+    <p class="sec-sub">当前版本 <b style="color: var(--text)">v1.4.0</b> · 持续迭代中 · 每个版本均可下载安装包</p>
     <div class="ver-block">
-      <h3>v1.3.2 <span class="tag">最新</span></h3>
+      <h3>v1.4.0 <span class="tag">最新</span></h3>
+      <ul>
+        <li><b>新增</b> 平滑循环过渡 — 双引擎交叉淡入淡出：视频循环交界处由生硬跳变变为柔和溶解（设置 → 播放体验中可关闭）</li>
+        <li><b>修复</b> 动态壁纸播放一段时间后无法恢复的最终根因 — 引擎对 mpv 窗口的窗口操作（SetWindowPos 等）会向冻结进程同步投递消息并连带死锁主进程；现已全部改由隔离执行器在 worker 线程执行，主进程永不阻塞</li>
+        <li><b>新增</b> 无黑屏自愈 — 播放卡死时备用引擎先在冻结画面上方渲染出画面再替换旧进程，全程无黑屏、不打断使用</li>
+        <li><b>修复</b> 引擎 IPC 管道名冲突（同名多实例跨连导致意外暂停反复出现）</li>
+        <li><b>优化</b> 解复用缓存加大至 128MiB，整段视频常驻内存时循环点零停顿</li>
+      </ul>
+      <div class="ver-dl">
+        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">国内加速下载 v1.4.0</a>
+        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
+      </div>
+    </div>
+    <div class="ver-block" style="border-left-color: var(--border);">
+      <h3>v1.3.2</h3>
       <ul>
         <li><b>修复</b> 播放健康检查升级 v2 — 补齐暂停状态脱节盲区：每 5 秒核对 mpv 实际暂停状态，发现「不该暂停却在暂停」（长时间挂机/全屏退出后冻结帧的元凶）自动恢复，两次无效强制重启；渲染冻结（IPC 无响应/进度停滞）保持 15 秒自动重启</li>
         <li><b>新增</b> 引擎事件日志 engine.log — 记录应用/恢复/健康检查/进程重启全部事件与时间戳，问题可回溯定位</li>
         <li><b>优化</b> mpv 限流跳过重启时记录日志，不再静默放弃</li>
       </ul>
       <div class="ver-dl">
-        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.2/WallpaperStudio-Setup-1.3.2.exe" onclick="trackDownload(this)">国内加速下载 v1.3.2</a>
-        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.2/WallpaperStudio-Setup-1.3.2.exe" onclick="trackDownload(this)">GitHub 直连</a>
+        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">国内加速下载 v1.4.0</a>
+        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
       </div>
     </div>
     <div class="ver-block" style="border-left-color: var(--border);">
@@ -445,8 +459,8 @@ footer {
         <li><b>优化</b> 官网界面截图更新至 v1.3.1 最新版界面；官网新增国内 CDN 镜像（Cloudflare Pages）</li>
       </ul>
       <div class="ver-dl">
-        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.2/WallpaperStudio-Setup-1.3.2.exe" onclick="trackDownload(this)">国内加速下载 v1.3.2</a>
-        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.2/WallpaperStudio-Setup-1.3.2.exe" onclick="trackDownload(this)">GitHub 直连</a>
+        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">国内加速下载 v1.4.0</a>
+        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
       </div>
     </div>
     <div class="ver-block" style="border-left-color: var(--border);">
@@ -460,8 +474,8 @@ footer {
         <li><b>优化</b> 界面焕新 — 页面标题渐变标识、壁纸卡片悬浮放大动效、壁纸站点卡片全新设计、布局细节打磨</li>
       </ul>
       <div class="ver-dl">
-        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.2/WallpaperStudio-Setup-1.3.2.exe" onclick="trackDownload(this)">国内加速下载 v1.3.2</a>
-        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.2/WallpaperStudio-Setup-1.3.2.exe" onclick="trackDownload(this)">GitHub 直连</a>
+        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">国内加速下载 v1.4.0</a>
+        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
       </div>
     </div>
     <div class="ver-block" style="border-left-color: var(--border);">
@@ -474,8 +488,8 @@ footer {
         <li><b>新增</b> 音量组件桌面直接拖动调节、点击静音</li>
       </ul>
       <div class="ver-dl">
-        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.2/WallpaperStudio-Setup-1.3.2.exe" onclick="trackDownload(this)">国内加速下载 v1.3.2</a>
-        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.2/WallpaperStudio-Setup-1.3.2.exe" onclick="trackDownload(this)">GitHub 直连</a>
+        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">国内加速下载 v1.4.0</a>
+        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
       </div>
     </div>
     <div class="ver-block" style="border-left-color: var(--border);">
@@ -511,9 +525,9 @@ footer {
     <h2>把桌面交给想象力</h2>
     <p>免费、开源、开箱即用。</p>
     <div class="cta-row" style="justify-content: center;">
-      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.2/WallpaperStudio-Setup-1.3.2.exe" onclick="trackDownload(this)">
+      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        国内高速下载 v1.3.2
+        国内高速下载 v1.4.0
       </a>
       <a class="btn btn-ghost" href="#changelog">历史版本下载</a>
       <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases" target="_blank" rel="noopener">全部版本</a>
@@ -523,7 +537,7 @@ footer {
 
 <footer>
   <div class="wrap foot-inner">
-    <div>壁纸工坊 Wallpaper Studio · v1.3.2 · MIT License</div>
+    <div>壁纸工坊 Wallpaper Studio · v1.4.0 · MIT License</div>
     <div class="foot-links">
       <a href="https://wallpaper-studio.pages.dev/" title="国内 CDN 镜像">国内镜像</a>
       <a href="https://github.com/Alinyu330/wallpaper-studio" target="_blank" rel="noopener">GitHub</a>

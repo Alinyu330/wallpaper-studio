@@ -986,6 +986,7 @@ function renderSettingsPage() {
   $('#set-battery-pause').checked = state.settings.performance?.batteryPause !== false;
   $('#set-max-pause').checked = state.settings.performance?.maximizedPause === true;
   $('#set-hotkey').checked = state.settings.hotkeyPause !== false;
+  $('#set-smooth-loop').checked = state.settings.smoothLoop !== false;
 }
 
 function bindSettings() {
@@ -1010,6 +1011,11 @@ function bindSettings() {
     state.settings.hotkeyPause = e.target.checked;
     window.api.updateSettings({ hotkeyPause: e.target.checked });
     toast(e.target.checked ? '已启用全局快捷键 Ctrl+Alt+W' : '已停用全局快捷键');
+  });
+  $('#set-smooth-loop').addEventListener('change', (e) => {
+    state.settings.smoothLoop = e.target.checked;
+    window.api.updateSettings({ smoothLoop: e.target.checked });
+    toast(e.target.checked ? '已开启平滑循环过渡' : '已关闭平滑循环过渡');
   });
   $('#btn-mpv-download').addEventListener('click', () => window.api.openMpvDownload());
   $('#btn-lockscreen-use-current').addEventListener('click', () => setLockScreenFrom(state.current?.wallpaper));

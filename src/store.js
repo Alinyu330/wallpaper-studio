@@ -25,6 +25,7 @@ const DEFAULT_CONFIG = {
     },
     lastWindowBounds: null,     // 主窗口位置记忆
     hotkeyPause: true,          // 全局快捷键 Ctrl+Alt+W 暂停/恢复壁纸
+    smoothLoop: true,           // 平滑循环（双引擎交叉淡化，消除循环交界跳变）
     performance: {
       fullscreenPause: true,    // 性能：全屏应用时自动暂停视频壁纸
       batteryPause: true,       // 性能：电池供电时自动暂停视频壁纸

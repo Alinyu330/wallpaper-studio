@@ -1,13 +1,19 @@
-// mpv.js — mpv 播放器控制器
-// 通过 --wid 将 mpv 嵌入指定窗口播放视频壁纸，
-// 并通过命名管道 IPC 在运行时动态调节速度、亮度、对比度、饱和度、音量等参数。
+// mpv.js — mpv 单槽播放控制器（纯进程/IPC 管理）
+// 通过 --wid 将 mpv 嵌入指定窗口播放视频壁纸，并通过命名管道 IPC 控制。
+// 多槽编排（前台/待命、平滑循环、无黑屏热修复）见 video-engine.js。
 const { spawn } = require('child_process');
 const net = require('net');
 const path = require('path');
 const fs = require('fs');
 
 class MpvController {
-  constructor() {
+  static _seq = 0; // 全局实例序号：保证 IPC 管道名唯一，避免同名多实例跨连
+
+  /**
+   * @param {string} name 槽位名（日志标识，如 'front' / 'standby'）
+   */
+  constructor(name = 'mpv') {
+    this.name = name;
     this.process = null;
     this.ipcClient = null;
     this.pipeName = null;
@@ -15,16 +21,13 @@ class MpvController {
     this.currentParams = null;
     this.ipcReady = false;
     this._pendingCommands = [];
-    this.onExit = null;
-    this.onReady = null; // IPC 连接就绪回调（此时 mpv 渲染窗口已创建）
-    // IPC 请求-响应分发与健康检查
+    this.onExit = null;   // (code) => void
+    this.onReady = null;  // () => void（IPC 就绪，渲染窗口已创建）
     this._reqId = 1;
-    this._pendingQueries = new Map(); // request_id -> {cb, timer}
+    this._pendingQueries = new Map();
     this._ipcBuf = '';
-    this._healthTimer = null;
-    this._expectPause = false;   // 应用侧期望的暂停状态（健康检查在暂停时跳过）
-    this._lastTimePos = -1;
-    this._stuckCount = 0;
+    this.lastTimePos = -1; // 引擎健康检查/循环调度使用的最新播放位置
+    this.childHwnd = 0;   // 本槽 mpv 渲染子窗口句柄（引擎绑定后不再变化）
   }
 
   /** 查找可用的 mpv：优先项目内置 assets/mpv/mpv.exe（兼容打包后 asar.unpacked 路径），其次系统 PATH */
@@ -45,7 +48,8 @@ class MpvController {
    * 启动 mpv 播放视频壁纸
    * @param {string} file 视频文件路径
    * @param {number} wid 宿主窗口句柄（Electron 壁纸窗口 HWND，十进制）
-   * @param {object} params 播放参数 {speed,brightness,contrast,saturation,volume,fit,loop,quality}
+   * @param {object} params 播放参数 {speed,brightness,contrast,saturation,volume,fit,loop,quality,
+   *                        paused,startPos,forceMute}（后三项为槽位级参数）
    */
   start(file, wid, params = {}) {
     this.stop();
@@ -53,7 +57,9 @@ class MpvController {
     this.currentParams = params;
 
     const exe = MpvController.findMpv();
-    this.pipeName = `\\\\.\\pipe\\wallpaper-mpv-${process.pid}`;
+    // 管道名带全局唯一序号：同名多实例会被 Windows 随机路由到任意服务器实例，
+    // 导致引擎指令/查询打到别的 mpv 进程上（表现为"意外暂停"反复出现）
+    this.pipeName = `\\\\.\\pipe\\wallpaper-mpv-${this.name}-${process.pid}-${++MpvController._seq}`;
 
     // 缩放算法（渲染质量）：低=快速双线性 中=双三次 高=Lanczos
     const scalerMap = { low: 'bilinear', medium: 'bicubic', high: 'lanczos' };
@@ -77,18 +83,23 @@ class MpvController {
       '--framedrop=decoder+vo',     // 丢帧策略，避免解码堆积
       `--scale=${scaler}`,
       `--input-ipc-server=${this.pipeName}`,
-      `--volume=${params.volume ?? 0}`,
+      `--volume=${params.forceMute ? 0 : (params.volume ?? 0)}`,
+      params.forceMute ? '--mute=yes' : `--mute=${params.mute ? 'yes' : 'no'}`,
       `--speed=${params.speed ?? 1}`,
       `--brightness=${params.brightness ?? 0}`,
       `--contrast=${params.contrast ?? 0}`,
       `--saturation=${params.saturation ?? 0}`,
       params.loop === false ? '--loop-file=no' : '--loop-file=inf',
+      // 循环无缝：加大解复用缓存，整段视频常驻内存时循环点零停顿（消除交界处卡顿/闪黑）
+      '--demuxer-max-bytes=128MiB',
+      '--demuxer-readahead-secs=30',
       // 适配模式：cover=裁剪填充(panscan) contain=完整显示 stretch=拉伸(不保持比例)
       params.fit === 'cover' ? '--panscan=1' : '--panscan=0',
       params.fit === 'stretch' ? '--keepaspect=no' : '--keepaspect=yes',
       // 启动即应用暂停状态（与参数一致，避免状态脱节）
       params.paused ? '--pause' : '--no-pause',
     ];
+    if (params.startPos > 0) args.push(`--start=${params.startPos}`);
     if (resVf) args.push(`--vf=${resVf}`);
     // 流畅模式：跳过 H.264 环路滤波 + 快速解码路径，进一步降低 CPU 占用
     if (params.quality === 'low') {
@@ -98,24 +109,17 @@ class MpvController {
 
     this.process = spawn(exe, args, { windowsHide: true });
     const proc = this.process;
-    this._expectPause = !!params.paused;
     this.process.on('error', (err) => {
       if (this.process !== proc) return; // 旧进程的滞后事件，忽略
-      console.error('[mpv] 启动失败:', err.message);
-      this._stopHealthCheck();
+      console.error(`[mpv:${this.name}] 启动失败:`, err.message);
       this.process = null;
     });
     this.process.on('exit', (code) => {
-      // 关键竞态防护：切换壁纸时 stop() 杀旧进程后立刻 spawn 新进程，
-      // 旧进程的 exit 事件异步到达时 this.process 已指向新进程。
-      // 若不判断会把新进程引用误置 null，导致：
-      //   1. IPC 永远连不上（_connectIpc 因 isRunning=false 直接返回），
-      //      暂停/参数指令全部滞留队列，视频状态失控；
-      //   2. onExit 误报"异常退出"触发重启，重复拉起第二个 mpv
-      //      抢占同一 --wid 窗口 → 黑屏/画面冻结（动态壁纸无法播放的根源）。
+      // 关键竞态防护：stop() 杀旧进程后可能立刻 spawn 新进程，
+      // 旧进程的 exit 事件异步到达时 this.process 已指向新进程，
+      // 若不判断会把新进程引用误置 null（IPC 断连/重复拉起/黑屏的根源）。
       if (this.process !== proc) return;
-      console.log(`[mpv] 进程退出 code=${code}`);
-      this._stopHealthCheck();
+      console.log(`[mpv:${this.name}] 进程退出 code=${code}`);
       this._cleanupIpc();
       this.process = null;
       if (this.onExit) this.onExit(code);
@@ -123,8 +127,6 @@ class MpvController {
 
     // 延迟连接 IPC 管道（mpv 启动需要时间）
     setTimeout(() => this._connectIpc(), 800);
-    // 启动播放健康检查（渲染卡死自动重启）
-    this._startHealthCheck();
   }
 
   /** 连接 mpv IPC 命名管道 */
@@ -132,17 +134,17 @@ class MpvController {
     if (!this.isRunning) return;
     this.ipcClient = net.connect({ path: this.pipeName }, () => {
       this.ipcReady = true;
-      console.log('[mpv] IPC 已连接');
+      console.log(`[mpv:${this.name}] IPC 已连接`);
       // 发送排队中的命令
       for (const cmd of this._pendingCommands) this._send(cmd);
       this._pendingCommands = [];
       if (this.onReady) {
-        try { this.onReady(); } catch (e) { console.warn('[mpv] onReady 回调异常:', e.message); }
+        try { this.onReady(); } catch (e) { console.warn(`[mpv:${this.name}] onReady 回调异常:`, e.message); }
       }
     });
     this.ipcClient.on('data', (chunk) => this._handleIpcData(chunk));
     this.ipcClient.on('error', (err) => {
-      console.warn('[mpv] IPC 连接失败:', err.message);
+      console.warn(`[mpv:${this.name}] IPC 连接失败:`, err.message);
     });
     this.ipcClient.on('close', () => { this.ipcReady = false; });
   }
@@ -161,123 +163,32 @@ class MpvController {
         const q = this._pendingQueries.get(msg.request_id);
         clearTimeout(q.timer);
         this._pendingQueries.delete(msg.request_id);
-        q.cb(msg.error === 'success' ? msg.data : undefined);
+        q.resolve(msg.error === 'success' ? msg.data : undefined);
       }
     }
   }
 
   /**
-   * 带超时的属性查询（请求-响应）。
-   * 超时或出错回调 undefined —— 这是检测 mpv 主循环卡死的关键信号。
+   * 带超时的属性查询（Promise）。
+   * 超时或出错 resolve undefined —— 这是检测 mpv 主循环卡死的关键信号。
    */
-  _query(prop, cb, timeoutMs = 2500) {
-    if (!this.ipcReady || !this.ipcClient) { cb(undefined); return; }
-    const id = this._reqId++;
-    const q = {
-      cb,
-      timer: setTimeout(() => {
+  query(prop, timeoutMs = 2000) {
+    if (!this.ipcReady || !this.ipcClient) return Promise.resolve(undefined);
+    return new Promise((resolve) => {
+      const id = this._reqId++;
+      const timer = setTimeout(() => {
         this._pendingQueries.delete(id);
-        cb(undefined);
-      }, timeoutMs),
-    };
-    this._pendingQueries.set(id, q);
-    try {
-      this.ipcClient.write(JSON.stringify({ command: ['get_property', prop], request_id: id }) + '\n');
-    } catch (_) {
-      clearTimeout(q.timer);
-      this._pendingQueries.delete(id);
-      cb(undefined);
-    }
-  }
-
-  // ---------- 播放健康检查 ----------
-  // 场景一：显示器功耗切换/睡眠唤醒后 GPU 硬解设备（D3D11）可能失效，
-  //   mpv 主循环阻塞在渲染调用上 —— 进程存活、CPU 为 0、IPC 无响应，
-  //   视频永久冻结在最后一帧。
-  // 场景二：暂停/恢复指令与 mpv 实际状态脱节（如全屏暂停后恢复指令
-  //   在 IPC 半失效时丢失），mpv 卡在暂停态 → 冻结帧，且应用侧
-  //   认为"该暂停"而跳过检查（v1.3.1 的盲区，长时间挂机/全屏退出后出现）。
-  // 策略：每 5s 先查询 mpv **实际** pause 状态（带超时）：
-  //   - 实际已暂停但应用侧未要求暂停 → 意外暂停，重发恢复指令，
-  //     连续 2 次仍暂停 → 强制重启进程；
-  //   - 实际在播 → 查询 time-pos，进度停滞或查询超时连续 3 次（约 15s）
-  //     → 强制杀掉进程，由 onExit 自动重启恢复。
-  _startHealthCheck() {
-    this._stopHealthCheck();
-    this._lastTimePos = -1;
-    this._stuckCount = 0;
-    this._unexpectedPauseCount = 0;
-    this._healthTimer = setInterval(() => this._checkHealth(), 5000);
-  }
-
-  _stopHealthCheck() {
-    if (this._healthTimer) {
-      clearInterval(this._healthTimer);
-      this._healthTimer = null;
-    }
-  }
-
-  _checkHealth() {
-    if (!this.isRunning || !this.ipcReady) return;
-    this._query('pause', (paused) => {
-      if (!this.isRunning || !this.ipcReady) return;
-
-      // 查询超时（IPC 无响应）：按停滞处理
-      if (typeof paused !== 'number' && typeof paused !== 'boolean') {
-        this._bumpStall('IPC 无响应');
-        return;
+        resolve(undefined);
+      }, timeoutMs);
+      this._pendingQueries.set(id, { resolve, timer });
+      try {
+        this.ipcClient.write(JSON.stringify({ command: ['get_property', prop], request_id: id }) + '\n');
+      } catch (_) {
+        clearTimeout(timer);
+        this._pendingQueries.delete(id);
+        resolve(undefined);
       }
-
-      // 实际已暂停：
-      if (paused === true) {
-        if (this._expectPause) {
-          // 应用侧要求的正常暂停
-          this._stuckCount = 0;
-          this._unexpectedPauseCount = 0;
-          return;
-        }
-        // 意外暂停（状态脱节）：重发恢复指令，连续 2 次仍暂停则重启
-        if (++this._unexpectedPauseCount >= 2) {
-          this._unexpectedPauseCount = 0;
-          this._forceRestart('意外暂停且恢复无效（暂停状态脱节）');
-        } else {
-          console.warn('[mpv] 健康检查：mpv 处于意外暂停状态，尝试恢复播放');
-          this.setProperty('pause', false);
-        }
-        return;
-      }
-
-      // 实际在播（意外暂停已自愈，清零计数）
-      this._unexpectedPauseCount = 0;
-      this._query('time-pos', (tp) => {
-        if (!this.isRunning || !this.ipcReady) return;
-        const stalled = typeof tp !== 'number' ||
-          (this._lastTimePos >= 0 && Math.abs(tp - this._lastTimePos) < 0.05);
-        if (stalled) {
-          this._bumpStall(typeof tp !== 'number' ? '进度查询超时' : '播放进度停滞');
-        } else {
-          this._stuckCount = 0;
-        }
-        if (typeof tp === 'number') this._lastTimePos = tp;
-      });
     });
-  }
-
-  /** 停滞计数：连续 3 次（约 15 秒）判定渲染卡死，强制重启 */
-  _bumpStall(reason) {
-    if (++this._stuckCount >= 3) {
-      this._stuckCount = 0;
-      this._forceRestart(reason);
-    } else {
-      console.warn(`[mpv] 健康检查：检测到${reason}（${this._stuckCount}/3）`);
-    }
-  }
-
-  /** 强制重启渲染进程（exit 事件 → onExit → 自动重启） */
-  _forceRestart(reason) {
-    console.warn(`[mpv] 健康检查：${reason}，强制重启渲染进程`);
-    this._stopHealthCheck();
-    try { this.process?.kill(); } catch (_) {}
   }
 
   /** 发送 IPC 命令（JSON 协议） */
@@ -289,13 +200,12 @@ class MpvController {
     try {
       this.ipcClient.write(JSON.stringify({ command }) + '\n');
     } catch (e) {
-      console.warn('[mpv] IPC 发送失败:', e.message);
+      console.warn(`[mpv:${this.name}] IPC 发送失败:`, e.message);
     }
   }
 
   /** 运行时设置属性（无需重启） */
   setProperty(name, value) {
-    if (name === 'pause') this._expectPause = !!value;
     this._send(['set_property', name, value]);
   }
 
@@ -308,8 +218,8 @@ class MpvController {
     if (params.brightness !== undefined) this.setProperty('brightness', Number(params.brightness));
     if (params.contrast !== undefined) this.setProperty('contrast', Number(params.contrast));
     if (params.saturation !== undefined) this.setProperty('saturation', Number(params.saturation));
-    if (params.volume !== undefined) this.setProperty('volume', Number(params.volume));
-    if (params.mute !== undefined) this.setProperty('mute', !!params.mute);
+    if (params.volume !== undefined && !p.forceMute) this.setProperty('volume', Number(params.volume));
+    if (params.mute !== undefined && !p.forceMute) this.setProperty('mute', !!params.mute);
     if (params.paused !== undefined) this.setProperty('pause', !!params.paused);
     if (params.fit !== undefined) {
       if (params.fit === 'stretch') {
@@ -337,11 +247,16 @@ class MpvController {
     }
     this.ipcReady = false;
     this._pendingCommands = [];
+    // 丢弃等待中的查询（避免悬挂的 Promise）
+    for (const q of this._pendingQueries.values()) {
+      clearTimeout(q.timer);
+      q.resolve(undefined);
+    }
+    this._pendingQueries.clear();
   }
 
   /** 停止播放并清理 */
   stop() {
-    this._stopHealthCheck();
     this._cleanupIpc();
     const proc = this.process;
     this.process = null; // 先摘除引用：exit 事件到达时会被上面的竞态防护忽略

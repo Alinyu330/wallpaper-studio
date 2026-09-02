@@ -28,8 +28,9 @@ const IsWindowVisible = user32.func('IsWindowVisible', 'int', ['intptr_t']);
 const IsZoomed = user32.func('IsZoomed', 'int', ['intptr_t']);
 const GetWindowRect = user32.func('GetWindowRect', 'int', ['intptr_t', koffi.out(koffi.pointer('int32_t'))]);
 const GetClientRect = user32.func('GetClientRect', 'int', ['intptr_t', koffi.out(koffi.pointer('int32_t'))]);
-const GetWindowLongPtrW = user32.func('GetWindowLongPtrW', 'intptr_t', ['intptr_t', 'int32_t']);
-const SetWindowLongPtrW = user32.func('SetWindowLongPtrW', 'intptr_t', ['intptr_t', 'int32_t', 'intptr_t']);
+const GetWindowLongPtrW = user32.func('GetWindowLongPtrW', 'intptr_t', ['intptr_t', 'int32']);
+const SetWindowLongPtrW = user32.func('SetWindowLongPtrW', 'intptr_t', ['intptr_t', 'int32', 'intptr_t']);
+const SetLayeredWindowAttributes = user32.func('SetLayeredWindowAttributes', 'int', ['intptr_t', 'uint32', 'uint8', 'uint32']);
 const ShowWindow = user32.func('ShowWindow', 'int', ['intptr_t', 'int32_t']);
 const GetAncestor = user32.func('GetAncestor', 'intptr_t', ['intptr_t', 'uint32_t']);
 const GetWindowThreadProcessId = user32.func(
@@ -80,7 +81,9 @@ const WS_MINIMIZEBOX = 0x00020000;
 const WS_MAXIMIZEBOX = 0x00010000;
 const WS_POPUP = 0x80000000;
 const GWL_EXSTYLE = -20;
+const WS_EX_LAYERED = 0x00080000;
 const WS_EX_TOOLWINDOW = 0x00000080;
+const LWA_ALPHA = 0x00000002;
 
 /**
  * 在 PER_MONITOR_AWARE_V2 线程上下文中执行 Win32 调用：
@@ -237,6 +240,22 @@ function ensureAttached(hwnd) {
 }
 
 /**
+ * 设置子窗口整体不透明度（0 透明 ~ 255 不透明）。
+ * 通过 WS_EX_LAYERED + SetLayeredWindowAttributes 实现，
+ * 实测对 mpv 的 D3D 子窗口内容有效（Win8+ 支持子窗口分层）。
+ * 用途：双槽引擎的循环交叉淡入淡出与无黑屏热修复。
+ */
+function setChildAlpha(hwnd, alpha) {
+  if (!hwnd || !IsWindow(hwnd)) return false;
+  const ex = BigIntAsInt(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
+  if (!(ex & WS_EX_LAYERED)) {
+    SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex | WS_EX_LAYERED);
+  }
+  const a = Math.max(0, Math.min(255, Math.round(alpha)));
+  return !!SetLayeredWindowAttributes(hwnd, 0, a, LWA_ALPHA);
+}
+
+/**
  * 查找父窗口下指定类名的子窗口
  * @param {number} parentHwnd 父窗口
  * @param {string} className 窗口类名（如 'mpv'）
@@ -249,6 +268,18 @@ function findChildByClass(parentHwnd, className) {
     h = Number(BigIntAsInt(FindWindowExW(parentHwnd, h, null, null)));
   }
   return 0;
+}
+
+/** 枚举父窗口下指定类名的全部子窗口（按 Z 序） */
+function findAllChildrenByClass(parentHwnd, className) {
+  const out = [];
+  if (!parentHwnd) return out;
+  let h = Number(BigIntAsInt(FindWindowExW(parentHwnd, 0, null, null)));
+  while (h) {
+    if (getClassName(h) === className) out.push(h);
+    h = Number(BigIntAsInt(FindWindowExW(parentHwnd, h, null, null)));
+  }
+  return out;
 }
 
 // ---------- 桌面组件覆盖层（位于图标层之上、普通窗口之下） ----------
@@ -491,8 +522,10 @@ module.exports = {
   getClassName,
   getWindowTitle,
   findChildByClass,
+  findAllChildrenByClass,
   raiseToTopInParent,
   ensureChildOnTop,
+  setChildAlpha,
   attachWidgetsOverlay,
   ensureWidgetsOverlay,
   cursorInRects,

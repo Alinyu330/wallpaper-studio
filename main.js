@@ -4,7 +4,8 @@ const path = require('path');
 const fs = require('fs');
 const util = require('util');
 const { Store } = require('./src/store');
-const { MpvController, findMpv } = require('./src/mpv');
+const { findMpv } = require('./src/mpv');
+const { VideoEngine } = require('./src/video-engine');
 const { ExeWallpaper } = require('./src/exe-wallpaper');
 const { StatsCollector } = require('./src/widgets-stats');
 const desktop = require('./src/desktop');
@@ -53,7 +54,7 @@ let mainWindow = null;
 let wallpaperWindow = null;
 let tray = null;
 let store = null;
-let mpv = null;
+let videoEngine = null;
 let exeWallpaper = null;
 let rotationTimer = null;
 let isQuitting = false;
@@ -197,7 +198,7 @@ function setupWallpaperWatch() {
     }
     checkWallpaperAttach();
     // Chromium 重建渲染层（GPU 重启等）可能把 mpv 窗口重新压底，周期性确保
-    if (currentWallpaper?.type === 'video' && mpv?.isRunning) {
+    if (currentWallpaper?.type === 'video' && videoEngine?.isRunning) {
       raiseMpvWindow();
       // 暂停状态对账：防止 mpv 实际状态与应用期望状态脱节（如快速切换壁纸的时序竞态
       // 导致 mpv 被置暂停后无人恢复，视频壁纸永久卡住）。幂等设置，无副作用。
@@ -339,47 +340,19 @@ function stopWidgetsInput() {
 }
 
 // ---------- 壁纸引擎 ----------
-/**
- * 把 mpv 渲染子窗口提到壁纸窗口内部 Z 序顶部。
- * 背景：mpv --wid 挂入壁纸窗口后默认位于 Chromium 渲染层
- * (Chrome_RenderWidgetHostHWND) 之下，视频会被黑色背景遮挡（黑屏），
- * 必须提升到其上才能真正显示画面。
- */
+/** 周期性确保前台 mpv 渲染子窗口位于宿主内 Z 序顶部（防 Chromium 层遮挡黑屏） */
 function raiseMpvWindow() {
-  if (!wallpaperHwnd || !mpv || !mpv.isRunning) return;
+  if (!wallpaperHwnd || !videoEngine) return;
   try {
-    const raised = desktop.ensureChildOnTop(wallpaperHwnd, 'mpv');
-    if (raised) console.log('[engine] 已提升 mpv 渲染窗口层级（覆盖 Chromium 渲染层）');
+    videoEngine.raiseFront();
   } catch (e) {
     console.warn('[engine] 提升 mpv 窗口失败:', e.message);
   }
 }
 
 function initEngine() {
-  mpv = new MpvController();
-  mpv.onReady = () => {
-    // IPC 就绪时 mpv 渲染窗口已创建；稍等其完成初始化再提升 Z 序
-    setTimeout(() => {
-      raiseMpvWindow();
-      syncMpvPause(); // 启动后对齐暂停状态（params.paused || fsPaused）
-    }, 150);
-  };
-  // mpv 异常退出自动恢复（限流防崩溃循环；正常切换壁纸由 stop() 触发，不在此路径）
-  let lastMpvRecoverAt = 0;
-  mpv.onExit = () => {
-    if (isQuitting || !currentWallpaper || currentWallpaper.type !== 'video') return;
-    const now = Date.now();
-    if (now - lastMpvRecoverAt < 5000) {
-      console.warn('[engine] mpv 退出过快，跳过本次自动重启（限流保护，5 秒窗口）');
-      return;
-    }
-    lastMpvRecoverAt = now;
-    console.log('[engine] mpv 异常退出，2 秒后自动重启…');
-    setTimeout(() => {
-      if (isQuitting || !currentWallpaper || currentWallpaper.type !== 'video' || mpv.isRunning) return;
-      mpv.start(currentWallpaper.path, wallpaperHwnd, currentParams);
-    }, 2000);
-  };
+  videoEngine = new VideoEngine();
+  videoEngine.setSmoothLoop(store.settings.smoothLoop !== false);
   exeWallpaper = new ExeWallpaper();
   exeWallpaper.onExit = () => {
     // EXE 壁纸程序退出：若仍在使用该壁纸则回退显示壁纸窗口
@@ -410,7 +383,7 @@ function applyWallpaper(wp, params) {
   updatePowerSaveBlocker();
 
   // 先停掉旧资源
-  mpv.stop();
+  videoEngine.stopAll();
   exeWallpaper.stop();
 
   const rect = desktop.getDesktopRect();
@@ -423,10 +396,10 @@ function applyWallpaper(wp, params) {
       break;
     }
     case 'video': {
-      // 壁纸窗口作为黑色底 + mpv 嵌入渲染
+      // 壁纸窗口作为黑色底 + 双槽 mpv 引擎渲染（前台播放/待命热备）
       if (wallpaperWindow && !wallpaperWindow.isVisible()) wallpaperWindow.show();
       sendToWallpaper({ type: 'video', params: currentParams, rect });
-      // 稍等壁纸窗口切到黑屏再启动 mpv；若窗口尚未就绪（ready-to-show 未触发，
+      // 稍等壁纸窗口切到黑屏再启动引擎；若窗口尚未就绪（ready-to-show 未触发，
       // 启动恢复与窗口初始化存在竞态）则等待其可见后再启动，避免 mpv 渲染失败退出
       const tryStart = (retries) => {
         if (isQuitting || !(currentWallpaper && currentWallpaper.id === wp.id)) return;
@@ -434,7 +407,7 @@ function applyWallpaper(wp, params) {
           setTimeout(() => tryStart(retries - 1), 300);
           return;
         }
-        mpv.start(wp.path, wallpaperHwnd, currentParams);
+        videoEngine.start(wp.path, wallpaperHwnd, currentParams);
       };
       setTimeout(() => tryStart(6), 250);
       break;
@@ -463,10 +436,10 @@ function updateParams(patch) {
     (patch.quality !== undefined && patch.quality !== old.quality);
 
   if (currentWallpaper.type === 'video') {
-    if (needRestart && mpv.isRunning) {
-      mpv.start(currentWallpaper.path, wallpaperHwnd, currentParams);
+    if (needRestart && videoEngine.isRunning) {
+      videoEngine.restart();
     } else {
-      mpv.applyParams(patch);
+      videoEngine.applyParams(patch);
     }
     syncMpvPause();
     sendToWallpaper({ type: 'video', params: currentParams, rect: desktop.getDesktopRect() });
@@ -484,7 +457,7 @@ function updateParams(patch) {
  */
 function stopWallpaper() {
   if (!currentWallpaper) return { ok: true };
-  mpv.stop();
+  videoEngine.stopAll();
   exeWallpaper.stop();
   sendToWallpaper({ type: 'blank' });
   if (wallpaperWindow && !wallpaperWindow.isDestroyed() && wallpaperWindow.isVisible()) {
@@ -507,17 +480,17 @@ let maximizedPaused = false; // 其他窗口最大化导致的暂停
 
 /** 统一同步 mpv 暂停状态 = 用户暂停 || 全局暂停 || 任一性能暂停 */
 function syncMpvPause() {
-  if (!currentWallpaper || currentWallpaper.type !== 'video' || !mpv.isRunning) return;
+  if (!currentWallpaper || currentWallpaper.type !== 'video') return;
   const shouldPause =
     !!currentParams?.paused || globalPaused || fsPaused || batteryPaused || maximizedPaused;
-  mpv.setProperty('pause', shouldPause);
+  videoEngine.setExpectedPause(shouldPause);
 }
 
 /** 重算三项性能暂停标志（有变化才同步 mpv 并打日志） */
 function updatePerfFlags() {
   if (!store) return;
   const perf = store.settings.performance || {};
-  const active = currentWallpaper?.type === 'video' && mpv?.isRunning;
+  const active = currentWallpaper?.type === 'video' && videoEngine?.isRunning;
 
   let fs = false, bat = false, max = false;
   if (active) {
@@ -850,6 +823,7 @@ function setupIpc() {
     if (patch.widgets !== undefined) applyWidgetsConfig();
     if (patch.wallpaperPaused !== undefined) setWallpaperPaused(patch.wallpaperPaused);
     if (patch.hotkeyPause !== undefined) applyHotkeySetting();
+    if (patch.smoothLoop !== undefined && videoEngine) videoEngine.setSmoothLoop(patch.smoothLoop);
     if (patch.performance !== undefined) updatePerfFlags();
     return { ok: true };
   });
@@ -1088,7 +1062,7 @@ app.on('before-quit', () => {
 
 app.on('will-quit', () => {
   // 清理所有子进程、热键、防挂起与定时器
-  mpv?.stop();
+  videoEngine?.stopAll();
   exeWallpaper?.stop();
   if (powerSaveId !== null) {
     try { powerSaveBlocker.stop(powerSaveId); } catch (_) {}
