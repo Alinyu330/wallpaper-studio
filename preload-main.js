@@ -34,6 +34,10 @@ contextBridge.exposeInMainWorld('api', {
   setLockScreen: (imagePath) => ipcRenderer.invoke('lockscreen:set', imagePath),
   resetLockScreen: () => ipcRenderer.invoke('lockscreen:reset'),
   getLockScreen: () => ipcRenderer.invoke('lockscreen:get'),
+  // 桌面快捷方式转盘
+  getLauncherConfig: () => ipcRenderer.invoke('launcher:get'),
+  addLauncherShortcuts: () => ipcRenderer.invoke('launcher:add'),
+  updateLauncherConfig: (patch) => ipcRenderer.invoke('settings:update', { launcher: patch }),
   // 窗口控制
   minimize: () => ipcRenderer.send('win:minimize'),
   maximize: () => ipcRenderer.send('win:maximize'),

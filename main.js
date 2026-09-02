@@ -8,6 +8,7 @@ const { findMpv } = require('./src/mpv');
 const { VideoEngine } = require('./src/video-engine');
 const { ExeWallpaper } = require('./src/exe-wallpaper');
 const { StatsCollector } = require('./src/widgets-stats');
+const { LauncherHost } = require('./src/launcher');
 const desktop = require('./src/desktop');
 const { detectType, DIALOG_FILTERS } = require('./src/file-types');
 const lockscreen = require('./src/lockscreen');
@@ -56,6 +57,7 @@ let tray = null;
 let store = null;
 let videoEngine = null;
 let exeWallpaper = null;
+let launcherHost = null;
 let rotationTimer = null;
 let isQuitting = false;
 
@@ -192,6 +194,8 @@ function setupWallpaperWatch() {
     if (widgetsWindow && !widgetsWindow.isDestroyed() && widgetsHwnd) {
       desktop.ensureWidgetsOverlay(widgetsHwnd);
     }
+    // 快捷方式转盘保活（图标层之上，位置不变）
+    if (launcherHost) launcherHost.watchdog();
     if (!wallpaperWindow || wallpaperWindow.isDestroyed()) {
       if (currentWallpaper) scheduleWallpaperRecovery();
       return;
@@ -716,6 +720,12 @@ function createTray() {
         enabled: !!currentWallpaper,
         click: () => stopWallpaper(),
       },
+      {
+        label: '桌面快捷方式',
+        type: 'checkbox',
+        checked: !!store.settings.launcher?.enabled,
+        click: (mi) => launcherHost?.setEnabled(mi.checked),
+      },
       { label: '静音', type: 'checkbox', checked: !!currentParams?.mute, enabled: currentWallpaper?.type === 'video', click: (mi) => updateParams({ mute: mi.checked }) },
       { type: 'separator' },
       { label: '退出', click: () => { isQuitting = true; app.quit(); } },
@@ -821,6 +831,7 @@ function setupIpc() {
     }
     if (patch.rotation !== undefined) setupRotation();
     if (patch.widgets !== undefined) applyWidgetsConfig();
+    if (patch.launcher !== undefined && launcherHost) launcherHost.applyPatch(patch.launcher);
     if (patch.wallpaperPaused !== undefined) setWallpaperPaused(patch.wallpaperPaused);
     if (patch.hotkeyPause !== undefined) applyHotkeySetting();
     if (patch.smoothLoop !== undefined && videoEngine) videoEngine.setSmoothLoop(patch.smoothLoop);
@@ -1001,6 +1012,7 @@ app.whenReady().then(() => {
   console.log(`[main] 壁纸工坊引擎启动 v${app.getVersion()} (electron ${process.versions.electron})`);
   store = new Store();
   initEngine();
+  launcherHost = new LauncherHost(store);
   createWallpaperWindow();
   createMainWindow();
   setupIpc();
@@ -1020,11 +1032,15 @@ app.whenReady().then(() => {
   // 恢复桌面 DIY 组件（配置了则创建组件窗口）
   applyWidgetsConfig();
 
+  // 恢复桌面快捷方式转盘（配置了则创建转盘窗口）
+  if (store.settings.launcher?.enabled) launcherHost.create();
+
   // 监听屏幕分辨率变化，重新铺满（只注册一次）
   screen.on('display-metrics-changed', () => {
     if (wallpaperHwnd) desktop.ensureAttached(wallpaperHwnd);
     if (widgetsHwnd) { desktop.ensureAttached(widgetsHwnd); desktop.raiseToTopInParent(widgetsHwnd); }
     if (exeWallpaper && exeWallpaper.isRunning && exeWallpaper.hwnd) desktop.fillDesktop(exeWallpaper.hwnd);
+    launcherHost?.onDisplayChange();
   });
 
   // 首次启动：自动导入示例壁纸，开箱即用
@@ -1064,6 +1080,7 @@ app.on('will-quit', () => {
   // 清理所有子进程、热键、防挂起与定时器
   videoEngine?.stopAll();
   exeWallpaper?.stop();
+  launcherHost?.destroy();
   if (powerSaveId !== null) {
     try { powerSaveBlocker.stop(powerSaveId); } catch (_) {}
     powerSaveId = null;

@@ -25,7 +25,14 @@ const DEFAULT_CONFIG = {
     },
     lastWindowBounds: null,     // 主窗口位置记忆
     hotkeyPause: true,          // 全局快捷键 Ctrl+Alt+W 暂停/恢复壁纸
-    smoothLoop: true,           // 平滑循环（双引擎交叉淡化，消除循环交界跳变）
+    smoothLoop: true,           // 平滑循环（双引擎淡入覆盖，消除循环交界跳变）
+    launcher: {                 // 桌面快捷方式转盘
+      enabled: false,
+      x: null, y: null,        // 转盘窗口左上角屏幕物理坐标；null = 默认（主显示器底部居中）
+      count: 8,                // 同屏显示图标数量（4~12）
+      autoCollapse: true,      // 空闲时自动收起为小胶囊
+      shortcuts: [],           // [{name, path}]（图标运行时解析，不入库）
+    },
     performance: {
       fullscreenPause: true,    // 性能：全屏应用时自动暂停视频壁纸
       batteryPause: true,       // 性能：电池供电时自动暂停视频壁纸
@@ -56,6 +63,11 @@ class Store {
               ...DEFAULT_CONFIG.settings.widgets,
               ...((raw.settings || {}).widgets || {}),
               items: { ...DEFAULT_CONFIG.settings.widgets.items, ...(((raw.settings || {}).widgets || {}).items || {}) },
+            },
+            launcher: {
+              ...DEFAULT_CONFIG.settings.launcher,
+              ...((raw.settings || {}).launcher || {}),
+              shortcuts: (((raw.settings || {}).launcher || {}).shortcuts) || [],
             },
             performance: { ...DEFAULT_CONFIG.settings.performance, ...((raw.settings || {}).performance || {}) },
           },

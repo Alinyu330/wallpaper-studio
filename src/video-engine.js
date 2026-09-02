@@ -2,7 +2,7 @@
 //
 // 设计目标：
 // 1. 平滑循环：前台播放至结尾定格时，待命槽（预生成、暂停在第 0 帧）起播并置于
-//    前台之上，两路交叉淡入淡出 —— 循环交界处由「生硬跳变」变为「柔和溶解」。
+//    前台之上，淡入覆盖 —— 循环交界处由「生硬跳变」变为「柔和溶解」。
 // 2. 无黑屏自愈：前台冻结/意外暂停无法恢复时，先让待命槽（或临时替换进程）
 //    在冻结画面上方渲染出画面，再杀掉旧进程 —— 全程无黑屏。
 // 3. 待命槽自身故障时因处于隐藏层（alpha 0），杀掉重启用户完全无感。
@@ -12,14 +12,21 @@
 //   - 前台 --loop-file=no --keep-open=yes：播完定格最后一帧，从不回绕；
 //   - 待命槽以 --start=0 --pause 生成（初始定位，非运行时 seek，已验证安全）；
 //   - 槽位生命周期只靠「进程更替」，旧槽淡出后直接杀掉并重生为待命槽。
+//
+// ★ 过渡方案（v1.5.0）：旧前台全程保持不透明（alpha 255）垫底，只把待命槽
+//   从 alpha 0 平滑淡入到 255。若同时淡化两窗（旧 255→0 + 新 0→255），
+//   两个半透明窗口叠在黑色宿主之上，中点合成 = 50%新 + 25%旧 + 25%黑，
+//   表现为「过渡瞬间画面变暗 + 影像重影」。只淡入新窗则是标准溶解：
+//   任意时刻 = p*新 + (1-p)*旧，亮度恒定，无黑变、无异常重影。
 const { MpvController } = require('./mpv');
 const desktop = require('./desktop');
 const { WinOps } = require('./win-ops');
 
-const FADE_SEC = 0.9;          // 循环交叉淡化时长（秒）
+const FADE_SEC = 1.1;          // 淡入覆盖时长（秒）
 const TICK_MS = 200;           // 调度轮询间隔
 const HEALTH_MS = 5000;        // 健康检查间隔
 const REPAIR_COOLDOWN = 8000;  // 热修复限流
+const EOF_STUCK_LIMIT = 3;     // 结尾定格僵死次数阈值（触发无黑屏修复）
 
 class VideoEngine {
   constructor() {
@@ -37,6 +44,7 @@ class VideoEngine {
     this.lastRepairAt = 0;
     this.stallCount = 0;            // 前台停滞计数
     this.unexpectedPauses = 0;      // 前台意外暂停计数
+    this.eofStuck = 0;              // 结尾定格僵死计数（待命槽缺席时交替无法进行）
     this._prevHealthTp = undefined; // 上次健康检查的播放位置
 
     this._tickTimer = setInterval(() => this._tick(), TICK_MS);
@@ -79,6 +87,10 @@ class VideoEngine {
     this.wid = wid;
     // 引擎约定：前台循环交给「播完定格 + 交替」机制，不用 mpv 内部回绕（回绕内部
     // 等效 seek，会触发本机 D3D11 冻结）。用户关闭循环时播完定格即可。
+    // ★ 保留用户原始参数：restart/就地替换回退时必须以 userParams 重启，
+    //   否则引擎内部的 loop:false 会污染用户循环开关 → 重启后永不循环、
+    //   结尾定格被当作预期行为无人修复（"播放一段时间后无法播放"的元凶之一）
+    this.userParams = { ...params };
     this.params = { ...params, loop: false };
     this.expectPause = !!params.paused;
     this.userLoop = params.loop !== false; // 用户循环开关（引擎内部固定不回绕）
@@ -86,6 +98,8 @@ class VideoEngine {
     this.fading = null;
     this.stallCount = 0;
     this.unexpectedPauses = 0;
+    this.eofStuck = 0;
+    this._durNextTry = 0;
     this._prevHealthTp = undefined;
 
     // 前台槽起播
@@ -114,6 +128,7 @@ class VideoEngine {
     this.duration = 0;
     this.stallCount = 0;
     this.unexpectedPauses = 0;
+    this.eofStuck = 0;
     for (const s of [this.front, this.standby]) {
       if (s) s.stop();
     }
@@ -125,6 +140,7 @@ class VideoEngine {
   /** 实时应用参数（质量/分辨率等启动期参数变化请走 restart） */
   applyParams(patch) {
     this.params = { ...this.params, ...patch };
+    if (this.userParams) this.userParams = { ...this.userParams, ...patch };
     if (patch.paused !== undefined) this.expectPause = !!patch.paused;
     for (const s of [this.front, this.standby]) {
       if (s && s.isRunning) s.applyParams(this.params);
@@ -145,7 +161,7 @@ class VideoEngine {
   /** 以当前参数完整重启（渲染质量/分辨率等启动期参数变化时） */
   restart() {
     if (!this.file) return;
-    this.start(this.file, this.wid, this.params);
+    this.start(this.file, this.wid, this.userParams || this.params);
   }
 
   /** 同步期望暂停状态（用户暂停/全局暂停/性能暂停统一入口） */
@@ -158,29 +174,39 @@ class VideoEngine {
 
   /** 确保前台 mpv 渲染子窗口位于宿主内 Z 序顶部（隔离执行，主线程零阻塞） */
   raiseFront() {
+    if (this.fading) return; // 淡入期间待命槽必须位于前台之上，抬升前台会盖住淡入画面
     const h = this._frontChildHwnd();
     if (h) this.winOps.fire('raise', h);
   }
 
   // ---------- 内部：槽位管理 ----------
 
+  /**
+   * PID 确定性绑定：把控制器与其 mpv 渲染子窗口一一对应。
+   * mpv 渲染窗口由 mpv 进程创建（--wid 只改变父窗口），窗口 PID 必然等于
+   * 本控制器的进程 PID —— 完全确定性、无竞态。旧写法按「未被认领的句柄」
+   * 猜测身份，在循环交替（杀旧前台 + 重建待命槽）窗口期会把新待命槽绑到
+   * 垂死窗口上 → 隐藏失效 → 暂停在第 0 帧的待命窗口盖住前台 → 画面永久冻结。
+   */
+  _bindChildWindow(c) {
+    const bind = (n) => {
+      if (this.stopping || c.childHwnd || !c.isRunning) return;
+      const mine = desktop.findAllChildrenByClass(this.wid, 'mpv')
+        .find((h) => desktop.getWindowPid(h) === (c.process?.pid || 0));
+      if (mine) {
+        c.childHwnd = mine;
+      } else if (n > 0) {
+        setTimeout(() => bind(n - 1), 150);
+      }
+    };
+    bind(25);
+  }
+
   _makeSlot(name, { startPos = 0, paused = true } = {}) {
     const c = new MpvController(name);
     c.onExit = (code) => this._onSlotExit(name, code);
     c.onReady = () => {
-      // 立即绑定本槽自己的 mpv 子窗口句柄（未被他槽占用的那个）。
-      // 句柄一旦绑定终身不变——严禁用 Z 序猜测身份（新槽上台后 Z 序会变）。
-      const bind = (n) => {
-        if (this.stopping || c.childHwnd) return;
-        const claimed = new Set([this.front?.childHwnd, this.standby?.childHwnd]);
-        const mine = desktop.findAllChildrenByClass(this.wid, 'mpv').find((h) => !claimed.has(h));
-        if (mine) {
-          c.childHwnd = mine;
-        } else if (n > 0) {
-          setTimeout(() => bind(n - 1), 150);
-        }
-      };
-      bind(20);
+      this._bindChildWindow(c);
       this._onSlotReady(name);
     };
     c.start(this.file, this.wid, {
@@ -237,7 +263,10 @@ class VideoEngine {
   _onSlotExit(name, code) {
     if (this.stopping) return; // 主动停止引发的退出
     if (name === 'front') {
-      // 前台进程意外退出（崩溃）：无黑屏顶替，失败再回退
+      // 前台进程意外退出（崩溃）：无黑屏顶替，失败再回退。
+      // 必须先清 fading：残留的 fading 会让 _ensureStandby/_onSlotReady 跳过
+      // 隐藏步骤，新待命槽以不透明状态盖住新前台（表现为画面定格第 0 帧）
+      this.fading = null;
       console.warn(`[engine] 前台槽意外退出(code=${code})，执行无黑屏顶替`);
       this._promoteStandbyAsFront()
         .then((ok) => (ok ? null : this._replaceFrontInPlace(0)))
@@ -287,6 +316,7 @@ class VideoEngine {
     }
     back.setPaused(this.expectPause);
 
+    this.fading = null; // 顶替即完成过渡，清除淡入状态（防止残留标志阻断后续待命槽隐藏）
     this.front = back;
     this.standby = null;
     if (old) old.stop(); // 已被完全遮盖，杀掉无黑屏
@@ -361,15 +391,29 @@ class VideoEngine {
     }
     if (!this.smoothLoop || !this._loopEnabled || this.expectPause) return;
 
-    // 轮询前台播放位置（淡入淡出调度用）
+    // 轮询前台播放位置（淡入调度用）
     this.front.query('time-pos', 1200).then((tp) => {
       if (this.stopping || this.fading || typeof tp !== 'number') return;
       if (this.front) this.front.lastTimePos = tp;
-      if (this.duration < 1) return;
+      if (this.duration < 1) {
+        // 时长未知（初始查询失败）→ 限频重试。不重试将永远无法调度交替，
+        // 前台会定格在最后一帧（健康检查的 EOF 自愈兜底之外再补一层）
+        const now = Date.now();
+        if (now >= (this._durNextTry || 0)) {
+          this._durNextTry = now + 1000;
+          this.front.query('duration', 3000).then((d) => {
+            if (this.stopping || this.fading || typeof d !== 'number' || !this.front) return;
+            this.duration = d;
+            console.log(`[engine] 视频时长重试成功 ${d.toFixed(1)}s`);
+            if (this.smoothLoop && this._loopEnabled) this._ensureStandby().catch(() => {});
+          });
+        }
+        return;
+      }
       const remaining = this.duration - tp;
       const eofHold = remaining <= 0.05; // 播完定格（keep-open）
       if (remaining <= FADE_SEC + 0.15) {
-        // 待命槽就绪才做淡化；未就绪则前台定格等待（短暂静帧，非黑屏）
+        // 待命槽就绪才做淡入；未就绪则前台定格等待（短暂静帧，非黑屏）
         if (this.standby && this.standby.isRunning && this.standby.ipcReady) {
           this._beginFade(eofHold ? FADE_SEC * 1000 : Math.max(0.35, remaining - 0.05) * 1000);
         } else if (eofHold) {
@@ -389,12 +433,12 @@ class VideoEngine {
         this._rebuildStandby('失联');
         return;
       }
-      console.log('[engine] 循环交界：开始交叉淡入淡出');
+      console.log('[engine] 循环交界：待命槽淡入覆盖（前台保持不透明垫底）');
       back.setProperty('pause', false); // 待命槽从第 0 帧起播（出生即在 0，无需 seek）
       const bh = this._standbyChildHwnd();
       if (bh) {
-        this.winOps.fire('alpha', bh, 0);
-        this.winOps.fire('raise', bh); // 淡入方置于最上
+        this.winOps.fire('alpha', bh, 0);   // 确保从全透明起步（不闪现）
+        this.winOps.fire('raise', bh);      // 淡入方置于最上
       }
       this.fading = { t0: Date.now(), dur: durMs };
     }).catch(() => {});
@@ -403,7 +447,7 @@ class VideoEngine {
   _stepFade() {
     const f = this.fading;
     if (!f) return;
-    // 淡化中待命槽死亡/失联：中止淡化，前台回满不透明（避免黑屏）
+    // 淡化中待命槽死亡/失联：中止淡化，前台本就保持不透明（无黑屏、无残留）
     if (!this.standby || !this.standby.isRunning) {
       console.warn('[engine] 淡化中待命槽失效，中止淡化并保持前台');
       this.fading = null;
@@ -413,15 +457,17 @@ class VideoEngine {
       return;
     }
     const p = Math.min(1, (Date.now() - f.t0) / f.dur);
+    // smoothstep 缓动：起止柔和、中段平滑，视觉上比线性过渡更自然
+    const e = p * p * (3 - 2 * p);
     const sh = this._standbyChildHwnd();
-    if (sh) this.winOps.fire('alpha', sh, Math.round(255 * p));
-    const fh = this._frontChildHwnd();
-    if (fh) this.winOps.fire('alpha', fh, 255 - Math.round(255 * p));
+    if (sh) this.winOps.fire('alpha', sh, Math.round(255 * e));
+    // 前台保持 alpha 255 垫底不动：合成结果恒为 e*新+(1-e)*旧，
+    // 全程亮度恒定（旧方案两窗同时淡化会让黑色宿主透出：变暗+重影）
     if (p >= 1) this._finishFade();
   }
 
   _finishFade() {
-    // 旧前台已完全淡出并定格在最后一帧：直接杀掉并重生为待命槽；角色互换
+    // 待命槽已完全不透明并完全遮盖旧前台：直接杀掉旧槽并重生为待命槽；角色互换
     const old = this.front;
     const cur = this.standby;
     this.fading = null;
@@ -432,6 +478,7 @@ class VideoEngine {
     console.log('[engine] 循环交界完成，角色已互换');
     this.stallCount = 0;
     this.unexpectedPauses = 0;
+    this.eofStuck = 0;
     this._prevHealthTp = undefined;
     this._scheduleStandbyRebuild(800); // 尽快重建待命槽（下一轮交界要用）
   }
@@ -466,6 +513,7 @@ class VideoEngine {
       if (eof === true) {
         this.stallCount = 0;
         this.unexpectedPauses = 0;
+        this._handleEofHold();
         return;
       }
       console.warn(`[engine] 健康检查：前台意外暂停 [slot=${front.name} pid=${front.process?.pid} expectPause=${this.expectPause} fading=${!!this.fading}]，尝试恢复播放`);
@@ -490,15 +538,38 @@ class VideoEngine {
     const prev = this._prevHealthTp;
     this._prevHealthTp = tp;
     if (prev !== undefined && Math.abs(tp - prev) < 0.05) {
-      // 定格在结尾属正常（等待交叉淡化交替）
+      // 定格在结尾属正常（等待淡入交替）
       const eof = await front.query('eof-reached', 1500);
       if (eof === true) {
         this.stallCount = 0;
+        this._handleEofHold();
         return;
       }
       this._bumpStall('播放进度停滞');
     } else {
       this.stallCount = 0;
+    }
+  }
+
+  /**
+   * 结尾定格处置（EOF keep-open 后 mpv 自行暂停）：
+   * - 待命槽就绪 → 立即淡入交替（时长未知也能走，不依赖 _tick 的预调度）；
+   * - 待命槽缺席 → 立刻重建；连续多次仍无进展判定僵死 → 无黑屏热修复。
+   * 修复“播放一段时间后画面定格不动”的遗留场景（待命槽重建失败/时长未知）。
+   */
+  _handleEofHold() {
+    if (!this._loopEnabled || !this.smoothLoop) return; // 用户关闭循环/平滑：定格结尾是预期行为
+    if (this.fading) { this.eofStuck = 0; return; }
+    if (this.standby && this.standby.isRunning && this.standby.ipcReady) {
+      this.eofStuck = 0;
+      this._beginFade(FADE_SEC * 1000);
+      return;
+    }
+    this._scheduleStandbyRebuild(0);
+    if (++this.eofStuck >= EOF_STUCK_LIMIT) {
+      this.eofStuck = 0;
+      console.warn(`[engine] 健康检查：结尾定格且待命槽缺席（${EOF_STUCK_LIMIT} 次无进展），执行无黑屏修复`);
+      this._repairFront('结尾定格僵死（待命槽缺席）');
     }
   }
 
@@ -541,6 +612,9 @@ class VideoEngine {
     const old = this.front;
     // 替换进程从第 0 帧暂停起步（--start=0 --pause，初始定位无 seek），渲染出画面后上台
     const rep = new MpvController('replace');
+    // 关键：必须设置 onReady 绑定子窗口（v1.4.0 遗漏 → childHwnd 恒为 0 →
+    // 就地替换判定失败 → 总是回退完整重启（短暂黑屏）。无黑屏替换从未生效过）
+    rep.onReady = () => this._bindChildWindow(rep);
     rep.start(this.file, this.wid, {
       ...this.params,
       startPos: 0,
@@ -560,7 +634,7 @@ class VideoEngine {
       if (old) old.stop();
       rep.stop();
       this.front = null;
-      if (this.file && !this.stopping) this.start(this.file, this.wid, this.params);
+      if (this.file && !this.stopping) this.start(this.file, this.wid, this.userParams || this.params);
       return;
     }
     // 新窗口上台并恢复不透明（隔离执行），旧窗口压暗后杀掉（无黑屏）
@@ -572,17 +646,20 @@ class VideoEngine {
       rep.stop();
       if (old) old.stop();
       this.front = null;
-      if (this.file && !this.stopping) this.start(this.file, this.wid, this.params);
+      if (this.file && !this.stopping) this.start(this.file, this.wid, this.userParams || this.params);
       return;
     }
     const oldHwnd = old ? this._slotHwnd(old) : 0;
     if (oldHwnd) this.winOps.fire('alpha', oldHwnd, 0);
     if (old) old.stop(); // 已被遮盖，无黑屏
     rep.setPaused(this.expectPause);
+    // 收编为前台槽：接上崩溃自愈回调（否则替换后前台崩溃无人接管）
+    rep.onExit = (code) => this._onSlotExit('front', code);
     this.front = rep;
     this.standby = null;
     this.stallCount = 0;
     this.unexpectedPauses = 0;
+    this.eofStuck = 0;
     this._prevHealthTp = undefined;
     console.log('[engine] 前台已无黑屏替换');
     if (this.smoothLoop && this._loopEnabled) this._scheduleStandbyRebuild(1500);

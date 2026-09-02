@@ -397,6 +397,98 @@ function ensureChildOnTop(parentHwnd, className) {
   return true;
 }
 
+// ---------- 桌面快捷方式转盘覆盖层 ----------
+// 与组件覆盖层同层：挂为 Progman 子窗口、置于图标层(SHELLDLL_DefView)之上、
+// 普通窗口之下 —— 桌面直接点击可用，又不遮挡任何应用窗口。
+// 窗口尺寸为转盘实际大小（非全屏），位置由主进程用物理像素控制。
+
+/** 把转盘窗口挂到 Progman、置于图标层之上（保持现有尺寸与位置） */
+function attachLauncherOverlay(hwnd) {
+  if (!hwnd || !IsWindow(hwnd)) return false;
+  const progman = findDesktopHost();
+  if (!progman) return false;
+  pmv2(() => {
+    const style = BigIntAsInt(GetWindowLongPtrW(hwnd, GWL_STYLE));
+    const newStyle = (style & ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_POPUP)) | WS_CHILD;
+    SetWindowLongPtrW(hwnd, GWL_STYLE, newStyle);
+  });
+  SetParent(hwnd, progman);
+  const defView = findDefView();
+  pmv2(() => {
+    SetWindowPos(hwnd, defView || 0, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+  });
+  ShowWindow(hwnd, SW_SHOW);
+  return true;
+}
+
+/** 看门狗：转盘窗口仍挂在 Progman 且位于图标层之上（不改动位置/尺寸） */
+function ensureLauncherOverlay(hwnd) {
+  if (!hwnd || !IsWindow(hwnd)) return 'dead';
+  const progman = findDesktopHost();
+  if (!progman) return 'ok';
+  const parent = Number(BigIntAsInt(GetAncestor(hwnd, GA_PARENT)));
+  if (parent !== progman) {
+    attachLauncherOverlay(hwnd);
+    return 'reattached';
+  }
+  const defView = findDefView();
+  if (defView) {
+    // 确认仍在图标层之上（Explorer 重启会重建 DefView）
+    let prev = 0;
+    let h = Number(BigIntAsInt(FindWindowExW(progman, 0, null, null)));
+    while (h) {
+      if (h === hwnd) break;
+      if (h === defView) prev = h;
+      h = Number(BigIntAsInt(FindWindowExW(progman, h, null, null)));
+    }
+    if (prev) {
+      pmv2(() => {
+        SetWindowPos(hwnd, defView, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+      });
+    }
+  }
+  return 'ok';
+}
+
+/**
+ * 把子窗口移动到屏幕物理坐标 (x,y)（保持尺寸）。
+ * MoveWindow 对子窗口要求父窗口客户区坐标，这里用 ScreenToClient 换算。
+ */
+function moveWindowToScreen(hwnd, x, y) {
+  if (!hwnd || !IsWindow(hwnd)) return false;
+  return pmv2(() => {
+    const r = [0, 0, 0, 0];
+    if (!GetWindowRect(hwnd, r)) return false;
+    const w = r[2] - r[0];
+    const h = r[3] - r[1];
+    const host = Number(BigIntAsInt(GetAncestor(hwnd, GA_PARENT)));
+    const pt = { x: Math.round(x), y: Math.round(y) };
+    if (host) DScreenToClient(host, pt);
+    return !!MoveWindow(hwnd, pt.x, pt.y, w, h, 1);
+  });
+}
+
+/** 按物理像素调整子窗口尺寸并移动到屏幕坐标 (x,y) */
+function resizeWindowToScreen(hwnd, x, y, w, h) {
+  if (!hwnd || !IsWindow(hwnd)) return false;
+  return pmv2(() => {
+    const host = Number(BigIntAsInt(GetAncestor(hwnd, GA_PARENT)));
+    const pt = { x: Math.round(x), y: Math.round(y) };
+    if (host) DScreenToClient(host, pt);
+    return !!MoveWindow(hwnd, pt.x, pt.y, Math.round(w), Math.round(h), 1);
+  });
+}
+
+/** 获取窗口屏幕物理矩形 {x,y,w,h}（失效返回 null） */
+function getWindowRectScreen(hwnd) {
+  if (!hwnd || !IsWindow(hwnd)) return null;
+  return pmv2(() => {
+    const r = [0, 0, 0, 0];
+    if (!GetWindowRect(hwnd, r)) return null;
+    return { x: r[0], y: r[1], w: r[2] - r[0], h: r[3] - r[1] };
+  });
+}
+
 /**
  * 将外部进程窗口嵌入为壁纸（用于 EXE 壁纸）：
  * 去边框 → 挂到 WorkerW/Progman → 物理像素铺满
@@ -497,6 +589,23 @@ function isWindowAlive(hwnd) {
   return hwnd ? !!IsWindow(hwnd) : false;
 }
 
+/** 获取窗口所属进程 PID（0 = 失败）。用于把 mpv 渲染子窗口与其进程一一对应 */
+function getWindowPid(hwnd) {
+  if (!hwnd || !IsWindow(hwnd)) return 0;
+  const pidBuf = [0];
+  GetWindowThreadProcessId(hwnd, pidBuf);
+  return pidBuf[0] | 0;
+}
+
+/** 获取光标屏幕物理坐标 {x,y}（DPI 感知） */
+function getCursorPos() {
+  return pmv2(() => {
+    const pt = { x: 0, y: 0 };
+    if (!GetCursorPos(pt)) return null;
+    return { x: pt.x, y: pt.y };
+  });
+}
+
 function showHwnd(hwnd, show) {
   if (hwnd && IsWindow(hwnd)) ShowWindow(hwnd, show ? SW_SHOW : SW_HIDE);
 }
@@ -518,6 +627,8 @@ module.exports = {
   isFullscreenApp,
   isAnyWindowMaximized,
   isWindowAlive,
+  getWindowPid,
+  getCursorPos,
   showHwnd,
   getClassName,
   getWindowTitle,
@@ -528,6 +639,11 @@ module.exports = {
   setChildAlpha,
   attachWidgetsOverlay,
   ensureWidgetsOverlay,
+  attachLauncherOverlay,
+  ensureLauncherOverlay,
+  moveWindowToScreen,
+  resizeWindowToScreen,
+  getWindowRectScreen,
   cursorInRects,
   isWindowVisible: (hwnd) => !!IsWindowVisible(hwnd),
 };

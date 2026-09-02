@@ -275,18 +275,18 @@ footer {
 
 <header>
   <div class="wrap hero-inner">
-    <div class="ver-badge"><i></i>v1.3.2 · 智能自动暂停 · 全局快捷键 · 界面焕新 · 站点导航扩充</div>
+    <div class="ver-badge"><i></i>v1.5.0 · 快捷方式转盘 · 平滑循环过渡 2.0 · 无黑屏自愈完整生效</div>
     <h1>让桌面<span class="grad">动起来</span></h1>
-    <p class="tagline">壁纸工坊是一款免费开源的 Windows 桌面壁纸软件 — 视频、图片、网页、EXE 程序皆可设为壁纸，时钟/CPU/GPU/音量组件融入桌面，参数精确可调，性能深度优化。</p>
+    <p class="tagline">壁纸工坊是一款免费开源的 Windows 桌面壁纸软件 — 视频、图片、网页、EXE 程序皆可设为壁纸，快捷方式转盘收纳常用 App，时钟/CPU/GPU/音量组件融入桌面，参数精确可调，性能深度优化。</p>
     <div class="cta-row">
-      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">
+      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.5.0/WallpaperStudio-Setup-1.5.0.exe" onclick="trackDownload(this)">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        国内高速下载 v1.4.0
+        国内高速下载 v1.5.0
       </a>
-      <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">GitHub 直连下载</a>
+      <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.5.0/WallpaperStudio-Setup-1.5.0.exe" onclick="trackDownload(this)">GitHub 直连下载</a>
       <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio" target="_blank" rel="noopener">查看源码</a>
     </div>
-    <p class="cta-note"><span>Windows 10 / 11 · x64</span><span>v1.4.0 · 约 200 MB（内置全格式解码器）</span><span>MIT 开源协议</span><span>下载慢？试试 <a href="https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" style="color:var(--accent2)">备用加速节点</a></span><span>本站国内镜像：<a href="https://wallpaper-studio.pages.dev/" style="color:var(--accent2)">wallpaper-studio.pages.dev</a></span></p>
+    <p class="cta-note"><span>Windows 10 / 11 · x64</span><span>v1.5.0 · 约 200 MB（内置全格式解码器）</span><span>MIT 开源协议</span><span>下载慢？试试 <a href="https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.5.0/WallpaperStudio-Setup-1.5.0.exe" style="color:var(--accent2)">备用加速节点</a></span><span>本站国内镜像：<a href="https://wallpaper-studio.pages.dev/" style="color:var(--accent2)">wallpaper-studio.pages.dev</a></span></p>
     <div class="shot-wrap">
       <img src="app-screenshot.png" alt="壁纸工坊主界面 — 壁纸库、实时预览与参数调节面板" loading="eager">
     </div>
@@ -330,19 +330,31 @@ footer {
     <p class="sec-sub">每一个参数都有固定调整点与精确数值输入，每一帧渲染都为低占用而优化。</p>
     <div class="feat-grid">
       <div class="feat">
-        <h3><span class="dot"></span>桌面 DIY 组件 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.2.0 新增</em></h3>
+        <h3><span class="dot"></span>桌面快捷方式转盘 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.5.0 新增</em></h3>
+        <p>常用 App 以转盘形式收纳在桌面（图标层之上、不遮挡任何窗口）：点击图标一键启动；按住图标条或拖动条左右拖动即可像转盘一样轮换图标（带惯性甩动）；拖动 ⋮ 手柄自由摆放位置；同屏数量 4~12 可调；空闲自动收起为小胶囊，悬停即展开。</p>
+      </div>
+      <div class="feat">
+        <h3><span class="dot"></span>平滑循环过渡 2.0 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.5.0 升级</em></h3>
+        <p>视频循环交界处新画面柔和淡入覆盖 — 旧画面保持不透明垫底，亮度恒定、无黑变无重影；smoothstep 缓动曲线 + 双引擎进程交替，过渡如行云流水，长时间循环稳定如一。</p>
+      </div>
+      <div class="feat">
+        <h3><span class="dot"></span>无黑屏自愈 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.5.0 完整生效</em></h3>
+        <p>播放卡死（硬解设备失效/进程冻结）时，备用引擎在冻结画面上方直接顶替 — 全程无黑屏、不打断使用；结尾定格僵死、循环状态脱节等边缘场景均有兜底修复，播放健康检查 15 秒内自动恢复。</p>
+      </div>
+      <div class="feat">
+        <h3><span class="dot"></span>桌面 DIY 组件 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.2.0</em></h3>
         <p>时钟（点击切换 12/24 小时制）、CPU / GPU / 内存实时占用条、音量控制条 — 自由搭配融入壁纸，桌面直接拖动调音量、点击静音，全部可交互。</p>
       </div>
       <div class="feat">
-        <h3><span class="dot"></span>暂停壁纸 · 定时轮换 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.2.0 新增</em></h3>
+        <h3><span class="dot"></span>暂停壁纸 · 定时轮换 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.2.0</em></h3>
         <p>一键暂停视频与轮换恢复桌面清爽（托盘亦可操作）；多壁纸定时轮换支持全部/收藏/自定义列表，随机或顺序切换，工具栏一键"下一张"。</p>
       </div>
       <div class="feat">
-        <h3><span class="dot"></span>智能自动暂停 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.3.0 新增</em></h3>
+        <h3><span class="dot"></span>智能自动暂停 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.3.0</em></h3>
         <p>全屏应用、笔记本电池供电、其他窗口最大化（Wallpaper Engine 同款）三种场景自动暂停视频壁纸，释放 CPU/GPU，条件解除自动恢复，每一项均可开关。</p>
       </div>
       <div class="feat">
-        <h3><span class="dot"></span>全局快捷键 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.3.0 新增</em></h3>
+        <h3><span class="dot"></span>全局快捷键 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.3.0</em></h3>
         <p>Ctrl+Alt+W 一键暂停 / 恢复壁纸 — 打游戏、看视频、开会演示时随手关掉动态壁纸，系统级生效，设置中可停用。</p>
       </div>
       <div class="feat">
@@ -402,6 +414,7 @@ footer {
           <tr><td>视频壁纸</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td><td class="yes">✓</td></tr>
           <tr><td>全格式视频（MP4/AVI/MKV/FLV…）</td><td class="yes">✓ mpv 内核</td><td class="yes">✓</td><td class="no">仅常见格式</td><td class="no">仅常见格式</td></tr>
           <tr><td>EXE 程序壁纸</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">✕</td><td class="no">✕</td></tr>
+          <tr><td>桌面快捷方式转盘（App 收纳启动）</td><td class="self">✓ v1.5.0</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
           <tr><td>播放速度调节</td><td class="yes">✓ 0.25×–4×</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
           <tr><td>桌面 DIY 组件（时钟/CPU/GPU/音量）</td><td class="self">✓ 内置可交互</td><td class="no">需创意工坊资产</td><td class="no">✕</td><td class="no">✕</td></tr>
           <tr><td>多壁纸定时轮换</td><td class="yes">✓ 随机/顺序/自定义列表</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">✕</td></tr>
@@ -423,19 +436,34 @@ footer {
   <div class="wrap reveal">
     <div class="sec-tag">版本信息</div>
     <h2>更新日志与历史版本</h2>
-    <p class="sec-sub">当前版本 <b style="color: var(--text)">v1.4.0</b> · 持续迭代中 · 每个版本均可下载安装包</p>
+    <p class="sec-sub">当前版本 <b style="color: var(--text)">v1.5.0</b> · 持续迭代中 · 每个版本均可下载安装包</p>
     <div class="ver-block">
-      <h3>v1.4.0 <span class="tag">最新</span></h3>
+      <h3>v1.5.0 <span class="tag">最新</span></h3>
       <ul>
-        <li><b>新增</b> 平滑循环过渡 — 双引擎交叉淡入淡出：视频循环交界处由生硬跳变变为柔和溶解（设置 → 播放体验中可关闭）</li>
+        <li><b>新增</b> 桌面快捷方式转盘 — 常用 App 收纳在桌面图标层之上：点击图标一键启动；按住图标条/拖动条左右拖动像转盘一样轮换（带惯性甩动）；拖动 ⋮ 手柄自由摆放位置；同屏数量 4~12 可调；空闲自动收起为小胶囊、悬停展开，不影响壁纸观感</li>
+        <li><b>重构</b> 平滑循环过渡 2.0 — 循环交界处新画面柔和淡入覆盖，旧画面保持不透明垫底：亮度恒定，彻底消除旧版过渡瞬间的画面变暗与影像重影；smoothstep 缓动曲线过渡更自然</li>
+        <li><b>修复</b> 窗口操作隔离执行器传入字符串句柄导致全部窗口操作静默失败的问题（v1.4.0 交叉淡入淡出实际从未生效、卡死修复被连带失败回退黑屏重启的最终根因）— 现已改为队列化派发 + 同目标去重，冻结窗口上的操作不再误伤正常操作</li>
+        <li><b>修复</b> mpv 渲染子窗口按「未被认领句柄」猜测身份的绑定竞态 — 循环交替窗口期可能把备用引擎绑到垂死窗口上导致画面永久定格；现改为按进程 PID 确定性绑定</li>
+        <li><b>修复</b> 无黑屏就地替换从未生效（替换进程未绑定窗口句柄恒判失败）与完整重启后用户循环开关被引擎内部参数覆盖（重启后永不循环、结尾定格无人修复）的问题</li>
+        <li><b>新增</b> 结尾定格僵死自愈 — 备用引擎缺席/视频时长未知导致的画面定格自动兜底修复；视频时长获取失败自动重试；淡入期间不再被看门狗抬升打断</li>
+      </ul>
+      <div class="ver-dl">
+        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.5.0/WallpaperStudio-Setup-1.5.0.exe" onclick="trackDownload(this)">国内加速下载 v1.5.0</a>
+        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.5.0/WallpaperStudio-Setup-1.5.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
+      </div>
+    </div>
+    <div class="ver-block" style="border-left-color: var(--border);">
+      <h3>v1.4.0</h3>
+      <ul>
+        <li><b>新增</b> 平滑循环过渡 — 双引擎交替消除循环交界跳变（设置 → 播放体验中可关闭；v1.5.0 已升级为淡入覆盖 2.0 并修复窗口操作失效问题）</li>
         <li><b>修复</b> 动态壁纸播放一段时间后无法恢复的最终根因 — 引擎对 mpv 窗口的窗口操作（SetWindowPos 等）会向冻结进程同步投递消息并连带死锁主进程；现已全部改由隔离执行器在 worker 线程执行，主进程永不阻塞</li>
         <li><b>新增</b> 无黑屏自愈 — 播放卡死时备用引擎先在冻结画面上方渲染出画面再替换旧进程，全程无黑屏、不打断使用</li>
         <li><b>修复</b> 引擎 IPC 管道名冲突（同名多实例跨连导致意外暂停反复出现）</li>
         <li><b>优化</b> 解复用缓存加大至 128MiB，整段视频常驻内存时循环点零停顿</li>
       </ul>
       <div class="ver-dl">
-        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">国内加速下载 v1.4.0</a>
-        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
+        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.5.0/WallpaperStudio-Setup-1.5.0.exe" onclick="trackDownload(this)">国内加速下载 v1.5.0</a>
+        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.5.0/WallpaperStudio-Setup-1.5.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
       </div>
     </div>
     <div class="ver-block" style="border-left-color: var(--border);">
@@ -446,8 +474,8 @@ footer {
         <li><b>优化</b> mpv 限流跳过重启时记录日志，不再静默放弃</li>
       </ul>
       <div class="ver-dl">
-        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">国内加速下载 v1.4.0</a>
-        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
+        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.5.0/WallpaperStudio-Setup-1.5.0.exe" onclick="trackDownload(this)">国内加速下载 v1.5.0</a>
+        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.5.0/WallpaperStudio-Setup-1.5.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
       </div>
     </div>
     <div class="ver-block" style="border-left-color: var(--border);">
@@ -459,8 +487,8 @@ footer {
         <li><b>优化</b> 官网界面截图更新至 v1.3.1 最新版界面；官网新增国内 CDN 镜像（Cloudflare Pages）</li>
       </ul>
       <div class="ver-dl">
-        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">国内加速下载 v1.4.0</a>
-        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
+        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.5.0/WallpaperStudio-Setup-1.5.0.exe" onclick="trackDownload(this)">国内加速下载 v1.5.0</a>
+        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.5.0/WallpaperStudio-Setup-1.5.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
       </div>
     </div>
     <div class="ver-block" style="border-left-color: var(--border);">
@@ -474,8 +502,8 @@ footer {
         <li><b>优化</b> 界面焕新 — 页面标题渐变标识、壁纸卡片悬浮放大动效、壁纸站点卡片全新设计、布局细节打磨</li>
       </ul>
       <div class="ver-dl">
-        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">国内加速下载 v1.4.0</a>
-        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
+        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.5.0/WallpaperStudio-Setup-1.5.0.exe" onclick="trackDownload(this)">国内加速下载 v1.5.0</a>
+        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.5.0/WallpaperStudio-Setup-1.5.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
       </div>
     </div>
     <div class="ver-block" style="border-left-color: var(--border);">
@@ -488,8 +516,8 @@ footer {
         <li><b>新增</b> 音量组件桌面直接拖动调节、点击静音</li>
       </ul>
       <div class="ver-dl">
-        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">国内加速下载 v1.4.0</a>
-        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
+        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.5.0/WallpaperStudio-Setup-1.5.0.exe" onclick="trackDownload(this)">国内加速下载 v1.5.0</a>
+        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.5.0/WallpaperStudio-Setup-1.5.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
       </div>
     </div>
     <div class="ver-block" style="border-left-color: var(--border);">
@@ -525,9 +553,9 @@ footer {
     <h2>把桌面交给想象力</h2>
     <p>免费、开源、开箱即用。</p>
     <div class="cta-row" style="justify-content: center;">
-      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe" onclick="trackDownload(this)">
+      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.5.0/WallpaperStudio-Setup-1.5.0.exe" onclick="trackDownload(this)">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        国内高速下载 v1.4.0
+        国内高速下载 v1.5.0
       </a>
       <a class="btn btn-ghost" href="#changelog">历史版本下载</a>
       <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases" target="_blank" rel="noopener">全部版本</a>
@@ -537,7 +565,7 @@ footer {
 
 <footer>
   <div class="wrap foot-inner">
-    <div>壁纸工坊 Wallpaper Studio · v1.4.0 · MIT License</div>
+    <div>壁纸工坊 Wallpaper Studio · v1.5.0 · MIT License</div>
     <div class="foot-links">
       <a href="https://wallpaper-studio.pages.dev/" title="国内 CDN 镜像">国内镜像</a>
       <a href="https://github.com/Alinyu330/wallpaper-studio" target="_blank" rel="noopener">GitHub</a>

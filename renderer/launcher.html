@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>Launcher</title>
+  <style>
+    :root {
+      --glass: rgba(15, 17, 25, 0.58);
+      --glass-border: rgba(255, 255, 255, 0.13);
+      --icon-size: 46px;
+      --slot: 56px;            /* 图标位宽 = 46 + 10 间距 */
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: transparent;
+      font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      user-select: none; -webkit-user-select: none;
+      cursor: default;
+    }
+
+    #widget { position: absolute; left: 0; top: 0; }
+
+    /* ---------- 展开的转盘 ---------- */
+    #expanded {
+      display: flex; flex-direction: column; align-items: stretch;
+      padding: 10px 12px 8px;
+      border-radius: 22px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(18px) saturate(1.35);
+      -webkit-backdrop-filter: blur(18px) saturate(1.35);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, .30);
+      transition: opacity .28s ease, transform .28s cubic-bezier(.2, .8, .3, 1);
+      transform-origin: 14px 50%;
+    }
+    body.collapsed #expanded {
+      opacity: 0; transform: scale(.12);
+      pointer-events: none;
+    }
+
+    #row { display: flex; align-items: center; gap: 10px; }
+
+    /* 移动手柄（拖动摆放位置） */
+    .grip {
+      flex: none; width: 22px; height: var(--icon-size);
+      border-radius: 9px;
+      background-image: radial-gradient(circle, rgba(255,255,255,.75) 1.3px, transparent 1.4px);
+      background-size: 8px 9px; background-position: center;
+      opacity: .5; cursor: move;
+      transition: opacity .15s, background-color .15s;
+    }
+    .grip:hover { opacity: .95; background-color: rgba(255,255,255,.10); }
+
+    /* 图标条 */
+    #strip { position: relative; height: var(--icon-size); }
+    .item {
+      position: absolute; left: 0; top: 0;
+      width: var(--icon-size); height: var(--icon-size);
+      border-radius: 13px;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: background .15s, border-color .15s, box-shadow .15s;
+      will-change: transform, opacity;
+    }
+    .item:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.25);
+      box-shadow: 0 3px 14px rgba(0, 0, 0, .3);
+    }
+    .item img { width: 38px; height: 38px; pointer-events: none; }
+    .item .fallback {
+      width: 38px; height: 38px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 600; color: #fff;
+      background: linear-gradient(135deg, #7c5cff, #4f8cff);
+      pointer-events: none;
+    }
+    /* 移除模式角标 */
+    .item .x {
+      position: absolute; top: -6px; right: -6px;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #ff5c6c; color: #fff; font-size: 12px; line-height: 18px;
+      text-align: center; display: none;
+      box-shadow: 0 1px 6px rgba(0, 0, 0, .4);
+    }
+    body.manage .item .x { display: block; }
+    body.manage .item { border-color: rgba(255, 92, 108, .45); }
+
+    /* 添加按钮 */
+    #add-btn {
+      flex: none; width: var(--icon-size); height: var(--icon-size);
+      border-radius: 13px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1.5px dashed rgba(255, 255, 255, 0.28);
+      color: rgba(255, 255, 255, 0.75);
+      font-size: 22px; line-height: 1;
+      cursor: pointer;
+      transition: background .15s, border-color .15s, color .15s;
+    }
+    #add-btn:hover { background: rgba(124, 92, 255, 0.25); border-color: #7c5cff; color: #fff; }
+
+    /* 空状态提示 */
+    #empty-hint {
+      align-self: center; color: rgba(255, 255, 255, 0.55);
+      font-size: 12.5px; letter-spacing: .5px; white-space: nowrap;
+      padding: 0 8px;
+    }
+
+    /* 拖动条（转盘轮换） */
+    #dragbar {
+      align-self: center;
+      margin-top: 9px;
+      width: 62%; height: 15px;
+      border-radius: 8px;
+      background:
+        radial-gradient(circle, rgba(255,255,255,.4) 1.1px, transparent 1.2px) 4px 50% / 9px 3px repeat-x,
+        rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      cursor: grab;
+      transition: background-color .15s, border-color .15s;
+    }
+    #dragbar:active { cursor: grabbing; background-color: rgba(124, 92, 255, 0.22); border-color: rgba(124, 92, 255, .4); }
+    #dragbar .bar-hint {
+      font-size: 10px; color: rgba(255, 255, 255, 0.55);
+      letter-spacing: 2px; pointer-events: none;
+      background: rgba(15,17,25,.9); padding: 0 8px; border-radius: 6px;
+      line-height: 13px;
+    }
+
+    /* ---------- 收起后的胶囊 ---------- */
+    #pill {
+      position: absolute; left: 0; top: 0;
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px;
+      border-radius: 18px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(16px) saturate(1.3);
+      -webkit-backdrop-filter: blur(16px) saturate(1.3);
+      box-shadow: 0 6px 22px rgba(0, 0, 0, .28);
+      color: #fff;
+      cursor: pointer;
+      opacity: 0; transform: scale(.7);
+      transition: opacity .25s ease .1s, transform .25s cubic-bezier(.2,.8,.3,1) .1s;
+      pointer-events: none;
+    }
+    body.collapsed #pill { opacity: 1; transform: scale(1); pointer-events: auto; }
+    #pill .pill-grip {
+      width: 14px; height: 26px;
+      background-image: radial-gradient(circle, rgba(255,255,255,.7) 1.2px, transparent 1.3px);
+      background-size: 5px 8px; background-position: center;
+      opacity: .6; cursor: move;
+    }
+    #pill .pill-ico { font-size: 16px; line-height: 1; opacity: .92; }
+    #pill .pill-count {
+      font-size: 11.5px; font-weight: 600;
+      color: #cfd4e6; background: rgba(255,255,255,.10);
+      border-radius: 8px; padding: 1px 7px;
+    }
+
+    /* ---------- 右键菜单 ---------- */
+    #ctx-menu {
+      position: fixed; z-index: 999;
+      min-width: 150px; padding: 5px;
+      border-radius: 12px;
+      background: rgba(20, 22, 32, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 10px 34px rgba(0, 0, 0, .45);
+      font-size: 12.5px; color: #e8eaf2;
+    }
+    #ctx-menu button {
+      display: flex; width: 100%; align-items: center; justify-content: space-between;
+      gap: 14px; padding: 7px 11px;
+      background: none; border: none; border-radius: 8px;
+      color: inherit; font: inherit; text-align: left; cursor: pointer;
+    }
+    #ctx-menu button:hover { background: rgba(255, 255, 255, 0.10); }
+    #ctx-menu button.danger { color: #ff8a94; }
+    #ctx-menu .check { font-size: 11px; color: #7c5cff; }
+  </style>
+</head>
+<body>
+  <div id="widget">
+    <div id="expanded">
+      <div id="row">
+        <div class="grip" id="grip" title="按住拖动 · 摆放转盘位置"></div>
+        <div id="strip"></div>
+        <span id="empty-hint" style="display:none">右键或点 ＋ 添加常用 App 快捷方式</span>
+        <button id="add-btn" title="添加快捷方式">＋</button>
+      </div>
+      <div id="dragbar" title="按住左右拖动 · 像转盘一样轮换图标"><span class="bar-hint">⟨ 拖动轮换 ⟩</span></div>
+    </div>
+    <div id="pill" title="展开快捷方式转盘">
+      <div class="pill-grip" id="pill-grip" title="按住拖动 · 摆放位置"></div>
+      <span class="pill-ico">⊞</span>
+      <span class="pill-count" id="pill-count">0</span>
+    </div>
+  </div>
+
+  <div id="ctx-menu" style="display:none"></div>
+
+  <script>
+    const H = window.launcherHost;
+    const strip = document.getElementById('strip');
+    const expandedEl = document.getElementById('expanded');
+    const pillEl = document.getElementById('pill');
+    const emptyHint = document.getElementById('empty-hint');
+    const addBtn = document.getElementById('add-btn');
+    const ctxMenu = document.getElementById('ctx-menu');
+
+    let cfg = { count: 8, autoCollapse: true, shortcuts: [] };
+    let N = 0;                  // 快捷方式总数
+    let head = 0;               // 转盘旋转量：最左槽位对应的条目索引（浮点，连续）
+    let items = [];             // 图标元素（与 shortcuts 一一对应）
+    let collapsed = false;
+    let manageMode = false;
+    let collapseTimer = null;
+    let animId = null;
+    let wheelSnapT = null;
+
+    const SLOT = 56;
+    const dpr = window.devicePixelRatio || 1;
+
+    // ---------- 渲染 ----------
+
+    function renderStrip() {
+      N = cfg.shortcuts.length;
+      strip.innerHTML = '';
+      items = [];
+      document.getElementById('pill-count').textContent = String(N);
+      emptyHint.style.display = N ? 'none' : '';
+      addBtn.style.display = N ? '' : 'none';
+      if (!N) {
+        strip.style.width = '150px';
+        requestAnimationFrame(reportMetrics);
+        return;
+      }
+      const count = visibleCount();
+      strip.style.width = (count * SLOT - (SLOT - 46)) + 'px';
+      cfg.shortcuts.forEach((s, i) => {
+        const el = document.createElement('div');
+        el.className = 'item';
+        el.dataset.i = String(i);
+        el.title = s.name;
+        if (s.icon) {
+          const img = document.createElement('img');
+          img.src = s.icon;
+          img.draggable = false;
+          el.appendChild(img);
+        } else {
+          const fb = document.createElement('div');
+          fb.className = 'fallback';
+          fb.textContent = (s.name || '?').slice(0, 1).toUpperCase();
+          el.appendChild(fb);
+        }
+        const x = document.createElement('span');
+        x.className = 'x';
+        x.textContent = '✕';
+        el.appendChild(x);
+        strip.appendChild(el);
+        items.push(el);
+      });
+      head = ((head % N) + N) % N;
+      layout();
+      requestAnimationFrame(reportMetrics);
+    }
+
+    function visibleCount() {
+      return Math.max(1, Math.min(cfg.count || 8, 12));
+    }
+
+    /** 按当前 head 布局所有图标（转盘效果：离中心越远越小越淡） */
+    function layout() {
+      if (!N) return;
+      const count = visibleCount();
+      const c = (count - 1) / 2;
+      for (const el of items) {
+        const i = +el.dataset.i;
+        const pos = (((i - head) % N) + N) % N;   // [0, N)
+        const enterRight = pos <= count - 1 + 0.45;
+        const enterLeft = pos >= N - 0.45;        // 回绕到左端进入
+        if (!enterRight && !enterLeft) { el.style.display = 'none'; continue; }
+        el.style.display = '';
+        const slotPos = enterLeft ? pos - N : pos;
+        const d = slotPos - c;
+        const dist = Math.abs(d);
+        el.style.transform = `translateX(${slotPos * SLOT}px) scale(${(1 - Math.min(0.30, dist * 0.08)).toFixed(3)})`;
+        el.style.opacity = Math.max(0, 1 - Math.min(0.62, dist * 0.17)).toFixed(3);
+        el.style.zIndex = String(100 - Math.round(dist * 2));
+      }
+    }
+
+    // ---------- 转盘拖动轮换（带惯性 + 吸附） ----------
+
+    let rotating = false;
+    let rotStartX = 0;
+    let rotMoved = 0;
+    let rotPressedIdx = -1;
+    let lastMove = null;
+    let vel = 0;   // 槽位/秒
+
+    function stopAnim() { if (animId) { cancelAnimationFrame(animId); animId = null; } }
+
+    function snapToNearest() {
+      stopAnim();
+      const target = Math.round(head);
+      const from = head, t0 = performance.now(), dur = 170;
+      const step = (now) => {
+        const p = Math.min(1, (now - t0) / dur);
+        head = from + (target - from) * (1 - Math.pow(1 - p, 3));
+        layout();
+        animId = p < 1 ? requestAnimationFrame(step) : null;
+      };
+      animId = requestAnimationFrame(step);
+    }
+
+    function momentum() {
+      stopAnim();
+      let last = performance.now();
+      const step = (now) => {
+        const dt = Math.min(60, now - last); last = now;
+        if (Math.abs(vel) > 0.4) {
+          head -= vel * dt / 1000;
+          vel *= Math.pow(0.9935, dt);
+          layout();
+          animId = requestAnimationFrame(step);
+        } else {
+          snapToNearest();
+        }
+      };
+      animId = requestAnimationFrame(step);
+    }
+
+    function bindRotate(el) {
+      el.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        rotating = true;
+        rotStartX = e.clientX;
+        rotMoved = 0;
+        vel = 0;
+        lastMove = { x: e.clientX, t: performance.now() };
+        rotPressedIdx = e.target.closest('.item') ? +e.target.closest('.item').dataset.i : -1;
+        stopAnim();
+        el.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+      el.addEventListener('pointermove', (e) => {
+        if (!rotating) return;
+        const dx = e.clientX - rotStartX;
+        rotMoved = Math.max(rotMoved, Math.abs(dx));
+        const now = performance.now();
+        if (lastMove) {
+          const dt = Math.max(1, now - lastMove.t);
+          const inst = -((e.clientX - lastMove.x) / SLOT) / (dt / 1000);
+          vel = 0.75 * vel + 0.25 * inst;
+        }
+        lastMove = { x: e.clientX, t: now };
+        head -= (e.clientX - rotStartX) / SLOT;
+        rotStartX = e.clientX;
+        layout();
+      });
+      const up = (e) => {
+        if (!rotating) return;
+        rotating = false;
+        if (rotMoved < 6 && rotPressedIdx >= 0) {
+          // 点击（非拖动）：启动 / 移除模式下移除
+          if (manageMode) { H.remove(rotPressedIdx); }
+          else { H.launch(rotPressedIdx); pulseLaunch(); }
+          snapToNearest();
+          return;
+        }
+        if (Math.abs(vel) > 1.2) momentum();
+        else snapToNearest();
+      };
+      el.addEventListener('pointerup', up);
+      el.addEventListener('pointercancel', up);
+    }
+    bindRotate(strip);
+    bindRotate(document.getElementById('dragbar'));
+
+    function pulseLaunch() {
+      expandedEl.style.boxShadow = '0 0 0 3px rgba(124, 92, 255, .55)';
+      setTimeout(() => { expandedEl.style.boxShadow = ''; }, 260);
+    }
+
+    // 滚轮同样可轮换
+    for (const el of [strip, document.getElementById('dragbar')]) {
+      el.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        stopAnim();
+        head += e.deltaY * 0.0022;
+        layout();
+        clearTimeout(wheelSnapT);
+        wheelSnapT = setTimeout(snapToNearest, 160);
+      }, { passive: false });
+    }
+
+    // ---------- 收起 / 展开 ----------
+
+    function setCollapsed(v) {
+      if (collapsed === v) return;
+      collapsed = v;
+      document.body.classList.toggle('collapsed', v);
+      setTimeout(reportRects, v ? 60 : 300);  // 过渡结束后上报命中矩形
+    }
+
+    function scheduleCollapse() {
+      clearTimeout(collapseTimer);
+      if (cfg.autoCollapse && N) {
+        collapseTimer = setTimeout(() => setCollapsed(true), 3200);
+      }
+    }
+
+    pillEl.addEventListener('click', (e) => {
+      if (e.target.closest('#pill-grip')) return;
+      setCollapsed(false);
+    });
+
+    // ---------- 摆放位置（拖动移动窗口） ----------
+
+    function bindWindowDrag(handle) {
+      let dragging = false;
+      handle.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0) return;
+        dragging = true;
+        H.setInteracting(true);
+        H.dragStart();
+        handle.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+      handle.addEventListener('pointermove', () => { if (dragging) H.dragMove(); });
+      const end = () => {
+        if (!dragging) return;
+        dragging = false;
+        H.dragEnd();
+        H.setInteracting(false);
+      };
+      handle.addEventListener('pointerup', end);
+      handle.addEventListener('pointercancel', end);
+    }
+    bindWindowDrag(document.getElementById('grip'));
+    bindWindowDrag(document.getElementById('pill-grip'));
+
+    // ---------- 右键菜单 ----------
+
+    addBtn.addEventListener('click', () => H.addShortcuts());
+
+    document.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      showCtx(e.clientX, e.clientY);
+    });
+
+    function showCtx(x, y) {
+      ctxMenu.innerHTML = '';
+      const mk = (label, fn, opts = {}) => {
+        const b = document.createElement('button');
+        if (opts.danger) b.className = 'danger';
+        b.innerHTML = `<span>${label}</span>${opts.checked ? '<span class="check">✓</span>' : ''}`;
+        b.addEventListener('click', () => { hideCtx(); fn(); });
+        ctxMenu.appendChild(b);
+      };
+      mk('添加快捷方式', () => H.addShortcuts());
+      mk(manageMode ? '退出移除模式' : '移除快捷方式', () => {
+        manageMode = !manageMode;
+        document.body.classList.toggle('manage', manageMode);
+      }, { checked: manageMode, danger: manageMode });
+      mk(collapsed ? '展开转盘' : '立即收起', () => setCollapsed(!collapsed));
+      ctxMenu.style.display = 'block';
+      const rect = ctxMenu.getBoundingClientRect();
+      const w = window.innerWidth, h = window.innerHeight;
+      ctxMenu.style.left = Math.min(x, w - rect.width - 6) + 'px';
+      ctxMenu.style.top = Math.min(y, h - rect.height - 6) + 'px';
+    }
+    function hideCtx() { ctxMenu.style.display = 'none'; }
+    document.addEventListener('pointerdown', (e) => {
+      if (!e.target.closest('#ctx-menu')) hideCtx();
+    });
+
+    // ---------- 尺寸 / 命中矩形上报 ----------
+
+    function reportMetrics() {
+      const r = expandedEl.getBoundingClientRect();
+      if (r.width > 10 && r.height > 10) {
+        H.reportMetrics({ w: Math.ceil(r.width), h: Math.ceil(r.height) });
+      }
+      reportRects();
+    }
+
+    function reportRects() {
+      const el = collapsed ? pillEl : expandedEl;
+      const r = el.getBoundingClientRect();
+      if (r.width < 2) return;
+      H.reportRects([{
+        x: Math.round(r.left * dpr), y: Math.round(r.top * dpr),
+        w: Math.round(r.width * dpr), h: Math.round(r.height * dpr),
+      }]);
+    }
+
+    // ---------- 主进程事件 ----------
+
+    H.onConfig((c) => {
+      const prevCount = cfg.count;
+      cfg = c || {};
+      renderStrip();
+      if (prevCount !== cfg.count) head = 0;
+      if (collapsed && !cfg.autoCollapse) setCollapsed(false);
+      // 初始（尚未发生任何悬停切换）也要进入「空闲自动收起」节奏：
+      // hover 事件只在状态切换时到达，若不主动排定收起，转盘会一直展开
+      scheduleCollapse();
+    });
+
+    H.onHover((v) => {
+      if (v) {
+        clearTimeout(collapseTimer);
+        setCollapsed(false);
+      } else {
+        scheduleCollapse();
+      }
+    });
+
+    // ---------- 启动 ----------
+
+    H.ready();
+    window.addEventListener('resize', () => { reportMetrics(); });
+  </script>
+</body>
+</html>

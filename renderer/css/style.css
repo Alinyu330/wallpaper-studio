@@ -700,6 +700,46 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
   font-family: Consolas, "Courier New", monospace;
 }
 
+/* ---------- 桌面快捷方式转盘 ---------- */
+.lc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.lc-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg2);
+  transition: background .15s, border-color .15s;
+}
+.lc-item:hover { background: var(--card-hover); border-color: #2c344a; }
+.lc-ico {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--grad);
+  color: #fff;
+  font-size: 13px; font-weight: 600;
+  overflow: hidden;
+}
+.lc-ico img { width: 24px; height: 24px; }
+.lc-name {
+  flex: 1;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lc-item .icon-btn { flex: none; }
+
 /* ---------- 滚动条 ---------- */
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }

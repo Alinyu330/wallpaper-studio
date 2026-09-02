@@ -43,6 +43,7 @@ async function init() {
   renderWidgetsSettings();
   renderSites();
   renderSettingsPage();
+  renderLauncherSettings();
   checkMpv();
   loadDisplayInfo();
   refreshLockScreenDetail();
@@ -940,6 +941,84 @@ function bindWidgetsSettings() {
   $('#wg-opacity-num').addEventListener('change', (e) => applyOpacity(parseFloat(e.target.value)));
 }
 
+// ---------- 桌面快捷方式转盘 ----------
+let launcherCfg = null;
+
+async function renderLauncherSettings() {
+  try {
+    launcherCfg = await window.api.getLauncherConfig();
+  } catch (_) {
+    launcherCfg = { enabled: false, count: 8, autoCollapse: true, shortcuts: [] };
+  }
+  const lc = launcherCfg;
+  $('#lc-enabled').checked = !!lc.enabled;
+  $$('#lc-count button').forEach(b => b.classList.toggle('active', +b.dataset.count === (lc.count || 8)));
+  $('#lc-autocollapse').checked = lc.autoCollapse !== false;
+
+  const list = $('#lc-list');
+  list.innerHTML = '';
+  $('#lc-shortcut-count').textContent = lc.shortcuts.length ? `已收纳 ${lc.shortcuts.length} 个` : '';
+  if (!lc.shortcuts.length) {
+    const empty = document.createElement('p');
+    empty.className = 'hint';
+    empty.textContent = '还没有快捷方式，点击下方按钮添加常用 App。';
+    list.appendChild(empty);
+    return;
+  }
+  lc.shortcuts.forEach((s, i) => {
+    const item = document.createElement('div');
+    item.className = 'lc-item';
+    const ico = document.createElement('div');
+    ico.className = 'lc-ico';
+    if (s.icon) {
+      const img = document.createElement('img');
+      img.src = s.icon;
+      ico.appendChild(img);
+    } else {
+      ico.textContent = (s.name || '?').slice(0, 1).toUpperCase();
+    }
+    const name = document.createElement('span');
+    name.className = 'lc-name';
+    name.textContent = s.name;
+    name.title = s.path;
+    const del = document.createElement('button');
+    del.className = 'icon-btn';
+    del.title = '移除';
+    del.innerHTML = ICONS.trash;
+    del.addEventListener('click', async () => {
+      const next = launcherCfg.shortcuts.filter((_x, j) => j !== i).map(x => ({ name: x.name, path: x.path }));
+      await window.api.updateLauncherConfig({ shortcuts: next });
+      toast('已移除');
+      renderLauncherSettings();
+    });
+    item.append(ico, name, del);
+    list.appendChild(item);
+  });
+}
+
+function bindLauncherSettings() {
+  $('#lc-enabled').addEventListener('change', async (e) => {
+    await window.api.updateLauncherConfig({ enabled: e.target.checked });
+    toast(e.target.checked ? '快捷方式转盘已开启，回到桌面查看效果' : '快捷方式转盘已关闭');
+  });
+  $$('#lc-count button').forEach(b => {
+    b.addEventListener('click', async () => {
+      $$('#lc-count button').forEach(x => x.classList.toggle('active', x === b));
+      await window.api.updateLauncherConfig({ count: +b.dataset.count });
+      launcherCfg.count = +b.dataset.count;
+    });
+  });
+  $('#lc-autocollapse').addEventListener('change', (e) => {
+    launcherCfg.autoCollapse = e.target.checked;
+    window.api.updateLauncherConfig({ autoCollapse: e.target.checked });
+  });
+  $('#btn-lc-add').addEventListener('click', async () => {
+    const res = await window.api.addLauncherShortcuts();
+    if (res?.added) toast(`已添加 ${res.added} 个快捷方式`);
+    renderLauncherSettings();
+  });
+}
+
 // ---------- 壁纸站点 ----------
 const SITES = [
   { name: '4K Desk', url: 'https://www.4kdesk.com/', desc: '4K 超高清壁纸站，风景 / 动漫 / 游戏分类齐全', tags: ['4K', '超高清'] },
@@ -1091,4 +1170,5 @@ document.addEventListener('DOMContentLoaded', () => {
   init();
   bindRotation();
   bindSettings();
+  bindLauncherSettings();
 });
