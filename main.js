@@ -2,6 +2,7 @@
 const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, screen, nativeImage, shell, globalShortcut, powerMonitor, powerSaveBlocker } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const util = require('util');
 const { Store } = require('./src/store');
 const { MpvController, findMpv } = require('./src/mpv');
 const { ExeWallpaper } = require('./src/exe-wallpaper');
@@ -20,6 +21,27 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
   console.error('[main] 未处理的 Promise 拒绝:', reason && (reason.stack || reason));
 });
+
+// ---------- 引擎日志落盘（现场取证用） ----------
+// 用户报告"壁纸停止播放"等问题时，日志文件 %APPDATA%/壁纸工坊/engine.log
+// 记录了应用壁纸/健康检查/性能暂停/进程重启等全部引擎事件与时间戳。
+// 超过 512KB 自动清空重写，避免无限增长。
+const ORIG_CONSOLE_LOG = console.log.bind(console);
+const ORIG_CONSOLE_WARN = console.warn.bind(console);
+const ORIG_CONSOLE_ERROR = console.error.bind(console);
+function appendEngineLog(kind, args) {
+  try {
+    const line = `[${new Date().toISOString()}] [${kind}] ${util.format(...args)}\n`;
+    const file = path.join(app.getPath('userData'), 'engine.log');
+    try {
+      if (fs.existsSync(file) && fs.statSync(file).size > 512 * 1024) fs.truncateSync(file, 0);
+      fs.appendFileSync(file, line, 'utf8');
+    } catch (_) {}
+  } catch (_) {}
+}
+console.log = (...args) => { ORIG_CONSOLE_LOG(...args); appendEngineLog('info', args); };
+console.warn = (...args) => { ORIG_CONSOLE_WARN(...args); appendEngineLog('warn', args); };
+console.error = (...args) => { ORIG_CONSOLE_ERROR(...args); appendEngineLog('error', args); };
 
 // ---------- 全局状态 ----------
 // 支持通过环境变量重定向数据目录（开发/调试用；正常使用时为系统 AppData）
@@ -347,7 +369,10 @@ function initEngine() {
   mpv.onExit = () => {
     if (isQuitting || !currentWallpaper || currentWallpaper.type !== 'video') return;
     const now = Date.now();
-    if (now - lastMpvRecoverAt < 5000) return;
+    if (now - lastMpvRecoverAt < 5000) {
+      console.warn('[engine] mpv 退出过快，跳过本次自动重启（限流保护，5 秒窗口）');
+      return;
+    }
     lastMpvRecoverAt = now;
     console.log('[engine] mpv 异常退出，2 秒后自动重启…');
     setTimeout(() => {
@@ -999,6 +1024,7 @@ function genId() {
 
 // ---------- 应用生命周期 ----------
 app.whenReady().then(() => {
+  console.log(`[main] 壁纸工坊引擎启动 v${app.getVersion()} (electron ${process.versions.electron})`);
   store = new Store();
   initEngine();
   createWallpaperWindow();

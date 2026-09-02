@@ -4,13 +4,13 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Version](https://img.shields.io/badge/version-1.3.1-7c5cff)
+![Version](https://img.shields.io/badge/version-1.3.2-7c5cff)
 
 > **官网介绍页**：https://alinyu330.github.io/wallpaper-studio/ （国内镜像：https://wallpaper-studio.pages.dev/ ）
 >
-> **安装包下载**（v1.3.1，Windows x64）：
-> - 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.1/WallpaperStudio-Setup-1.3.1.exe)
-> - 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.1/WallpaperStudio-Setup-1.3.1.exe)
+> **安装包下载**（v1.3.2，Windows x64）：
+> - 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.2/WallpaperStudio-Setup-1.3.2.exe)
+> - 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.2/WallpaperStudio-Setup-1.3.2.exe)
 > - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
 ## 功能特性
@@ -29,7 +29,7 @@
 - **深度性能优化**：GPU 硬解 · 渲染分辨率限制（原生/1080P/720P/480P）· 渲染质量三档
 - **桌面与锁屏**：壁纸嵌入系统 WorkerW 层（图标层之下），多显示器铺满；图片壁纸一键同步为 Windows 锁屏背景
 - **壁纸管理**：收藏 · 搜索 · 类型筛选 · 双击应用 · 托盘常驻
-- **稳定看门狗**：壁纸窗口丢失自动恢复、桌面层级变化自动重挂载、播放状态自动对账、mpv 进程异常退出自动重启（进程竞态防护）、**播放卡死健康检查**（显示功耗切换/睡眠唤醒后自动恢复）、防系统挂起
+- **稳定看门狗**：壁纸窗口丢失自动恢复、桌面层级变化自动重挂载、播放状态自动对账、mpv 进程异常退出自动重启（进程竞态防护）、**播放健康检查 v2**（渲染冻结自动重启 + 暂停状态脱节自愈）、防系统挂起、引擎事件日志（`engine.log`）
 
 ## 下载
 

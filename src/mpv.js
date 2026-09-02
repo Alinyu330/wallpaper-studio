@@ -191,15 +191,22 @@ class MpvController {
   }
 
   // ---------- 播放健康检查 ----------
-  // 场景：显示器功耗切换/睡眠唤醒后 GPU 硬解设备（D3D11）可能失效，
-  // mpv 主循环阻塞在渲染调用上 —— 进程存活、CPU 为 0、IPC 无响应，
-  // 视频永久冻结在最后一帧（"播放一段时间后不再播放"的主要根源）。
-  // 策略：未暂停时每 5s 查询 time-pos（带超时），进度停滞或查询超时
-  // 连续 3 次（约 15s）→ 强制杀掉进程，由 onExit 自动重启恢复。
+  // 场景一：显示器功耗切换/睡眠唤醒后 GPU 硬解设备（D3D11）可能失效，
+  //   mpv 主循环阻塞在渲染调用上 —— 进程存活、CPU 为 0、IPC 无响应，
+  //   视频永久冻结在最后一帧。
+  // 场景二：暂停/恢复指令与 mpv 实际状态脱节（如全屏暂停后恢复指令
+  //   在 IPC 半失效时丢失），mpv 卡在暂停态 → 冻结帧，且应用侧
+  //   认为"该暂停"而跳过检查（v1.3.1 的盲区，长时间挂机/全屏退出后出现）。
+  // 策略：每 5s 先查询 mpv **实际** pause 状态（带超时）：
+  //   - 实际已暂停但应用侧未要求暂停 → 意外暂停，重发恢复指令，
+  //     连续 2 次仍暂停 → 强制重启进程；
+  //   - 实际在播 → 查询 time-pos，进度停滞或查询超时连续 3 次（约 15s）
+  //     → 强制杀掉进程，由 onExit 自动重启恢复。
   _startHealthCheck() {
     this._stopHealthCheck();
     this._lastTimePos = -1;
     this._stuckCount = 0;
+    this._unexpectedPauseCount = 0;
     this._healthTimer = setInterval(() => this._checkHealth(), 5000);
   }
 
@@ -212,23 +219,65 @@ class MpvController {
 
   _checkHealth() {
     if (!this.isRunning || !this.ipcReady) return;
-    if (this._expectPause) { this._stuckCount = 0; return; } // 用户/性能暂停属正常静止
-    this._query('time-pos', (tp) => {
+    this._query('pause', (paused) => {
       if (!this.isRunning || !this.ipcReady) return;
-      const stalled = typeof tp !== 'number' ||
-        (this._lastTimePos >= 0 && Math.abs(tp - this._lastTimePos) < 0.05);
-      if (stalled) {
-        if (++this._stuckCount >= 3) {
-          this._stuckCount = 0;
-          console.warn('[mpv] 健康检查：播放停滞/IPC 无响应，判定渲染卡死，强制重启渲染进程');
-          this._stopHealthCheck();
-          try { this.process?.kill(); } catch (_) {} // exit 事件 → onExit → 自动重启
-        }
-      } else {
-        this._stuckCount = 0;
+
+      // 查询超时（IPC 无响应）：按停滞处理
+      if (typeof paused !== 'number' && typeof paused !== 'boolean') {
+        this._bumpStall('IPC 无响应');
+        return;
       }
-      if (typeof tp === 'number') this._lastTimePos = tp;
+
+      // 实际已暂停：
+      if (paused === true) {
+        if (this._expectPause) {
+          // 应用侧要求的正常暂停
+          this._stuckCount = 0;
+          this._unexpectedPauseCount = 0;
+          return;
+        }
+        // 意外暂停（状态脱节）：重发恢复指令，连续 2 次仍暂停则重启
+        if (++this._unexpectedPauseCount >= 2) {
+          this._unexpectedPauseCount = 0;
+          this._forceRestart('意外暂停且恢复无效（暂停状态脱节）');
+        } else {
+          console.warn('[mpv] 健康检查：mpv 处于意外暂停状态，尝试恢复播放');
+          this.setProperty('pause', false);
+        }
+        return;
+      }
+
+      // 实际在播（意外暂停已自愈，清零计数）
+      this._unexpectedPauseCount = 0;
+      this._query('time-pos', (tp) => {
+        if (!this.isRunning || !this.ipcReady) return;
+        const stalled = typeof tp !== 'number' ||
+          (this._lastTimePos >= 0 && Math.abs(tp - this._lastTimePos) < 0.05);
+        if (stalled) {
+          this._bumpStall(typeof tp !== 'number' ? '进度查询超时' : '播放进度停滞');
+        } else {
+          this._stuckCount = 0;
+        }
+        if (typeof tp === 'number') this._lastTimePos = tp;
+      });
     });
+  }
+
+  /** 停滞计数：连续 3 次（约 15 秒）判定渲染卡死，强制重启 */
+  _bumpStall(reason) {
+    if (++this._stuckCount >= 3) {
+      this._stuckCount = 0;
+      this._forceRestart(reason);
+    } else {
+      console.warn(`[mpv] 健康检查：检测到${reason}（${this._stuckCount}/3）`);
+    }
+  }
+
+  /** 强制重启渲染进程（exit 事件 → onExit → 自动重启） */
+  _forceRestart(reason) {
+    console.warn(`[mpv] 健康检查：${reason}，强制重启渲染进程`);
+    this._stopHealthCheck();
+    try { this.process?.kill(); } catch (_) {}
   }
 
   /** 发送 IPC 命令（JSON 协议） */
