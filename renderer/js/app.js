@@ -58,6 +58,7 @@ async function init() {
   // 全局暂停状态恢复
   state.pausedAll = !!state.settings.wallpaperPaused;
   updatePauseAllButton();
+  updateStopButton();
 
   // 默认选中当前应用的壁纸，直接预览
   if (state.current) {
@@ -76,9 +77,10 @@ async function init() {
     renderParamsPanel();
   });
   window.api.on('wallpaper:current-changed', (d) => {
-    state.current = d;
+    state.current = d || null;
     renderGrid();
     renderParamsPanel();
+    updateStopButton();
   });
   window.api.on('wallpaper:params-updated', (params) => {
     if (state.current) state.current.params = params;
@@ -110,6 +112,22 @@ async function togglePauseAll() {
   toast(state.pausedAll ? '壁纸已暂停（视频冻结、轮换停止）' : '壁纸已恢复');
 }
 
+// ---------- 停止使用壁纸 ----------
+function updateStopButton() {
+  const btn = $('#btn-stop-wallpaper');
+  if (!btn) return;
+  btn.disabled = !state.current;
+}
+
+async function stopUsingWallpaper() {
+  await window.api.stopWallpaper();
+  state.current = null;
+  renderGrid();
+  renderParamsPanel();
+  updateStopButton();
+  toast('已停止使用壁纸，桌面恢复系统默认');
+}
+
 // ---------- 导航 ----------
 function bindNav() {
   $$('.nav-item').forEach(btn => {
@@ -133,6 +151,7 @@ function bindToolbar() {
     $('#web-url-input').focus();
   });
   $('#btn-pause-all').addEventListener('click', togglePauseAll);
+  $('#btn-stop-wallpaper').addEventListener('click', stopUsingWallpaper);
   $('#btn-rotation-next').addEventListener('click', async () => {
     const r = await window.api.rotationNext();
     if (r.ok) toast(`已切换到「${r.name}」`);
@@ -350,6 +369,7 @@ async function applySelected() {
   state.current = { wallpaper: sel.wallpaper, params: { ...sel.params } };
   renderGrid();
   renderParamsPanel();
+  updateStopButton();
   syncPreviewFull();
   toast(`已应用「${sel.wallpaper.name}」`);
 }
@@ -922,6 +942,10 @@ function bindWidgetsSettings() {
 
 // ---------- 壁纸站点 ----------
 const SITES = [
+  { name: '4K Desk', url: 'https://www.4kdesk.com/', desc: '4K 超高清壁纸站，风景 / 动漫 / 游戏分类齐全', tags: ['4K', '超高清'] },
+  { name: 'TooPIC 电脑壁纸', url: 'https://www.toopic.cn/dnbz/', desc: '国内图库站电脑壁纸专区，每日更新海量精选', tags: ['国内', '每日更新'] },
+  { name: '好壁纸', url: 'https://haowallpaper.com/', desc: '海量高清电脑壁纸，按分辨率与分类快速筛选', tags: ['高清', '分类全'] },
+  { name: '魔玉部落', url: 'https://www.moyubuluo.com/hdwallpapers/', desc: 'HD 高清壁纸合集，4K / 5K / 8K 超大图库', tags: ['4K/8K', '图库'] },
   { name: 'Wallhaven', url: 'https://wallhaven.cc', desc: '全球热门壁纸社区，海量 4K/8K 壁纸，分类检索强大', tags: ['4K/8K', '动漫', '游戏'] },
   { name: 'Unsplash', url: 'https://unsplash.com', desc: '高质量摄影壁纸，可免费商用', tags: ['摄影', '免费商用'] },
   { name: 'Pexels', url: 'https://www.pexels.com', desc: '免费高清图片与视频素材库', tags: ['图片', '视频'] },
@@ -959,6 +983,9 @@ function renderSites() {
 function renderSettingsPage() {
   $('#set-autostart').checked = !!state.settings.autoStart;
   $('#set-fs-pause').checked = state.settings.performance?.fullscreenPause !== false;
+  $('#set-battery-pause').checked = state.settings.performance?.batteryPause !== false;
+  $('#set-max-pause').checked = state.settings.performance?.maximizedPause === true;
+  $('#set-hotkey').checked = state.settings.hotkeyPause !== false;
 }
 
 function bindSettings() {
@@ -967,11 +994,22 @@ function bindSettings() {
     window.api.updateSettings({ autoStart: e.target.checked });
     toast(e.target.checked ? '已设置开机自启' : '已取消开机自启');
   });
-  $('#set-fs-pause').addEventListener('change', (e) => {
-    const perf = { ...(state.settings.performance || {}), fullscreenPause: e.target.checked };
+  const savePerf = (key, val, msgOn, msgOff) => {
+    const perf = { ...(state.settings.performance || {}), [key]: val };
     state.settings.performance = perf;
     window.api.updateSettings({ performance: perf });
-    toast(e.target.checked ? '已开启全屏自动暂停' : '已关闭全屏自动暂停');
+    toast(val ? msgOn : msgOff);
+  };
+  $('#set-fs-pause').addEventListener('change', (e) =>
+    savePerf('fullscreenPause', e.target.checked, '已开启全屏自动暂停', '已关闭全屏自动暂停'));
+  $('#set-battery-pause').addEventListener('change', (e) =>
+    savePerf('batteryPause', e.target.checked, '已开启电池供电自动暂停', '已关闭电池供电自动暂停'));
+  $('#set-max-pause').addEventListener('change', (e) =>
+    savePerf('maximizedPause', e.target.checked, '已开启窗口最大化自动暂停', '已关闭窗口最大化自动暂停'));
+  $('#set-hotkey').addEventListener('change', (e) => {
+    state.settings.hotkeyPause = e.target.checked;
+    window.api.updateSettings({ hotkeyPause: e.target.checked });
+    toast(e.target.checked ? '已启用全局快捷键 Ctrl+Alt+W' : '已停用全局快捷键');
   });
   $('#btn-mpv-download').addEventListener('click', () => window.api.openMpvDownload());
   $('#btn-lockscreen-use-current').addEventListener('click', () => setLockScreenFrom(state.current?.wallpaper));

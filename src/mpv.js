@@ -89,11 +89,21 @@ class MpvController {
     args.push('--', file);
 
     this.process = spawn(exe, args, { windowsHide: true });
+    const proc = this.process;
     this.process.on('error', (err) => {
+      if (this.process !== proc) return; // 旧进程的滞后事件，忽略
       console.error('[mpv] 启动失败:', err.message);
       this.process = null;
     });
     this.process.on('exit', (code) => {
+      // 关键竞态防护：切换壁纸时 stop() 杀旧进程后立刻 spawn 新进程，
+      // 旧进程的 exit 事件异步到达时 this.process 已指向新进程。
+      // 若不判断会把新进程引用误置 null，导致：
+      //   1. IPC 永远连不上（_connectIpc 因 isRunning=false 直接返回），
+      //      暂停/参数指令全部滞留队列，视频状态失控；
+      //   2. onExit 误报"异常退出"触发重启，重复拉起第二个 mpv
+      //      抢占同一 --wid 窗口 → 黑屏/画面冻结（动态壁纸无法播放的根源）。
+      if (this.process !== proc) return;
       console.log(`[mpv] 进程退出 code=${code}`);
       this._cleanupIpc();
       this.process = null;
@@ -184,9 +194,10 @@ class MpvController {
   /** 停止播放并清理 */
   stop() {
     this._cleanupIpc();
-    if (this.process) {
-      try { this.process.kill(); } catch (_) {}
-      this.process = null;
+    const proc = this.process;
+    this.process = null; // 先摘除引用：exit 事件到达时会被上面的竞态防护忽略
+    if (proc) {
+      try { proc.kill(); } catch (_) {}
     }
   }
 }

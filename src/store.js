@@ -24,7 +24,12 @@ const DEFAULT_CONFIG = {
       },
     },
     lastWindowBounds: null,     // 主窗口位置记忆
-    performance: { fullscreenPause: true }, // 性能：全屏应用时自动暂停视频壁纸
+    hotkeyPause: true,          // 全局快捷键 Ctrl+Alt+W 暂停/恢复壁纸
+    performance: {
+      fullscreenPause: true,    // 性能：全屏应用时自动暂停视频壁纸
+      batteryPause: true,       // 性能：电池供电时自动暂停视频壁纸
+      maximizedPause: false,    // 性能：其他窗口最大化时暂停视频壁纸（Wallpaper Engine 同款）
+    },
   },
 };
 

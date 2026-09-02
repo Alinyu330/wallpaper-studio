@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('api', {
   addPaths: (paths) => ipcRenderer.invoke('wallpaper:add-paths', paths),
   addWeb: (url) => ipcRenderer.invoke('wallpaper:add-web', url),
   apply: (id) => ipcRenderer.invoke('wallpaper:apply', id),
+  stopWallpaper: () => ipcRenderer.invoke('wallpaper:stop'),
   updateParams: (patch) => ipcRenderer.invoke('wallpaper:update-params', patch),
   remove: (id) => ipcRenderer.invoke('wallpaper:remove', id),
   favorite: (id, val) => ipcRenderer.invoke('wallpaper:favorite', id, val),

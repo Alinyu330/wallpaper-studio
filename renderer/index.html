@@ -72,6 +72,10 @@
               <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 018-8 8 8 0 017 4h-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M19.5 4v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
               <span>下一张</span>
             </button>
+            <button class="btn ghost" id="btn-stop-wallpaper" title="停止使用当前壁纸，桌面恢复系统默认（壁纸保留在库中）" disabled>
+              <svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor"/></svg>
+              <span>停止使用</span>
+            </button>
             <button class="btn primary" id="btn-add-files">
               <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
               添加壁纸文件
@@ -222,7 +226,31 @@
             </div>
             <span class="switch"><input type="checkbox" id="set-fs-pause"><i></i></span>
           </label>
+          <label class="switch-row">
+            <div>
+              <div class="row-title">电池供电时自动暂停</div>
+              <div class="row-sub">笔记本使用电池时暂停视频壁纸省电，接通电源自动恢复</div>
+            </div>
+            <span class="switch"><input type="checkbox" id="set-battery-pause"><i></i></span>
+          </label>
+          <label class="switch-row">
+            <div>
+              <div class="row-title">其他窗口最大化时暂停</div>
+              <div class="row-sub">有应用窗口最大化时暂停视频壁纸，专注工作不被干扰（Wallpaper Engine 同款）</div>
+            </div>
+            <span class="switch"><input type="checkbox" id="set-max-pause"><i></i></span>
+          </label>
           <p class="hint">视频壁纸默认使用硬件解码并限制渲染分辨率（可在右侧「壁纸调节」中调整），进一步降低占用。</p>
+        </div>
+        <div class="settings-card">
+          <div class="card-title">快捷键</div>
+          <label class="switch-row">
+            <div>
+              <div class="row-title">全局暂停 / 恢复壁纸</div>
+              <div class="row-sub">系统级快捷键 <b>Ctrl+Alt+W</b>，在游戏或任意界面一键暂停 / 恢复壁纸</div>
+            </div>
+            <span class="switch"><input type="checkbox" id="set-hotkey"><i></i></span>
+          </label>
         </div>
         <div class="settings-card">
           <div class="card-title">锁屏壁纸</div>
@@ -252,7 +280,7 @@
           <div class="switch-row">
             <div>
               <div class="row-title">关于</div>
-              <div class="row-sub">壁纸工坊 v1.2.0 — 静态 / 动态 / 网页 / EXE 壁纸 · 轮换与桌面组件 · 桌面与锁屏</div>
+              <div class="row-sub">壁纸工坊 v1.3.0 — 静态 / 动态 / 网页 / EXE 壁纸 · 轮换与桌面组件 · 桌面与锁屏</div>
             </div>
           </div>
         </div>

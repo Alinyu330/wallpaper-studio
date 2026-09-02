@@ -1,7 +1,7 @@
 {
   "name": "wallpaper-studio",
   "productName": "壁纸工坊",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "PC 桌面壁纸软件：支持静态图片、动态视频(MP4/AVI/MKV等)、网页与 EXE 壁纸，可调节播放速度、亮度、分辨率等参数",
   "main": "main.js",
   "author": "WallPaper Studio",

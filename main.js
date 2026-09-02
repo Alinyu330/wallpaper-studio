@@ -1,5 +1,5 @@
 // main.js — Electron 主进程：窗口管理、壁纸引擎调度、IPC、托盘
-const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, screen, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, screen, nativeImage, shell, globalShortcut, powerMonitor } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { Store } = require('./src/store');
@@ -451,28 +451,91 @@ function updateParams(patch) {
   if (trayRebuild) trayRebuild();
 }
 
-// ---------- 性能：全屏应用自动暂停 ----------
-let fsPaused = false; // 全屏应用导致的暂停（区别于用户手动暂停）
+// ---------- 停止使用壁纸 ----------
+/**
+ * 停止使用当前壁纸：清掉桌面上的壁纸内容并隐藏壁纸窗口，
+ * 桌面恢复显示系统默认壁纸。壁纸库记录保留，可随时重新应用。
+ */
+function stopWallpaper() {
+  if (!currentWallpaper) return { ok: true };
+  mpv.stop();
+  exeWallpaper.stop();
+  sendToWallpaper({ type: 'blank' });
+  if (wallpaperWindow && !wallpaperWindow.isDestroyed() && wallpaperWindow.isVisible()) {
+    wallpaperWindow.hide();
+  }
+  currentWallpaper = null;
+  currentParams = null;
+  store.setCurrent(null);
+  console.log('[engine] 已停止使用壁纸，桌面恢复系统默认');
+  notifyMain('wallpaper:current-changed', null);
+  if (trayRebuild) trayRebuild();
+  return { ok: true };
+}
 
-/** 统一同步 mpv 暂停状态 = 用户暂停 || 全局暂停 || 全屏暂停 */
+// ---------- 性能：自动暂停（全屏应用 / 电池供电 / 窗口最大化） ----------
+let fsPaused = false;        // 全屏应用导致的暂停（区别于用户手动暂停）
+let batteryPaused = false;   // 电池供电导致的暂停
+let maximizedPaused = false; // 其他窗口最大化导致的暂停
+
+/** 统一同步 mpv 暂停状态 = 用户暂停 || 全局暂停 || 任一性能暂停 */
 function syncMpvPause() {
   if (!currentWallpaper || currentWallpaper.type !== 'video' || !mpv.isRunning) return;
-  const shouldPause = !!currentParams?.paused || globalPaused || fsPaused;
+  const shouldPause =
+    !!currentParams?.paused || globalPaused || fsPaused || batteryPaused || maximizedPaused;
   mpv.setProperty('pause', shouldPause);
 }
 
-function setupFullscreenWatch() {
-  setInterval(() => {
-    if (!store) return;
-    const enabled = store.settings.performance?.fullscreenPause !== false;
-    const active = enabled && currentWallpaper?.type === 'video' && mpv.isRunning;
-    const full = active ? desktop.isFullscreenApp() : false;
-    if (full !== fsPaused) {
-      fsPaused = full;
-      syncMpvPause();
-      console.log(`[perf] 检测到${full ? '全屏应用，已暂停视频壁纸以释放资源' : '全屏应用退出，已恢复视频壁纸'}`);
+/** 重算三项性能暂停标志（有变化才同步 mpv 并打日志） */
+function updatePerfFlags() {
+  if (!store) return;
+  const perf = store.settings.performance || {};
+  const active = currentWallpaper?.type === 'video' && mpv?.isRunning;
+
+  let fs = false, bat = false, max = false;
+  if (active) {
+    if (perf.fullscreenPause !== false) fs = desktop.isFullscreenApp();
+    if (perf.maximizedPause === true) max = desktop.isAnyWindowMaximized();
+    if (perf.batteryPause !== false) {
+      try { bat = powerMonitor.isOnBatteryPower(); } catch (_) {}
     }
-  }, 3000);
+  }
+  const changed = fs !== fsPaused || bat !== batteryPaused || max !== maximizedPaused;
+  fsPaused = fs;
+  batteryPaused = bat;
+  maximizedPaused = max;
+  if (changed) {
+    syncMpvPause();
+    const reasons = [];
+    if (fs) reasons.push('全屏应用');
+    if (max) reasons.push('窗口最大化');
+    if (bat) reasons.push('电池供电');
+    console.log(reasons.length
+      ? `[perf] 检测到${reasons.join('/')}，已暂停视频壁纸`
+      : '[perf] 性能暂停已解除，恢复视频壁纸');
+  }
+}
+
+function setupPerformanceWatch() {
+  setInterval(updatePerfFlags, 3000);
+  // 电源切换即时响应（插电/拔出不用等轮询）
+  try {
+    powerMonitor.on('power-source-changed', updatePerfFlags);
+  } catch (_) {}
+}
+
+// ---------- 全局快捷键：暂停/恢复壁纸 ----------
+const HOTKEY_TOGGLE = 'Control+Alt+W';
+function applyHotkeySetting() {
+  try {
+    globalShortcut.unregister(HOTKEY_TOGGLE);
+    if (store.settings.hotkeyPause !== false) {
+      globalShortcut.register(HOTKEY_TOGGLE, () => setWallpaperPaused(!globalPaused));
+      console.log('[hotkey] 全局快捷键已注册:', HOTKEY_TOGGLE);
+    }
+  } catch (e) {
+    console.warn('[hotkey] 注册失败:', e.message);
+  }
 }
 
 /** 暂停/恢复视频播放（用户手动，仅当前壁纸参数） */
@@ -617,6 +680,11 @@ function createTray() {
         enabled: getRotationList().length >= 2,
         click: () => rotationNext(),
       },
+      {
+        label: '停止使用壁纸',
+        enabled: !!currentWallpaper,
+        click: () => stopWallpaper(),
+      },
       { label: '静音', type: 'checkbox', checked: !!currentParams?.mute, enabled: currentWallpaper?.type === 'video', click: (mi) => updateParams({ mute: mi.checked }) },
       { type: 'separator' },
       { label: '退出', click: () => { isQuitting = true; app.quit(); } },
@@ -681,15 +749,13 @@ function setupIpc() {
     return { ok: true };
   });
 
+  // 停止使用当前壁纸（恢复系统默认桌面）
+  ipcMain.handle('wallpaper:stop', () => stopWallpaper());
+
   // 移除壁纸
   ipcMain.handle('wallpaper:remove', (_e, id) => {
     if (currentWallpaper && currentWallpaper.id === id) {
-      mpv.stop();
-      exeWallpaper.stop();
-      sendToWallpaper({ type: 'blank' });
-      if (wallpaperWindow && wallpaperWindow.isVisible()) wallpaperWindow.hide();
-      currentWallpaper = null;
-      store.setCurrent(null);
+      stopWallpaper();
     }
     store.removeWallpaper(id);
     notifyMain('wallpaper:list-changed', store.wallpapers);
@@ -725,6 +791,8 @@ function setupIpc() {
     if (patch.rotation !== undefined) setupRotation();
     if (patch.widgets !== undefined) applyWidgetsConfig();
     if (patch.wallpaperPaused !== undefined) setWallpaperPaused(patch.wallpaperPaused);
+    if (patch.hotkeyPause !== undefined) applyHotkeySetting();
+    if (patch.performance !== undefined) updatePerfFlags();
     return { ok: true };
   });
 
@@ -909,8 +977,12 @@ app.whenReady().then(() => {
   globalPaused = !!store.settings.wallpaperPaused;
 
   setupRotation();
-  setupFullscreenWatch();
+  setupPerformanceWatch();
   setupWallpaperWatch();
+  applyHotkeySetting();
+
+  // 电池状态初始同步（笔记本拔电使用时立即生效）
+  updatePerfFlags();
 
   // 恢复桌面 DIY 组件（配置了则创建组件窗口）
   applyWidgetsConfig();
@@ -956,9 +1028,10 @@ app.on('before-quit', () => {
 });
 
 app.on('will-quit', () => {
-  // 清理所有子进程与定时器
+  // 清理所有子进程、热键与定时器
   mpv?.stop();
   exeWallpaper?.stop();
+  try { globalShortcut.unregisterAll(); } catch (_) {}
   stopWidgetsInput();
   stopStatsCollector();
 });

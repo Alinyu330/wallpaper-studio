@@ -25,6 +25,7 @@ const MoveWindow = user32.func('MoveWindow', 'int', ['intptr_t', 'int32_t', 'int
 const SetWindowPos = user32.func('SetWindowPos', 'int', ['intptr_t', 'intptr_t', 'int32_t', 'int32_t', 'int32_t', 'int32_t', 'uint32_t']);
 const IsWindow = user32.func('IsWindow', 'int', ['intptr_t']);
 const IsWindowVisible = user32.func('IsWindowVisible', 'int', ['intptr_t']);
+const IsZoomed = user32.func('IsZoomed', 'int', ['intptr_t']);
 const GetWindowRect = user32.func('GetWindowRect', 'int', ['intptr_t', koffi.out(koffi.pointer('int32_t'))]);
 const GetClientRect = user32.func('GetClientRect', 'int', ['intptr_t', koffi.out(koffi.pointer('int32_t'))]);
 const GetWindowLongPtrW = user32.func('GetWindowLongPtrW', 'intptr_t', ['intptr_t', 'int32_t']);
@@ -78,6 +79,8 @@ const WS_SYSMENU = 0x00080000;
 const WS_MINIMIZEBOX = 0x00020000;
 const WS_MAXIMIZEBOX = 0x00010000;
 const WS_POPUP = 0x80000000;
+const GWL_EXSTYLE = -20;
+const WS_EX_TOOLWINDOW = 0x00000080;
 
 /**
  * 在 PER_MONITOR_AWARE_V2 线程上下文中执行 Win32 调用：
@@ -410,6 +413,33 @@ function isFullscreenApp() {
 }
 
 /**
+ * 是否存在最大化的普通应用窗口（Wallpaper Engine 同款「窗口最大化时暂停」）。
+ * 排除自身进程（主窗口最大化不算）、工具窗口与系统宿主窗口，避免误判。
+ */
+function isAnyWindowMaximized() {
+  let found = false;
+  const myPid = process.pid;
+  const callback = koffi.register((hwnd, _lParam) => {
+    if (found) return 0;
+    if (IsWindowVisible(hwnd) && IsZoomed(hwnd)) {
+      const pidBuf = [0];
+      GetWindowThreadProcessId(hwnd, pidBuf);
+      if (pidBuf[0] !== myPid) {
+        const exStyle = BigIntAsInt(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
+        if (!(exStyle & WS_EX_TOOLWINDOW)) {
+          const cls = getClassName(hwnd);
+          if (!FULLSCREEN_SKIP_CLASSES.includes(cls)) found = true;
+        }
+      }
+    }
+    return found ? 0 : 1;
+  }, koffi.pointer(EnumWindowsProc));
+  EnumWindows(callback, 0);
+  koffi.unregister(callback);
+  return found;
+}
+
+/**
  * 枚举属于指定进程 PID 的可见顶层窗口
  * @returns {Array<{hwnd, title, className}>}
  */
@@ -455,6 +485,7 @@ module.exports = {
   embedExternalWindow,
   findWindowsByPid,
   isFullscreenApp,
+  isAnyWindowMaximized,
   isWindowAlive,
   showHwnd,
   getClassName,

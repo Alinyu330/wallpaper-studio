@@ -4,13 +4,13 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Version](https://img.shields.io/badge/version-1.2.0-7c5cff)
+![Version](https://img.shields.io/badge/version-1.3.0-7c5cff)
 
 > **官网介绍页**：https://alinyu330.github.io/wallpaper-studio/ （功能介绍 / 版本对比 / 历史版本下载）
 >
-> **安装包下载**（v1.2.0，Windows x64）：
-> - 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.2.0/WallpaperStudio-Setup-1.2.0.exe)
-> - 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.2.0/WallpaperStudio-Setup-1.2.0.exe)
+> **安装包下载**（v1.3.0，Windows x64）：
+> - 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.0/WallpaperStudio-Setup-1.3.0.exe)
+> - 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.0/WallpaperStudio-Setup-1.3.0.exe)
 > - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
 ## 功能特性
@@ -22,11 +22,14 @@
 - **桌面 DIY 组件**（v1.2.0）：时钟（12/24 小时制点击切换）、CPU / GPU / 内存占用率实时监控条、音量控制条 — 自由搭配融入壁纸，桌面直接拖动调音量、点击静音，全部可交互
 - **壁纸暂停**（v1.2.0）：一键暂停视频播放与轮换，恢复桌面清爽；支持托盘操作，重启后保持状态
 - **多壁纸定时轮换**（v1.2.0）：全部/收藏/自定义列表三种范围，随机或顺序切换，间隔自由设定，工具栏一键"下一张"
-- **壁纸站点导航**（v1.2.0）：内置 Wallhaven、必应壁纸、Unsplash 等热门免费壁纸站点，点击直达
-- **深度性能优化**：GPU 硬解 · 渲染分辨率限制（原生/1080P/720P/480P）· 渲染质量三档 · 全屏应用自动暂停/恢复
+- **壁纸站点导航**（v1.3.0 扩充）：内置 4K Desk、TooPIC、好壁纸、魔玉部落、Wallhaven、必应壁纸、Unsplash 等 13 个热门免费壁纸站点，点击直达
+- **智能自动暂停**（v1.3.0）：全屏应用 / 笔记本电池供电 / 其他窗口最大化（Wallpaper Engine 同款）三种场景自动暂停视频壁纸省电省资源，条件解除自动恢复
+- **全局快捷键**（v1.3.0）：Ctrl+Alt+W 一键暂停/恢复壁纸，游戏或任意界面可用，可开关
+- **停止使用壁纸**（v1.3.0）：一键停用当前壁纸恢复系统默认桌面，壁纸库记录保留
+- **深度性能优化**：GPU 硬解 · 渲染分辨率限制（原生/1080P/720P/480P）· 渲染质量三档
 - **桌面与锁屏**：壁纸嵌入系统 WorkerW 层（图标层之下），多显示器铺满；图片壁纸一键同步为 Windows 锁屏背景
 - **壁纸管理**：收藏 · 搜索 · 类型筛选 · 双击应用 · 托盘常驻
-- **稳定看门狗**：壁纸窗口丢失自动恢复、桌面层级变化自动重挂载、播放状态自动对账
+- **稳定看门狗**：壁纸窗口丢失自动恢复、桌面层级变化自动重挂载、播放状态自动对账、mpv 进程异常退出自动重启（进程竞态防护）
 
 ## 下载
 
@@ -58,12 +61,11 @@ npm run build   # 生成 Windows 安装包（dist/ 目录）
 ├── preload-preview.js    # 预览弹窗桥接
 ├── preload-widgets.js    # 桌面组件窗口桥接
 ├── src/
-│   ├── desktop.js        # 桌面嵌入（WorkerW 挂载/全屏检测/多显示器）
-│   ├── mpv.js            # mpv 播放控制器（IPC/参数/分辨率限制）
+│   ├── desktop.js        # 桌面嵌入（WorkerW 挂载/全屏与最大化检测/多显示器）
+│   ├── mpv.js            # mpv 播放控制器（IPC/参数/分辨率限制/进程竞态防护）
 │   ├── exe-wallpaper.js  # EXE 壁纸嵌入控制器
 │   ├── lockscreen.js     # 锁屏壁纸（PersonalizationCSP）
 │   ├── widgets-stats.js  # 系统信息采集（CPU/GPU/内存，PDH 计数器）
-│   ├── mouse-hook.js     # 低级鼠标钩子（桌面组件交互）
 │   ├── store.js          # 配置持久化
 │   └── file-types.js     # 文件类型识别
 ├── renderer/             # 界面（主界面/壁纸窗口/预览弹窗/组件窗口）
