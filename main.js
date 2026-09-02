@@ -1013,6 +1013,8 @@ app.whenReady().then(() => {
   store = new Store();
   initEngine();
   launcherHost = new LauncherHost(store);
+  // 收纳/恢复/移除后通知主界面刷新快捷方式设置页（payload 为收纳结果时附带提示）
+  launcherHost.onChanged = (result) => notifyMain('launcher:changed', result || null);
   createWallpaperWindow();
   createMainWindow();
   setupIpc();

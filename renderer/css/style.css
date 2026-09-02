@@ -738,6 +738,16 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.lc-boxed-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  color: var(--accent2);
+  background: rgba(79, 140, 255, .13);
+  vertical-align: 1px;
+}
 .lc-item .icon-btn { flex: none; }
 
 /* ---------- 滚动条 ---------- */

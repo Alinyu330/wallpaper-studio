@@ -90,6 +90,17 @@ async function init() {
     }
   });
   window.api.on('wallpaper:exe-exited', ({ name }) => toast(`程序壁纸「${name}」已退出`, 'error'));
+  // 快捷方式转盘变化（收纳结果/移除/恢复）→ 刷新设置页
+  window.api.on('launcher:changed', (result) => {
+    renderLauncherSettings();
+    if (result && typeof result.picked === 'number') {
+      if (result.picked > 0) {
+        toast(`已收纳 ${result.picked} 个快捷方式到转盘${result.skipped ? `（跳过 ${result.skipped} 个非快捷方式/无权限项）` : ''}`);
+      } else if (result.skipped) {
+        toast(`未收纳任何项（跳过 ${result.skipped} 个非快捷方式/无权限项）`, 'error');
+      }
+    }
+  });
   window.api.on('wallpaper:paused-changed', (paused) => {
     state.pausedAll = !!paused;
     state.settings.wallpaperPaused = !!paused;
@@ -981,15 +992,20 @@ async function renderLauncherSettings() {
     name.className = 'lc-name';
     name.textContent = s.name;
     name.title = s.path;
+    if (s.boxed) {
+      const tag = document.createElement('span');
+      tag.className = 'lc-boxed-tag';
+      tag.textContent = '已收纳';
+      tag.title = '原桌面快捷方式已隐藏，移除后恢复到桌面原位置';
+      name.appendChild(tag);
+    }
     const del = document.createElement('button');
     del.className = 'icon-btn';
-    del.title = '移除';
+    del.title = s.boxed ? '从转盘移除并恢复到桌面原位置' : '从列表移除';
     del.innerHTML = ICONS.trash;
     del.addEventListener('click', async () => {
-      const next = launcherCfg.shortcuts.filter((_x, j) => j !== i).map(x => ({ name: x.name, path: x.path }));
-      await window.api.updateLauncherConfig({ shortcuts: next });
-      toast('已移除');
-      renderLauncherSettings();
+      // 走主进程 removeAt：收纳项自动恢复到桌面原位置
+      await window.api.removeLauncherAt(i);
     });
     item.append(ico, name, del);
     list.appendChild(item);
@@ -999,7 +1015,7 @@ async function renderLauncherSettings() {
 function bindLauncherSettings() {
   $('#lc-enabled').addEventListener('change', async (e) => {
     await window.api.updateLauncherConfig({ enabled: e.target.checked });
-    toast(e.target.checked ? '快捷方式转盘已开启，回到桌面查看效果' : '快捷方式转盘已关闭');
+    toast(e.target.checked ? '快捷方式转盘已开启，回到桌面查看效果' : '快捷方式转盘已关闭，收纳的快捷方式已恢复到桌面');
   });
   $$('#lc-count button').forEach(b => {
     b.addEventListener('click', async () => {
@@ -1015,6 +1031,16 @@ function bindLauncherSettings() {
   $('#btn-lc-add').addEventListener('click', async () => {
     const res = await window.api.addLauncherShortcuts();
     if (res?.added) toast(`已添加 ${res.added} 个快捷方式`);
+    renderLauncherSettings();
+  });
+  $('#btn-lc-pick').addEventListener('click', async () => {
+    const res = await window.api.pickDesktopShortcuts();
+    if (!res.ok) toast(res.error || '无法打开桌面图标选择器', 'error');
+    // 确认/取消后主进程通过 launcher:changed 通知刷新并提示结果
+  });
+  $('#btn-lc-restore-all').addEventListener('click', async () => {
+    const res = await window.api.restoreAllLauncher();
+    toast(`已恢复 ${res.restored} 个快捷方式到桌面原位置${res.failed ? `（${res.failed} 个失败）` : ''}`);
     renderLauncherSettings();
   });
 }

@@ -5,8 +5,6 @@
   <title>Launcher</title>
   <style>
     :root {
-      --glass: rgba(15, 17, 25, 0.58);
-      --glass-border: rgba(255, 255, 255, 0.13);
       --icon-size: 46px;
       --slot: 56px;            /* 图标位宽 = 46 + 10 间距 */
     }
@@ -21,16 +19,16 @@
 
     #widget { position: absolute; left: 0; top: 0; }
 
-    /* ---------- 展开的转盘 ---------- */
+    /* ---------- 展开的转盘（无边框轻量风格） ---------- */
     #expanded {
       display: flex; flex-direction: column; align-items: stretch;
-      padding: 10px 12px 8px;
-      border-radius: 22px;
-      background: var(--glass);
-      border: 1px solid var(--glass-border);
-      backdrop-filter: blur(18px) saturate(1.35);
-      -webkit-backdrop-filter: blur(18px) saturate(1.35);
-      box-shadow: 0 8px 30px rgba(0, 0, 0, .30);
+      padding: 7px 10px 6px;
+      border-radius: 20px;
+      /* 无边框：仅一层极淡的柔光底，图标区近乎悬浮于壁纸上 */
+      background: rgba(12, 14, 20, 0.30);
+      backdrop-filter: blur(10px) saturate(1.25);
+      -webkit-backdrop-filter: blur(10px) saturate(1.25);
+      box-shadow: 0 3px 16px rgba(0, 0, 0, .16);
       transition: opacity .28s ease, transform .28s cubic-bezier(.2, .8, .3, 1);
       transform-origin: 14px 50%;
     }
@@ -41,34 +39,32 @@
 
     #row { display: flex; align-items: center; gap: 10px; }
 
-    /* 移动手柄（拖动摆放位置） */
+    /* 移动手柄（拖动摆放位置）——弱化为细点 */
     .grip {
-      flex: none; width: 22px; height: var(--icon-size);
-      border-radius: 9px;
-      background-image: radial-gradient(circle, rgba(255,255,255,.75) 1.3px, transparent 1.4px);
-      background-size: 8px 9px; background-position: center;
-      opacity: .5; cursor: move;
+      flex: none; width: 18px; height: var(--icon-size);
+      border-radius: 7px;
+      background-image: radial-gradient(circle, rgba(255,255,255,.5) 1.1px, transparent 1.2px);
+      background-size: 7px 9px; background-position: center;
+      opacity: .32; cursor: move;
       transition: opacity .15s, background-color .15s;
     }
-    .grip:hover { opacity: .95; background-color: rgba(255,255,255,.10); }
+    .grip:hover { opacity: .85; background-color: rgba(255,255,255,.08); }
 
     /* 图标条 */
     #strip { position: relative; height: var(--icon-size); }
     .item {
       position: absolute; left: 0; top: 0;
       width: var(--icon-size); height: var(--icon-size);
-      border-radius: 13px;
-      background: rgba(255, 255, 255, 0.07);
-      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 12px;
+      background: transparent;          /* 默认无底无框，融入壁纸 */
       display: flex; align-items: center; justify-content: center;
       cursor: pointer;
-      transition: background .15s, border-color .15s, box-shadow .15s;
+      transition: background .15s, box-shadow .15s;
       will-change: transform, opacity;
     }
     .item:hover {
-      background: rgba(255, 255, 255, 0.15);
-      border-color: rgba(255, 255, 255, 0.25);
-      box-shadow: 0 3px 14px rgba(0, 0, 0, .3);
+      background: rgba(255, 255, 255, 0.16);
+      box-shadow: 0 3px 12px rgba(0, 0, 0, .28);
     }
     .item img { width: 38px; height: 38px; pointer-events: none; }
     .item .fallback {
@@ -87,16 +83,16 @@
       box-shadow: 0 1px 6px rgba(0, 0, 0, .4);
     }
     body.manage .item .x { display: block; }
-    body.manage .item { border-color: rgba(255, 92, 108, .45); }
+    body.manage .item { background: rgba(255, 92, 108, .18); }
 
     /* 添加按钮 */
     #add-btn {
       flex: none; width: var(--icon-size); height: var(--icon-size);
-      border-radius: 13px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1.5px dashed rgba(255, 255, 255, 0.28);
-      color: rgba(255, 255, 255, 0.75);
-      font-size: 22px; line-height: 1;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1.5px dashed rgba(255, 255, 255, 0.22);
+      color: rgba(255, 255, 255, 0.65);
+      font-size: 21px; line-height: 1;
       cursor: pointer;
       transition: background .15s, border-color .15s, color .15s;
     }
@@ -109,39 +105,39 @@
       padding: 0 8px;
     }
 
-    /* 拖动条（转盘轮换） */
+    /* 拖动条（转盘轮换）——极简点阵 */
     #dragbar {
       align-self: center;
-      margin-top: 9px;
-      width: 62%; height: 15px;
-      border-radius: 8px;
+      margin-top: 7px;
+      width: 56%; height: 13px;
+      border-radius: 7px;
       background:
-        radial-gradient(circle, rgba(255,255,255,.4) 1.1px, transparent 1.2px) 4px 50% / 9px 3px repeat-x,
-        rgba(255, 255, 255, 0.07);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+        radial-gradient(circle, rgba(255,255,255,.34) 1px, transparent 1.1px) 4px 50% / 9px 3px repeat-x,
+        rgba(255, 255, 255, 0.05);
       display: flex; align-items: center; justify-content: center; gap: 8px;
       cursor: grab;
-      transition: background-color .15s, border-color .15s;
+      transition: background-color .15s;
     }
-    #dragbar:active { cursor: grabbing; background-color: rgba(124, 92, 255, 0.22); border-color: rgba(124, 92, 255, .4); }
+    #dragbar:active { cursor: grabbing; background-color: rgba(124, 92, 255, 0.20); }
     #dragbar .bar-hint {
-      font-size: 10px; color: rgba(255, 255, 255, 0.55);
+      font-size: 10px; color: rgba(255, 255, 255, 0.5);
       letter-spacing: 2px; pointer-events: none;
-      background: rgba(15,17,25,.9); padding: 0 8px; border-radius: 6px;
-      line-height: 13px;
+      background: rgba(12,14,20,.82); padding: 0 8px; border-radius: 6px;
+      line-height: 12px;
+      opacity: 0; transition: opacity .2s;
     }
+    #dragbar:hover .bar-hint { opacity: 1; }
 
-    /* ---------- 收起后的胶囊 ---------- */
+    /* ---------- 收起后的胶囊（同风格无边框） ---------- */
     #pill {
       position: absolute; left: 0; top: 0;
       display: flex; align-items: center; gap: 8px;
-      padding: 8px 12px;
-      border-radius: 18px;
-      background: var(--glass);
-      border: 1px solid var(--glass-border);
-      backdrop-filter: blur(16px) saturate(1.3);
-      -webkit-backdrop-filter: blur(16px) saturate(1.3);
-      box-shadow: 0 6px 22px rgba(0, 0, 0, .28);
+      padding: 7px 11px;
+      border-radius: 16px;
+      background: rgba(12, 14, 20, 0.32);
+      backdrop-filter: blur(10px) saturate(1.25);
+      -webkit-backdrop-filter: blur(10px) saturate(1.25);
+      box-shadow: 0 3px 14px rgba(0, 0, 0, .18);
       color: #fff;
       cursor: pointer;
       opacity: 0; transform: scale(.7);
@@ -150,14 +146,14 @@
     }
     body.collapsed #pill { opacity: 1; transform: scale(1); pointer-events: auto; }
     #pill .pill-grip {
-      width: 14px; height: 26px;
-      background-image: radial-gradient(circle, rgba(255,255,255,.7) 1.2px, transparent 1.3px);
+      width: 12px; height: 24px;
+      background-image: radial-gradient(circle, rgba(255,255,255,.5) 1px, transparent 1.1px);
       background-size: 5px 8px; background-position: center;
-      opacity: .6; cursor: move;
+      opacity: .4; cursor: move;
     }
-    #pill .pill-ico { font-size: 16px; line-height: 1; opacity: .92; }
+    #pill .pill-ico { font-size: 15px; line-height: 1; opacity: .9; }
     #pill .pill-count {
-      font-size: 11.5px; font-weight: 600;
+      font-size: 11px; font-weight: 600;
       color: #cfd4e6; background: rgba(255,255,255,.10);
       border-radius: 8px; padding: 1px 7px;
     }

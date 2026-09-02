@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>选择桌面快捷方式</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: transparent;
+      font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      user-select: none; -webkit-user-select: none;
+      cursor: crosshair;
+    }
+
+    /* 顶部提示条 */
+    #topbar {
+      position: fixed; top: 14px; left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 14px;
+      padding: 8px 10px 8px 18px;
+      border-radius: 14px;
+      background: rgba(12, 14, 20, 0.72);
+      backdrop-filter: blur(14px) saturate(1.3);
+      -webkit-backdrop-filter: blur(14px) saturate(1.3);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, .3);
+      color: #e8eaf2; font-size: 13px;
+      white-space: nowrap; z-index: 10;
+    }
+    #topbar .tip { color: rgba(255,255,255,.85); }
+    #topbar .count {
+      font-weight: 600; color: #b9a6ff;
+      font-variant-numeric: tabular-nums;
+    }
+    #topbar button {
+      border: none; border-radius: 9px;
+      padding: 6px 16px; font-size: 12.5px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+      transition: filter .15s, transform .15s;
+    }
+    #topbar button:hover { filter: brightness(1.15); transform: translateY(-1px); }
+    #btn-done { background: linear-gradient(135deg, #7c5cff, #4f8cff); color: #fff; }
+    #btn-cancel { background: rgba(255,255,255,.10); color: #cfd4e6; }
+
+    /* 图标选框（覆盖在桌面图标上方） */
+    .sel-box {
+      position: absolute;
+      border-radius: 8px;
+      border: 1.5px solid rgba(124, 92, 255, 0);
+      background: rgba(124, 92, 255, 0);
+      transition: background .12s, border-color .12s, box-shadow .12s;
+      pointer-events: none;
+    }
+    .sel-box.on {
+      border-color: rgba(139, 115, 255, .95);
+      background: rgba(124, 92, 255, .30);
+      box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 2px 12px rgba(124, 92, 255, .35);
+    }
+    .sel-box .tick {
+      position: absolute; top: -8px; right: -8px;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: #7c5cff; color: #fff; font-size: 12px; line-height: 20px;
+      text-align: center; font-weight: 700;
+      box-shadow: 0 1px 6px rgba(0,0,0,.4);
+      display: none;
+    }
+    .sel-box.on .tick { display: block; }
+
+    /* 框选矩形 */
+    #marquee {
+      position: absolute;
+      border: 1.5px dashed rgba(139, 115, 255, .95);
+      background: rgba(124, 92, 255, .12);
+      border-radius: 4px;
+      display: none;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    /* 底部小提示 */
+    #foot-hint {
+      position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+      color: rgba(255,255,255,.62); font-size: 12px;
+      background: rgba(12, 14, 20, 0.6);
+      padding: 5px 14px; border-radius: 999px;
+      backdrop-filter: blur(10px);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="topbar">
+    <span class="tip">点选或拖框选择桌面快捷方式（.lnk / .url）· 已选 <span class="count" id="sel-count">0</span> 个</span>
+    <button id="btn-done">收纳到转盘</button>
+    <button id="btn-cancel">取消 (Esc)</button>
+  </div>
+  <div id="icons-layer"></div>
+  <div id="marquee"></div>
+  <div id="foot-hint">单击图标选中 / 再点取消 · 空白处拖动框选 · Enter 完成 · Esc 取消</div>
+
+  <script>
+    const H = window.pickerHost;
+    const layer = document.getElementById('icons-layer');
+    const marquee = document.getElementById('marquee');
+    const countEl = document.getElementById('sel-count');
+
+    let icons = [];        // [{name,x,y,w,h}]（CSS 像素，相对窗口）
+    let boxes = [];        // 对应 DOM
+    const selected = new Set();
+
+    H.onIcons((data) => {
+      icons = data.icons || [];
+      layer.innerHTML = '';
+      boxes = [];
+      for (const ic of icons) {
+        const b = document.createElement('div');
+        b.className = 'sel-box';
+        b.dataset.name = ic.name;
+        b.title = ic.name;
+        b.style.left = ic.x + 'px';
+        b.style.top = ic.y + 'px';
+        b.style.width = ic.w + 'px';
+        b.style.height = ic.h + 'px';
+        b.innerHTML = '<span class="tick">✓</span>';
+        layer.appendChild(b);
+        boxes.push(b);
+      }
+    });
+
+    function refreshUI() {
+      countEl.textContent = String(selected.size);
+      for (const b of boxes) b.classList.toggle('on', selected.has(b.dataset.name));
+    }
+
+    // ---------- 点选 / 框选 ----------
+    let down = null;        // {x,y} 按下点（CSS px）
+    let dragging = false;   // 是否已进入框选
+    let moved = 0;
+
+    const pos = (e) => ({ x: e.clientX, y: e.clientY });
+
+    function iconAt(p) {
+      for (let i = 0; i < icons.length; i++) {
+        const ic = icons[i];
+        if (p.x >= ic.x && p.x <= ic.x + ic.w && p.y >= ic.y && p.y <= ic.y + ic.h) return icons[i];
+      }
+      return null;
+    }
+    const rectsOverlap = (a, b) =>
+      !(a.x > b.x + b.w || a.x + a.w < b.x || a.y > b.y + b.h || a.y + a.h < b.y);
+
+    document.addEventListener('pointerdown', (e) => {
+      // 顶部操作栏不参与选择（target 可能是非 Element 节点，防御性判断）
+      if (e.target instanceof Element && e.target.closest('#topbar')) return;
+      down = pos(e);
+      moved = 0;
+      dragging = false;
+    });
+    document.addEventListener('pointermove', (e) => {
+      if (!down) return;
+      const p = pos(e);
+      moved = Math.max(moved, Math.abs(p.x - down.x) + Math.abs(p.y - down.y));
+      if (moved > 6 && !dragging) { dragging = true; marquee.style.display = 'block'; }
+      if (dragging) {
+        const r = {
+          x: Math.min(down.x, p.x), y: Math.min(down.y, p.y),
+          w: Math.abs(p.x - down.x), h: Math.abs(p.y - down.y),
+        };
+        marquee.style.left = r.x + 'px';
+        marquee.style.top = r.y + 'px';
+        marquee.style.width = r.w + 'px';
+        marquee.style.height = r.h + 'px';
+        // 实时预览相交项（不立即入集合，松手才提交）
+        for (let i = 0; i < icons.length; i++) {
+          const hit = rectsOverlap(r, icons[i]);
+          boxes[i].classList.toggle('on', hit || selected.has(icons[i].name));
+        }
+      }
+    });
+    document.addEventListener('pointerup', (e) => {
+      if (!down) return;
+      const p = pos(e);
+      if (dragging) {
+        const r = {
+          x: Math.min(down.x, p.x), y: Math.min(down.y, p.y),
+          w: Math.abs(p.x - down.x), h: Math.abs(p.y - down.y),
+        };
+        marquee.style.display = 'none';
+        for (const ic of icons) {
+          if (rectsOverlap(r, ic)) selected.add(ic.name);
+        }
+      } else {
+        const hit = iconAt(p);
+        if (hit) {
+          if (selected.has(hit.name)) selected.delete(hit.name);
+          else selected.add(hit.name);
+        }
+      }
+      down = null; dragging = false;
+      refreshUI();
+    });
+
+    // ---------- 完成 / 取消 ----------
+    function done() {
+      H.confirm([...selected]);
+    }
+    document.getElementById('btn-done').addEventListener('click', done);
+    document.getElementById('btn-cancel').addEventListener('click', () => H.cancel());
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') done();
+      else if (e.key === 'Escape') H.cancel();
+    });
+  </script>
+</body>
+</html>

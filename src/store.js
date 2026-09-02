@@ -32,6 +32,7 @@ const DEFAULT_CONFIG = {
       count: 8,                // 同屏显示图标数量（4~12）
       autoCollapse: true,      // 空闲时自动收起为小胶囊
       shortcuts: [],           // [{name, path}]（图标运行时解析，不入库）
+      boxed: [],               // [{name, originPath, boxPath}] 从桌面收纳的快捷方式（可恢复）
     },
     performance: {
       fullscreenPause: true,    // 性能：全屏应用时自动暂停视频壁纸
@@ -68,6 +69,7 @@ class Store {
               ...DEFAULT_CONFIG.settings.launcher,
               ...((raw.settings || {}).launcher || {}),
               shortcuts: (((raw.settings || {}).launcher || {}).shortcuts) || [],
+              boxed: (((raw.settings || {}).launcher || {}).boxed) || [],
             },
             performance: { ...DEFAULT_CONFIG.settings.performance, ...((raw.settings || {}).performance || {}) },
           },

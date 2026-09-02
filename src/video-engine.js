@@ -13,17 +13,27 @@
 //   - 待命槽以 --start=0 --pause 生成（初始定位，非运行时 seek，已验证安全）；
 //   - 槽位生命周期只靠「进程更替」，旧槽淡出后直接杀掉并重生为待命槽。
 //
-// ★ 过渡方案（v1.5.0）：旧前台全程保持不透明（alpha 255）垫底，只把待命槽
+// ★ 过渡方案（v1.6.0）：旧前台全程保持不透明（alpha 255）垫底，只把待命槽
 //   从 alpha 0 平滑淡入到 255。若同时淡化两窗（旧 255→0 + 新 0→255），
 //   两个半透明窗口叠在黑色宿主之上，中点合成 = 50%新 + 25%旧 + 25%黑，
 //   表现为「过渡瞬间画面变暗 + 影像重影」。只淡入新窗则是标准溶解：
 //   任意时刻 = p*新 + (1-p)*旧，亮度恒定，无黑变、无异常重影。
+//
+// ★ 防重影三要素（v1.6.0）：
+//   1. 只在 EOF 定格后才开始溶解 —— 提前淡入会让「还在运动的旧画面」与
+//      「新画面」叠加 0.5s+，双运动画面叠影肉眼可辨；定格帧是静止的，
+//      静止+新画面短暂叠加几乎不可察觉（循环视频首尾衔接时完全无缝）。
+//   2. 结尾 70ms 快速轮询 —— EOF 后 0.1s 内即启动溶解，定格期极短。
+//   3. 淡入步进由 33ms 专用定时器驱动（~30fps）—— 0.6s 淡入有 ~18 步，
+//      平滑；用 200ms 轮询步进只有 3 步，会看到明显跳变。
 const { MpvController } = require('./mpv');
 const desktop = require('./desktop');
 const { WinOps } = require('./win-ops');
 
-const FADE_SEC = 1.1;          // 淡入覆盖时长（秒）
+const FADE_SEC = 0.6;          // 淡入覆盖时长（秒）
 const TICK_MS = 200;           // 调度轮询间隔
+const FAST_TICK_MS = 70;       // 结尾逼近时的快速轮询间隔
+const FADE_STEP_MS = 33;       // 淡入步进间隔（~30fps）
 const HEALTH_MS = 5000;        // 健康检查间隔
 const REPAIR_COOLDOWN = 8000;  // 热修复限流
 const EOF_STUCK_LIMIT = 3;     // 结尾定格僵死次数阈值（触发无黑屏修复）
@@ -41,6 +51,8 @@ class VideoEngine {
     this.stopping = false;
     this.gen = 0;           // 会话代号：stop/start 使旧异步流程失效
     this.fading = null;     // { t0, dur }
+    this._fadeTimer = null; // 淡入步进专用定时器（33ms）
+    this._fastTimer = null; // 结尾逼近时的快速轮询定时器（70ms）
     this.lastRepairAt = 0;
     this.stallCount = 0;            // 前台停滞计数
     this.unexpectedPauses = 0;      // 前台意外暂停计数
@@ -96,6 +108,7 @@ class VideoEngine {
     this.userLoop = params.loop !== false; // 用户循环开关（引擎内部固定不回绕）
     this.duration = 0;
     this.fading = null;
+    this._clearFadeTimers();
     this.stallCount = 0;
     this.unexpectedPauses = 0;
     this.eofStuck = 0;
@@ -125,6 +138,7 @@ class VideoEngine {
     this.stopping = true;
     this.gen++;
     this.fading = null;
+    this._clearFadeTimers();
     this.duration = 0;
     this.stallCount = 0;
     this.unexpectedPauses = 0;
@@ -267,6 +281,7 @@ class VideoEngine {
       // 必须先清 fading：残留的 fading 会让 _ensureStandby/_onSlotReady 跳过
       // 隐藏步骤，新待命槽以不透明状态盖住新前台（表现为画面定格第 0 帧）
       this.fading = null;
+      this._clearFadeTimers();
       console.warn(`[engine] 前台槽意外退出(code=${code})，执行无黑屏顶替`);
       this._promoteStandbyAsFront()
         .then((ok) => (ok ? null : this._replaceFrontInPlace(0)))
@@ -317,6 +332,7 @@ class VideoEngine {
     back.setPaused(this.expectPause);
 
     this.fading = null; // 顶替即完成过渡，清除淡入状态（防止残留标志阻断后续待命槽隐藏）
+    this._clearFadeTimers();
     this.front = back;
     this.standby = null;
     if (old) old.stop(); // 已被完全遮盖，杀掉无黑屏
@@ -381,17 +397,21 @@ class VideoEngine {
     });
   }
 
-  // ---------- 内部：循环交叉淡化调度 ----------
+  // ---------- 内部：循环溶解调度（v1.6.0：EOF 定格后快速溶解） ----------
+
+  /** 清理过渡专用定时器（fast 轮询 / 淡入步进） */
+  _clearFadeTimers() {
+    if (this._fadeTimer) { clearInterval(this._fadeTimer); this._fadeTimer = null; }
+    if (this._fastTimer) { clearTimeout(this._fastTimer); this._fastTimer = null; }
+  }
 
   _tick() {
     if (this.stopping || !this.front || !this.front.isRunning) return;
-    if (this.fading) {
-      this._stepFade();
-      return;
-    }
+    if (this.fading) return;          // 淡入由专用步进定时器驱动
+    if (this._fastTimer) return;      // 结尾快速轮询已激活
     if (!this.smoothLoop || !this._loopEnabled || this.expectPause) return;
 
-    // 轮询前台播放位置（淡入调度用）
+    // 常规轮询：只在「接近结尾」时切换到快速轮询，其余交给 200ms 节奏
     this.front.query('time-pos', 1200).then((tp) => {
       if (this.stopping || this.fading || typeof tp !== 'number') return;
       if (this.front) this.front.lastTimePos = tp;
@@ -411,16 +431,41 @@ class VideoEngine {
         return;
       }
       const remaining = this.duration - tp;
-      const eofHold = remaining <= 0.05; // 播完定格（keep-open）
-      if (remaining <= FADE_SEC + 0.15) {
-        // 待命槽就绪才做淡入；未就绪则前台定格等待（短暂静帧，非黑屏）
-        if (this.standby && this.standby.isRunning && this.standby.ipcReady) {
-          this._beginFade(eofHold ? FADE_SEC * 1000 : Math.max(0.35, remaining - 0.05) * 1000);
-        } else if (eofHold) {
-          this._scheduleStandbyRebuild(0);
-        }
-      }
+      if (remaining <= 1.2) this._startFastPoll();
     }).catch(() => {});
+  }
+
+  /**
+   * 结尾逼近时的高频轮询（70ms）：EOF 定格后第一时间启动溶解，
+   * 定格期压缩到 0.1s 级（肉眼几乎无感的"停顿"）。
+   */
+  _startFastPoll() {
+    if (this._fastTimer || this.fading || this.stopping) return;
+    if (!this.front || !this.front.isRunning) return;
+    const poll = async () => {
+      this._fastTimer = null;
+      if (this.stopping || this.fading || !this.front || !this.front.isRunning) return;
+      if (!this.smoothLoop || !this._loopEnabled || this.expectPause) return;
+      const tp = await this.front.query('time-pos', 600);
+      if (this.stopping || this.fading || !this.front || !this.front.isRunning) return;
+      if (typeof tp !== 'number') { this._bumpStall('进度查询超时'); return; }
+      if (this.duration < 1) return;
+      this.front.lastTimePos = tp;
+      const remaining = this.duration - tp;
+      if (remaining <= 0.05) {
+        // EOF 定格：待命槽就绪立即溶解；未就绪则边等边触发重建
+        if (this.standby && this.standby.isRunning && this.standby.ipcReady) {
+          this._beginFade(FADE_SEC * 1000);
+        } else {
+          this._scheduleStandbyRebuild(0);
+          this._fastTimer = setTimeout(poll, 150);
+        }
+        return;
+      }
+      if (remaining > 1.5) return; // 异常回升（新会话等）：退出快速轮询
+      this._fastTimer = setTimeout(poll, FAST_TICK_MS);
+    };
+    this._fastTimer = setTimeout(poll, FAST_TICK_MS);
   }
 
   _beginFade(durMs) {
@@ -433,7 +478,8 @@ class VideoEngine {
         this._rebuildStandby('失联');
         return;
       }
-      console.log('[engine] 循环交界：待命槽淡入覆盖（前台保持不透明垫底）');
+      this._clearFadeTimers();
+      console.log('[engine] 循环交界：待命槽淡入覆盖（前台定格垫底，快速溶解）');
       back.setProperty('pause', false); // 待命槽从第 0 帧起播（出生即在 0，无需 seek）
       const bh = this._standbyChildHwnd();
       if (bh) {
@@ -441,15 +487,18 @@ class VideoEngine {
         this.winOps.fire('raise', bh);      // 淡入方置于最上
       }
       this.fading = { t0: Date.now(), dur: durMs };
+      // 专用步进定时器（33ms ≈ 30fps）：0.6s 淡入 ~18 步，平滑无跳变
+      this._fadeTimer = setInterval(() => this._stepFade(), FADE_STEP_MS);
     }).catch(() => {});
   }
 
   _stepFade() {
     const f = this.fading;
-    if (!f) return;
+    if (!f) { this._clearFadeTimers(); return; }
     // 淡化中待命槽死亡/失联：中止淡化，前台本就保持不透明（无黑屏、无残留）
     if (!this.standby || !this.standby.isRunning) {
       console.warn('[engine] 淡化中待命槽失效，中止淡化并保持前台');
+      this._clearFadeTimers();
       this.fading = null;
       this._applyFrontAlphaWhenFound(255);
       const sh = this._standbyChildHwnd();
@@ -470,6 +519,7 @@ class VideoEngine {
     // 待命槽已完全不透明并完全遮盖旧前台：直接杀掉旧槽并重生为待命槽；角色互换
     const old = this.front;
     const cur = this.standby;
+    this._clearFadeTimers();
     this.fading = null;
     this.front = cur;
     this.standby = null;
@@ -480,7 +530,7 @@ class VideoEngine {
     this.unexpectedPauses = 0;
     this.eofStuck = 0;
     this._prevHealthTp = undefined;
-    this._scheduleStandbyRebuild(800); // 尽快重建待命槽（下一轮交界要用）
+    this._scheduleStandbyRebuild(1200); // 稍等前台解码稳定再重建（避免瞬时双解码负载尖峰）
   }
 
   // ---------- 内部：健康检查（渲染冻结 / 暂停状态脱节） ----------
@@ -668,6 +718,7 @@ class VideoEngine {
   _dropFadeIfAny() {
     if (this.fading) {
       this.fading = null;
+      this._clearFadeTimers();
       this._applyFrontAlphaWhenFound(255);
       if (this.standby) {
         const sh = this._standbyChildHwnd();

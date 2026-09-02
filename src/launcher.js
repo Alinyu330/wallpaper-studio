@@ -7,17 +7,23 @@
 //   renderer/launcher.html 内实现）；
 // - 位置自由摆放（拖动左侧手柄）、同屏数量可自定义（设置页 4~12）；
 // - 空闲自动收起为小胶囊，鼠标悬停展开（输入开关由主进程光标轮询驱动，
-//   与桌面组件同款方案：默认整窗鼠标穿透，光标进入可交互矩形才可点击）。
+//   与桌面组件同款方案：默认整窗鼠标穿透，光标进入可交互矩形才可点击）；
+// - 点选/框选收纳（v1.6.0）：全屏选择器（picker.html）枚举桌面图标
+//   （跨进程读取 explorer 的 SysListView32），选中后把对应 .lnk/.url
+//   文件移动到应用数据目录保管 —— 桌面原位置隐藏；从转盘移除或关闭
+//   功能时自动移回原位置（恢复显示）。
 //
 // 尺寸约定：窗口物理尺寸由渲染页实测上报（launcher:metrics），
 // 主进程用物理像素 MoveWindow 调整 —— 避免两端各维护一套布局算法。
 const { app, BrowserWindow, dialog, ipcMain, screen, shell } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const desktop = require('./desktop');
 
-const DEFAULTS = { enabled: false, x: null, y: null, count: 8, autoCollapse: true, shortcuts: [] };
+const DEFAULTS = { enabled: false, x: null, y: null, count: 8, autoCollapse: true, shortcuts: [], boxed: [] };
 const CLAMP_KEEP_W = 56;  // 拖动出屏时至少保留的可视宽度（物理像素）
 const CLAMP_KEEP_H = 28;
+const SC_EXTS = ['.lnk', '.url']; // 可收纳的快捷方式扩展名
 
 class LauncherHost {
   /** @param {import('./store').Store} store */
@@ -30,20 +36,108 @@ class LauncherHost {
     this.inputOn = false;     // 当前窗口是否接收鼠标
     this.grabOff = { dx: 0, dy: 0 };
     this.pollTimer = null;
+    this.pickerWin = null;    // 桌面图标点选/框选窗口
+    this.onChanged = null;    // 配置变化通知（主界面刷新设置页）
     this._ipcRegistered = false;
+    // 收纳保管目录（快捷方式文件在「桌面 ⇄ 保管目录」之间移动）
+    this.boxDir = path.join(app.getPath('userData'), 'launcher-box');
+    try { fs.mkdirSync(this.boxDir, { recursive: true }); } catch (_) {}
+    console.log(`[launcher] 收纳目录: ${this.boxDir} · 桌面目录: ${app.getPath('desktop')}`);
     this._registerIpc();
   }
 
   get cfg() {
     const saved = this.store.settings.launcher || {};
-    return { ...DEFAULTS, ...saved };
+    return { ...DEFAULTS, ...saved, boxed: saved.boxed || [] };
   }
 
-  /** 应用配置（设置页/托盘调用） */
+  /** 收纳保管目录中不冲突的文件名（同名时加序号） */
+  _boxPathFor(fileName) {
+    let p = path.join(this.boxDir, fileName);
+    if (!fs.existsSync(p)) return p;
+    const ext = path.extname(fileName);
+    const base = path.basename(fileName, ext);
+    for (let i = 2; i < 100; i++) {
+      p = path.join(this.boxDir, `${base} (${i})${ext}`);
+      if (!fs.existsSync(p)) return p;
+    }
+    return path.join(this.boxDir, `${base}-${Date.now()}${ext}`);
+  }
+
+  /** 在桌面目录中按显示名查找快捷方式文件（.lnk/.url，去扩展名精确匹配） */
+  _findShortcutFile(name) {
+    const targets = [
+      app.getPath('desktop'),
+      path.join(process.env.SystemRoot || 'C:\\Windows', '..', 'Users', 'Public', 'Desktop'), // 兜底
+      'C:\\Users\\Public\\Desktop',
+    ];
+    const seen = new Set();
+    for (const dir of targets) {
+      if (!dir || seen.has(dir)) continue;
+      seen.add(dir);
+      let files;
+      try { files = fs.readdirSync(dir); } catch (_) { continue; }
+      const hit = files.find((f) => {
+        const ext = path.extname(f).toLowerCase();
+        if (!SC_EXTS.includes(ext)) return false;
+        return path.basename(f, ext).toLowerCase() === name.toLowerCase();
+      });
+      if (hit) return { file: path.join(dir, hit), publicDir: dir !== app.getPath('desktop') };
+    }
+    return null;
+  }
+
+  /**
+   * 移动文件（桌面 ⇄ 保管目录）：
+   * copy 到目标 + shell 删除源（SHFileOperationW FO_DELETE → 回收站）。
+   * 桌面 .lnk 常被 explorer 持有句柄：fs.rename 跨卷必失败（EXDEV）、
+   * fs.unlink 会被句柄拒绝（EPERM）；shell 语义删除可协调 explorer，
+   * 且源文件进回收站（误操作可在回收站找回）。
+   */
+  _moveFile(src, dst) {
+    try {
+      fs.mkdirSync(path.dirname(dst), { recursive: true });
+      if (fs.existsSync(dst)) return false;
+      if (!fs.existsSync(src)) return false;
+      fs.copyFileSync(src, dst);
+      if (!fs.existsSync(dst)) return false;
+      // 优先 shell 删除（回收站，可撤销，能删被 explorer 持有的文件）
+      if (desktop.shellDeleteFile(src)) return true;
+      // 回退 fs 删除（带重试）
+      try { fs.unlinkSync(src); }
+      catch (_) { try { fs.rmSync(src, { force: true, maxRetries: 10, retryDelay: 150 }); } catch (_) {} }
+      return !fs.existsSync(src);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /** 目标被占用时退让命名：name.lnk → name (2).lnk */
+  _restorePathFor(originPath) {
+    if (!fs.existsSync(originPath)) return originPath;
+    const ext = path.extname(originPath);
+    const base = path.basename(originPath, ext);
+    const dir = path.dirname(originPath);
+    for (let i = 2; i < 100; i++) {
+      const p = path.join(dir, `${base} (${i})${ext}`);
+      if (!fs.existsSync(p)) return p;
+    }
+    return path.join(dir, `${base}-${Date.now()}${ext}`);
+  }
+
+  /** 应用配置（设置页/托盘调用）。关闭功能 = 恢复全部收纳项并清空转盘 */
   applyPatch(patch) {
     const cur = this.cfg;
+    const wasEnabled = !!cur.enabled;
     const next = { ...cur, ...patch };
     if (patch.shortcuts === undefined) next.shortcuts = cur.shortcuts;
+    if (patch.boxed === undefined) next.boxed = cur.boxed;
+    if (wasEnabled && next.enabled === false) {
+      // 关闭功能：已收纳的快捷方式移回桌面原位置（恢复显示），转盘清空
+      this._restoreAllBoxed();
+      next.shortcuts = [];
+      next.boxed = [];
+    }
     this.store.updateSettings({ launcher: next });
     if (next.enabled && !this.win) {
       this.create();
@@ -53,6 +147,7 @@ class LauncherHost {
       // 数量/快捷方式/收起开关变化 → 重建图标并推送（渲染页会重新上报尺寸）
       this.pushConfig();
     }
+    if (this.onChanged) this.onChanged();
   }
 
   setEnabled(on) { this.applyPatch({ enabled: !!on }); }
@@ -108,6 +203,7 @@ class LauncherHost {
     if (this.win && !this.win.isDestroyed()) this.win.close();
     this.win = null;
     this.hwnd = 0;
+    this._closePicker();
     this._stopPolling();
   }
 
@@ -277,9 +373,42 @@ class LauncherHost {
   _removeAt(idx) {
     const cfg = this.cfg;
     const list = [...(cfg.shortcuts || [])];
+    const boxed = [...(cfg.boxed || [])];
     if (idx < 0 || idx >= list.length) return;
-    list.splice(idx, 1);
-    this.applyPatch({ shortcuts: list });
+    const [removed] = list.splice(idx, 1);
+    // 收纳项移除 = 恢复到桌面原位置
+    if (removed) {
+      const bIdx = boxed.findIndex(b => b.boxPath === removed.path);
+      if (bIdx >= 0) {
+        const b = boxed[bIdx];
+        boxed.splice(bIdx, 1);
+        if (fs.existsSync(b.boxPath)) {
+          const dst = this._restorePathFor(b.originPath);
+          if (this._moveFile(b.boxPath, dst)) {
+            console.log(`[launcher] 已恢复到桌面: ${b.name}`);
+          } else {
+            console.warn(`[launcher] 恢复失败（文件保留在保管目录）: ${b.name}`);
+          }
+        }
+      }
+    }
+    this.applyPatch({ shortcuts: list, boxed });
+  }
+
+  /** 把保管目录中的全部收纳项移回桌面原位置 */
+  _restoreAllBoxed() {
+    const cfg = this.cfg;
+    let restored = 0, failed = 0;
+    for (const b of cfg.boxed || []) {
+      if (!fs.existsSync(b.boxPath)) continue;
+      const dst = this._restorePathFor(b.originPath);
+      if (this._moveFile(b.boxPath, dst)) restored++;
+      else failed++;
+    }
+    if ((cfg.boxed || []).length) {
+      console.log(`[launcher] 恢复全部收纳项: 成功 ${restored} 失败 ${failed}`);
+    }
+    return { restored, failed };
   }
 
   _launch(idx) {
@@ -288,6 +417,112 @@ class LauncherHost {
     shell.openPath(s.path).then((err) => {
       if (err) console.warn(`[launcher] 启动失败: ${s.path} — ${err}`);
     });
+  }
+
+  // ---------- 点选/框选收纳（picker） ----------
+
+  /** 打开桌面图标选择器（点选/框选），返回 {ok, error?} */
+  openPicker() {
+    const icons = desktop.getDesktopIcons();
+    if (!icons || !icons.length) {
+      return { ok: false, error: '未能读取桌面图标（资源管理器可能正在重启，请稍后再试）' };
+    }
+    if (this.pickerWin && !this.pickerWin.isDestroyed()) {
+      this.pickerWin.close();
+    }
+    const vd = desktop.getDesktopRect();
+    const displays = screen.getAllDisplays();
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+    for (const d of displays) {
+      x1 = Math.min(x1, d.bounds.x); y1 = Math.min(y1, d.bounds.y);
+      x2 = Math.max(x2, d.bounds.x + d.bounds.width); y2 = Math.max(y2, d.bounds.y + d.bounds.height);
+    }
+    this.pickerWin = new BrowserWindow({
+      x: x1, y: y1, width: x2 - x1, height: y2 - y1,
+      frame: false,
+      show: false,
+      resizable: false,
+      movable: false,
+      skipTaskbar: true,
+      focusable: true,        // 需要 Enter/Esc 键盘操作
+      transparent: true,
+      hasShadow: false,
+      backgroundColor: '#00000000',
+      webPreferences: {
+        preload: path.join(__dirname, '..', 'preload-picker.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        backgroundThrottling: false,
+      },
+    });
+    this.pickerWin.loadFile(path.join(__dirname, '..', 'renderer', 'picker.html'));
+    this.pickerWin.once('ready-to-show', () => {
+      if (!this.pickerWin || this.pickerWin.isDestroyed()) return;
+      this.pickerWin.show();
+      this.pickerWin.focus();
+      const phwnd = Number(this.pickerWin.getNativeWindowHandle().readBigInt64LE(0));
+      // 挂为 Progman 子窗口、图标层之上、全屏铺满（复用组件覆盖层挂载）
+      desktop.attachWidgetsOverlay(phwnd);
+      const dpr = screen.getPrimaryDisplay().scaleFactor || 1;
+      // 物理坐标 → 窗口 CSS 坐标（窗口铺满虚拟桌面，起点即虚拟桌面原点）
+      this.pickerWin.webContents.send('picker:icons', {
+        icons: icons.map(ic => ({
+          name: ic.name,
+          x: (ic.x - vd.x) / dpr, y: (ic.y - vd.y) / dpr,
+          w: ic.w / dpr, h: ic.h / dpr,
+        })),
+      });
+      console.log(`[launcher] 桌面图标选择器已打开（${icons.length} 个图标）`);
+    });
+    this.pickerWin.on('closed', () => { this.pickerWin = null; });
+    // 选择器期间暂停转盘收起（视觉干扰）——关闭选择器后恢复正常轮换
+    if (this.win && !this.win.isDestroyed()) {
+      try { this.win.webContents.send('launcher:hover', true); } catch (_) {}
+    }
+    return { ok: true };
+  }
+
+  _closePicker() {
+    if (this.pickerWin && !this.pickerWin.isDestroyed()) this.pickerWin.close();
+    this.pickerWin = null;
+    if (this.win && !this.win.isDestroyed()) {
+      try { this.win.webContents.send('launcher:hover', false); } catch (_) {}
+    }
+  }
+
+  /** 选择器确认：把选中图标对应的桌面 .lnk/.url 收纳（移动到保管目录） */
+  _confirmPick(names) {
+    this._closePicker();
+    if (!Array.isArray(names) || !names.length) return { ok: true, boxed: 0, skipped: 0 };
+
+    const cfg = this.cfg;
+    const shortcuts = [...(cfg.shortcuts || [])];
+    const boxed = [...(cfg.boxed || [])];
+    let done = 0;
+    const skipped = { notFound: 0, noPerm: 0 };
+    for (const name of names) {
+      const found = this._findShortcutFile(name);
+      if (!found) { skipped.notFound++; continue; }  // 系统图标/文件夹等非快捷方式
+      if (found.publicDir) {
+        console.warn(`[launcher] 跳过公共桌面项（需管理员）: ${name} @ ${found.file}`);
+        skipped.noPerm++;
+        continue;
+      }
+      const boxPath = this._boxPathFor(path.basename(found.file));
+      if (!this._moveFile(found.file, boxPath)) {
+        console.warn(`[launcher] 移动失败: ${found.file} → ${boxPath}`);
+        skipped.noPerm++;
+        continue;
+      }
+      shortcuts.push({ name, path: boxPath });
+      boxed.push({ name, originPath: found.file, boxPath });
+      done++;
+    }
+    if (done) this.applyPatch({ shortcuts, boxed });
+    console.log(`[launcher] 桌面快捷方式收纳: ${done} 个（未匹配 ${skipped.notFound} / 无权限 ${skipped.noPerm}）`);
+    // 主动带结果通知（applyPatch 内的 onChanged 无 payload，仅刷新）
+    if (this.onChanged) this.onChanged({ picked: done, skipped: skipped.notFound + skipped.noPerm });
+    return { ok: true, boxed: done, skipped: skipped.notFound + skipped.noPerm };
   }
 
   // ---------- IPC ----------
@@ -313,13 +548,27 @@ class LauncherHost {
       const n = await this._addShortcuts();
       return { ok: true, added: n };
     });
+    ipcMain.handle('launcher:pick', () => this.openPicker());
+    ipcMain.on('picker:confirm', (_e, names) => this._confirmPick(names));
+    ipcMain.on('picker:cancel', () => this._closePicker());
+    ipcMain.handle('launcher:remove-at', (_e, idx) => {
+      this._removeAt(idx);
+      return { ok: true };
+    });
+    ipcMain.handle('launcher:restore-all', () => {
+      const { restored, failed } = this._restoreAllBoxed();
+      // 恢复后清空转盘列表与收纳记录
+      this.applyPatch({ shortcuts: [], boxed: [] });
+      return { ok: true, restored, failed };
+    });
     ipcMain.handle('launcher:get', async () => {
       const cfg = this.cfg;
+      const boxSet = new Set((cfg.boxed || []).map(b => b.boxPath));
       const shortcuts = [];
       for (const s of cfg.shortcuts || []) {
         let icon = null;
         try { icon = (await app.getFileIcon(s.path, { size: 'normal' })).toDataURL(); } catch (_) {}
-        shortcuts.push({ ...s, icon });
+        shortcuts.push({ ...s, icon, boxed: boxSet.has(s.path) });
       }
       return { ...cfg, shortcuts };
     });

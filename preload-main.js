@@ -38,6 +38,9 @@ contextBridge.exposeInMainWorld('api', {
   getLauncherConfig: () => ipcRenderer.invoke('launcher:get'),
   addLauncherShortcuts: () => ipcRenderer.invoke('launcher:add'),
   updateLauncherConfig: (patch) => ipcRenderer.invoke('settings:update', { launcher: patch }),
+  pickDesktopShortcuts: () => ipcRenderer.invoke('launcher:pick'),
+  removeLauncherAt: (idx) => ipcRenderer.invoke('launcher:remove-at', idx),
+  restoreAllLauncher: () => ipcRenderer.invoke('launcher:restore-all'),
   // 窗口控制
   minimize: () => ipcRenderer.send('win:minimize'),
   maximize: () => ipcRenderer.send('win:maximize'),

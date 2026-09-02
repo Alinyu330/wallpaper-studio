@@ -1,8 +1,8 @@
 {
   "name": "wallpaper-studio",
   "productName": "壁纸工坊",
-  "version": "1.5.0",
-  "description": "PC 桌面壁纸软件：支持静态图片、动态视频(MP4/AVI/MKV等)、网页与 EXE 壁纸，可调节播放速度、亮度、分辨率等参数，支持桌面快捷方式转盘收纳",
+  "version": "1.6.0",
+  "description": "PC 桌面壁纸软件：支持静态图片、动态视频(MP4/AVI/MKV等)、网页与 EXE 壁纸，可调节播放速度、亮度、分辨率等参数，支持桌面快捷方式点选/框选收纳与转盘启动",
   "main": "main.js",
   "author": "WallPaper Studio",
   "license": "MIT",
@@ -40,6 +40,7 @@
       "preload-preview.js",
       "preload-widgets.js",
       "preload-launcher.js",
+      "preload-picker.js",
       "src/**/*",
       "renderer/**/*",
       "assets/icon.png",

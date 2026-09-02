@@ -16,6 +16,8 @@
 const koffi = require('koffi');
 
 const user32 = koffi.load('user32.dll');
+const kernel32 = koffi.load('kernel32.dll');
+const shell32 = koffi.load('shell32.dll');
 
 // ---------- Win32 函数声明 ----------
 const FindWindowW = user32.func('FindWindowW', 'intptr_t', ['str16', 'str16']);
@@ -50,6 +52,21 @@ let SetThreadDpiAwarenessContext = null;
 try {
   SetThreadDpiAwarenessContext = user32.func('SetThreadDpiAwarenessContext', 'intptr_t', ['intptr_t']);
 } catch (_) {}
+
+// ---------- 跨进程读取桌面图标（点选/框选收纳用） ----------
+// 桌面图标住在 explorer.exe 的 SysListView32（虚拟列表控件）里。
+// LVM_GETITEMRECT / LVM_GETITEMTEXTW 的参数指向调用方地址空间，
+// 跨进程使用必须在 explorer 内分配内存（VirtualAllocEx）再回读
+// （任务管理器读取进程列表的同款手法；只读不注入）。
+const OpenProcess = kernel32.func('OpenProcess', 'intptr_t', ['uint32', 'int', 'uint32']);
+const CloseHandle = kernel32.func('CloseHandle', 'int', ['intptr_t']);
+const VirtualAllocEx = kernel32.func('VirtualAllocEx', 'intptr_t', ['intptr_t', 'intptr_t', 'size_t', 'uint32', 'uint32']);
+const VirtualFreeEx = kernel32.func('VirtualFreeEx', 'int', ['intptr_t', 'intptr_t', 'size_t', 'uint32']);
+const ReadProcessMemory = kernel32.func('ReadProcessMemory', 'int', ['intptr_t', 'intptr_t', 'void *', 'size_t', koffi.out(koffi.pointer('size_t'))]);
+const WriteProcessMemory = kernel32.func('WriteProcessMemory', 'int', ['intptr_t', 'intptr_t', 'void *', 'size_t', koffi.out(koffi.pointer('size_t'))]);
+const LVM_GETITEMCOUNT = 0x1004;
+const LVM_GETITEMRECT = 0x100E;   // wParam=行号 lParam=RECT*（rect.left 预置 LVIR_BOUNDS=0）
+const LVM_GETITEMTEXTW = 0x1073;  // wParam=行号 lParam=LVITEMW*
 
 // EnumWindows 回调原型
 const EnumWindowsProc = koffi.proto('int __stdcall EnumWindowsProc(intptr_t hwnd, intptr_t lParam)');
@@ -489,6 +506,151 @@ function getWindowRectScreen(hwnd) {
   });
 }
 
+// ---------- Shell 文件删除（快捷方式收纳用） ----------
+// 桌面 .lnk 常被 explorer 持有句柄（图标缓存等）：fs.unlink 会被拒绝（EPERM）。
+// SHFileOperationW(FO_DELETE, FOF_ALLOWUNDO) 是资源管理器语义的删除 ——
+// shell 层协调文件句柄，可删除被 explorer 使用的文件，且进回收站可撤销。
+const SHFileOperationW = shell32.func('SHFileOperationW', 'int', ['void *']);
+const FO_DELETE = 3;
+const FOF_NOCONFIRMATION = 0x10, FOF_ALLOWUNDO = 0x40, FOF_SILENT = 0x4, FOF_NOERRORUI = 0x400;
+
+/** 双 null 结尾的 UTF-16 字符串 Buffer（SHFILEOPSTRUCT pFrom 要求） */
+function zzWide(str) {
+  const buf = Buffer.alloc((str.length + 2) * 2);
+  buf.write(str, 0, 'utf16le');
+  return buf;
+}
+
+/**
+ * 以资源管理器语义删除文件到回收站（可删除被 explorer 持有的桌面快捷方式）。
+ * SHFILEOPSTRUCTW 中的 pFrom 是指针：koffi 无法取 Buffer 地址，通过
+ * OpenProcess(自身) + VirtualAllocEx 取得可寻址内存后写入字符串，
+ * 再以纯字节结构调用。
+ * @returns {boolean} 是否成功（返回码 0）
+ */
+function shellDeleteFile(file) {
+  let hProc = 0, fromAddr = 0;
+  try {
+    const fromBuf = zzWide(file);
+    const shfo = Buffer.alloc(56);   // SHFILEOPSTRUCTW（x64）
+    shfo.writeUInt32LE(FO_DELETE, 8);                                            // wFunc
+    shfo.writeUInt16LE(FOF_SILENT | FOF_NOCONFIRMATION | FOF_ALLOWUNDO | FOF_NOERRORUI, 32); // fFlags
+    hProc = Number(BigIntAsInt(OpenProcess(0x38, 0, process.pid)));
+    if (!hProc) return false;
+    const MEM_COMMIT = 0x1000, PAGE_READWRITE = 4;
+    fromAddr = Number(BigIntAsInt(VirtualAllocEx(hProc, 0, fromBuf.length, MEM_COMMIT, PAGE_READWRITE)));
+    if (!fromAddr) return false;
+    const nWrote = [0];
+    if (!WriteProcessMemory(hProc, fromAddr, fromBuf, fromBuf.length, nWrote)) return false;
+    shfo.writeBigUInt64LE(BigInt(fromAddr), 16);  // pFrom
+    const r = SHFileOperationW(shfo);
+    return r === 0;
+  } catch (_) {
+    return false;
+  } finally {
+    try {
+      if (hProc) {
+        if (fromAddr) VirtualFreeEx(hProc, fromAddr, 0, 0x8000);
+        CloseHandle(hProc);
+      }
+    } catch (_) {}
+  }
+}
+
+// ---------- 桌面图标枚举（点选/框选收纳） ----------
+const DClientToScreen = user32.func('ClientToScreen', 'int', ['intptr_t', koffi.inout(koffi.pointer(D_POINT))]);
+
+/**
+ * 枚举桌面全部图标（名称 + 屏幕物理坐标矩形）。
+ * 桌面图标列表是 explorer.exe 的 SysListView32：位置/文本查询的参数
+ * 指针属于 explorer 地址空间 —— 在其中 VirtualAllocEx 一块内存，
+ * SendMessage 让它写入，再 ReadProcessMemory 读回（只读，不注入）。
+ * @returns {Array<{name,x,y,w,h}>|null} 失败返回 null（explorer 重启中等）
+ */
+function getDesktopIcons() {
+  return pmv2(() => {
+    let hProc = 0, rectAddr = 0, textAddr = 0, lviAddr = 0;
+    try {
+      const progman = findDesktopHost();
+      if (!progman) return null;
+      const defView = findChildByClass(progman, 'SHELLDLL_DefView');
+      if (!defView) return null;
+      const lv = findChildByClass(defView, 'SysListView32');
+      if (!lv) return null;
+
+      const out = [0];
+      // 注意：SendMessageTimeoutW 的函数返回值只表示「消息是否被处理」，
+      // 消息本身的返回值写入第 7 参数 out（LVM_GETITEMCOUNT → 图标数）
+      SendMessageTimeoutW(lv, LVM_GETITEMCOUNT, 0, 0, 0, 500, out);
+      const count = Number(out[0]);
+      if (count <= 0 || count > 2000) return null;
+
+      const pidBuf = [0];
+      GetWindowThreadProcessId(lv, pidBuf);
+      // PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE
+      hProc = Number(BigIntAsInt(OpenProcess(0x38, 0, pidBuf[0])));
+      if (!hProc) return null;
+
+      const MEM_COMMIT = 0x1000, MEM_RELEASE = 0x8000, PAGE_READWRITE = 4;
+      rectAddr = Number(BigIntAsInt(VirtualAllocEx(hProc, 0, 16, MEM_COMMIT, PAGE_READWRITE)));
+      textAddr = Number(BigIntAsInt(VirtualAllocEx(hProc, 0, 1024, MEM_COMMIT, PAGE_READWRITE)));
+      lviAddr = Number(BigIntAsInt(VirtualAllocEx(hProc, 0, 96, MEM_COMMIT, PAGE_READWRITE)));
+      if (!rectAddr || !textAddr || !lviAddr) return null;
+
+      // ListView 客户区坐标 → 屏幕物理坐标
+      const origin = { x: 0, y: 0 };
+      if (!DClientToScreen(lv, origin)) return null;
+
+      const icons = [];
+      const rectBuf = Buffer.alloc(16);
+      const lviBuf = Buffer.alloc(96);
+      const textBuf = Buffer.alloc(1024);
+      const nRead = [0], nWrote = [0];
+      for (let i = 0; i < count; i++) {
+        // 边界矩形（LVIR_BOUNDS）：消息返回值（BOOL）在 out[0]
+        rectBuf.writeInt32LE(0, 0);
+        if (!WriteProcessMemory(hProc, rectAddr, rectBuf, 16, nWrote)) continue;
+        const callOk = SendMessageTimeoutW(lv, LVM_GETITEMRECT, i, rectAddr, 0, 300, out);
+        if (!callOk || !Number(out[0])) continue;
+        if (!ReadProcessMemory(hProc, rectAddr, rectBuf, 16, nRead)) continue;
+        const rx = rectBuf.readInt32LE(0), ry = rectBuf.readInt32LE(4);
+        const rw = rectBuf.readInt32LE(8) - rx, rh = rectBuf.readInt32LE(12) - ry;
+        if (rw <= 0 || rh <= 0) continue;
+        // 显示名（LVITEMW：mask=LVIF_TEXT, iItem, pszText=远端文本缓冲, cchTextMax）
+        lviBuf.fill(0);
+        lviBuf.writeUInt32LE(0x1, 0);                     // mask = LVIF_TEXT
+        lviBuf.writeInt32LE(i, 4);                        // iItem
+        lviBuf.writeBigUInt64LE(BigInt(textAddr), 24);    // pszText（explorer 内地址）
+        lviBuf.writeInt32LE(512, 32);                     // cchTextMax
+        if (!WriteProcessMemory(hProc, lviAddr, lviBuf, 96, nWrote)) continue;
+        SendMessageTimeoutW(lv, LVM_GETITEMTEXTW, i, lviAddr, 0, 300, out);
+        if (!ReadProcessMemory(hProc, textAddr, textBuf, 1024, nRead)) continue;
+        let name = '';
+        for (let j = 0; j + 1 < textBuf.length; j += 2) {
+          const c = textBuf.readUInt16LE(j);
+          if (!c) break;
+          name += String.fromCharCode(c);
+        }
+        if (!name) continue;
+        icons.push({ name, x: origin.x + rx, y: origin.y + ry, w: rw, h: rh });
+      }
+      return icons;
+    } catch (_) {
+      return null;
+    } finally {
+      // 释放 explorer 内的临时内存（0 长度 + MEM_RELEASE）
+      try {
+        if (hProc) {
+          if (rectAddr) VirtualFreeEx(hProc, rectAddr, 0, 0x8000);
+          if (textAddr) VirtualFreeEx(hProc, textAddr, 0, 0x8000);
+          if (lviAddr) VirtualFreeEx(hProc, lviAddr, 0, 0x8000);
+          CloseHandle(hProc);
+        }
+      } catch (_) {}
+    }
+  });
+}
+
 /**
  * 将外部进程窗口嵌入为壁纸（用于 EXE 壁纸）：
  * 去边框 → 挂到 WorkerW/Progman → 物理像素铺满
@@ -644,6 +806,8 @@ module.exports = {
   moveWindowToScreen,
   resizeWindowToScreen,
   getWindowRectScreen,
+  getDesktopIcons,
+  shellDeleteFile,
   cursorInRects,
   isWindowVisible: (hwnd) => !!IsWindowVisible(hwnd),
 };
