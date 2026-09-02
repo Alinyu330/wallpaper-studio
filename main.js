@@ -1,5 +1,5 @@
 // main.js — Electron 主进程：窗口管理、壁纸引擎调度、IPC、托盘
-const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, screen, nativeImage, shell, globalShortcut, powerMonitor } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, screen, nativeImage, shell, globalShortcut, powerMonitor, powerSaveBlocker } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { Store } = require('./src/store');
@@ -382,6 +382,7 @@ function applyWallpaper(wp, params) {
   currentParams = { ...DEFAULT_PARAMS, ...(wp.params || {}), ...(params || {}) };
   store.setCurrent(wp.id, currentParams);
   console.log(`[engine] 应用壁纸: ${wp.name} (type=${wp.type})`);
+  updatePowerSaveBlocker();
 
   // 先停掉旧资源
   mpv.stop();
@@ -467,6 +468,7 @@ function stopWallpaper() {
   currentWallpaper = null;
   currentParams = null;
   store.setCurrent(null);
+  updatePowerSaveBlocker();
   console.log('[engine] 已停止使用壁纸，桌面恢复系统默认');
   notifyMain('wallpaper:current-changed', null);
   if (trayRebuild) trayRebuild();
@@ -522,6 +524,37 @@ function setupPerformanceWatch() {
   try {
     powerMonitor.on('power-source-changed', updatePerfFlags);
   } catch (_) {}
+  // 睡眠唤醒：显示器功耗切换/睡眠常导致 GPU 硬解设备失效、窗口层级被重置，
+  // 唤醒后主动校正挂载层级、提升 mpv 渲染层并对齐暂停状态；
+  // 若 mpv 已被唤醒事件卡死，由 mpv 播放健康检查自动重启恢复。
+  try {
+    powerMonitor.on('resume', () => {
+      console.log('[power] 系统从睡眠唤醒，校正壁纸渲染状态');
+      setTimeout(() => {
+        if (wallpaperHwnd) {
+          desktop.ensureAttached(wallpaperHwnd);
+          desktop.fillDesktop(wallpaperHwnd);
+        }
+        raiseMpvWindow();
+        syncMpvPause();
+        updatePerfFlags();
+      }, 1500);
+    });
+  } catch (_) {}
+}
+
+// ---------- 防挂起：视频壁纸播放期间阻止系统挂起应用 ----------
+// 长时间无前台交互时 Windows 可能挂起后台应用/合并其定时器，
+// 导致壁纸引擎看门狗停摆、mpv 参数与暂停同步失效。
+let powerSaveId = null;
+function updatePowerSaveBlocker() {
+  const need = currentWallpaper?.type === 'video';
+  if (need && powerSaveId === null) {
+    try { powerSaveId = powerSaveBlocker.start('prevent-app-suspension'); } catch (_) {}
+  } else if (!need && powerSaveId !== null) {
+    try { powerSaveBlocker.stop(powerSaveId); } catch (_) {}
+    powerSaveId = null;
+  }
 }
 
 // ---------- 全局快捷键：暂停/恢复壁纸 ----------
@@ -1028,9 +1061,13 @@ app.on('before-quit', () => {
 });
 
 app.on('will-quit', () => {
-  // 清理所有子进程、热键与定时器
+  // 清理所有子进程、热键、防挂起与定时器
   mpv?.stop();
   exeWallpaper?.stop();
+  if (powerSaveId !== null) {
+    try { powerSaveBlocker.stop(powerSaveId); } catch (_) {}
+    powerSaveId = null;
+  }
   try { globalShortcut.unregisterAll(); } catch (_) {}
   stopWidgetsInput();
   stopStatsCollector();
