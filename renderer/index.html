@@ -13,6 +13,7 @@
       <div class="logo-mark"></div>
       <span class="app-name">壁纸工坊</span>
       <span class="app-ver">Wallpaper Studio</span>
+      <button class="update-dot hidden" id="update-dot" title="发现新版本，点击查看"></button>
     </div>
     <div class="tb-right">
       <button class="win-btn" id="btn-min" title="最小化">
@@ -42,6 +43,10 @@
         <button class="nav-item" data-page="widgets">
           <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M7.5 12.5l3-3.5 2.5 2.5 4-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span>桌面组件</span>
+        </button>
+        <button class="nav-item" data-page="audio">
+          <svg viewBox="0 0 24 24"><path d="M4 10v4h3l5 4V6l-5 4H4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 010 7M18 6a8.5 8.5 0 010 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <span>音律动效</span>
         </button>
         <button class="nav-item" data-page="launcher">
           <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="14" y="3" width="7.5" height="7.5" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="14" width="7.5" height="7.5" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M17.75 14.5v7M14.25 18h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
@@ -123,6 +128,12 @@
       <section id="page-rotation" class="page">
         <div class="page-head"><h2>定时轮换</h2></div>
         <div class="settings-card">
+          <div class="card-title">轮换队列 <span class="title-hint" id="rot-queue-count"></span></div>
+          <div class="row-sub" style="margin-bottom:12px">当前参与轮换的壁纸实时预览（视频壁纸直接播放）· 点击任意一张立即切换 · 自定义范围可点 ✕ 移出</div>
+          <div id="rot-queue" class="rot-queue"></div>
+          <p class="hint" id="rot-queue-empty" style="display:none">轮换队列为空：请在下方启用轮换并选择范围（至少两张壁纸）。</p>
+        </div>
+        <div class="settings-card">
           <label class="switch-row">
             <div>
               <div class="row-title">启用定时轮换</div>
@@ -191,13 +202,131 @@
           <div class="switch-row">
             <div>
               <div class="row-title">面板不透明度</div>
-              <div class="row-sub"><input type="number" id="wg-opacity-num" min="20" max="100" step="5" style="width:64px"> %（20~100）</div>
+              <div class="row-sub"><input type="number" id="wg-opacity-num" min="20" max="100" step="5" style="width:64px"> %（20~100，可直接输入）</div>
             </div>
             <input type="range" id="wg-opacity" min="20" max="100" step="5" style="width:140px">
           </div>
+          <div class="preset-row" id="wg-opacity-presets"></div>
         </div>
         <div id="wg-items"></div>
-        <p class="hint">组件显示在壁纸之上、桌面图标之下，视频壁纸同样可见。时钟点击可切换 12/24 小时制；音量组件支持在桌面直接拖动调节、点击图标静音。位置选择九宫格对应屏幕九个区域。</p>
+        <p class="hint">组件显示在壁纸之上、桌面图标之下，视频壁纸同样可见。时钟点击可切换 12/24 小时制；音量组件支持在桌面直接拖动调节、点击图标静音。位置选择九宫格对应屏幕九个区域；需要微调摆放时，点组件卡片上的「调整位置」按钮，然后在桌面上按住组件直接拖动，松开即保存。</p>
+      </section>
+
+      <!-- 音律动效 -->
+      <section id="page-audio" class="page">
+        <div class="page-head"><h2>音律动效</h2></div>
+        <div class="settings-card">
+          <label class="switch-row">
+            <div>
+              <div class="row-title">启用音律动效</div>
+              <div class="row-sub">捕获系统正在播放的声音（音乐 / 视频 / 游戏，外放或耳机均可），在壁纸上叠加随节奏舞动的频谱动效（仿 Wallpaper Engine）</div>
+            </div>
+            <span class="switch"><input type="checkbox" id="av-enabled"><i></i></span>
+          </label>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">音频输入状态</div>
+              <div class="row-sub" id="av-status">开启后显示系统声音捕获状态与实时电平</div>
+            </div>
+            <div class="av-meter" id="av-meter" title="实时音频电平"></div>
+          </div>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">动效样式</div>
+              <div class="row-sub">频谱条：能量柱 · 波浪：波形曲线 · 圆环：旋转放射环 · 山峦：填充山脉 · 圆点：点阵矩阵 · 同心环：三频同心 · LED块：复古电平块</div>
+            </div>
+            <div class="seg" id="av-style" style="flex-wrap:wrap; max-width:300px; justify-content:flex-end">
+              <button data-style="bars">频谱条</button>
+              <button data-style="wave">波浪</button>
+              <button data-style="circle">圆环</button>
+              <button data-style="mountain">山峦</button>
+              <button data-style="dots">圆点</button>
+              <button data-style="rings">同心环</button>
+              <button data-style="blocks">LED块</button>
+            </div>
+          </div>
+          <div class="switch-row" id="av-pos-row">
+            <div>
+              <div class="row-title">显示位置</div>
+              <div class="row-sub">底部 / 顶部快速切换；需要自由摆放时用下方「调整位置」，在桌面按住动效直接拖</div>
+            </div>
+            <div class="seg" id="av-pos">
+              <button data-pos="bottom">底部</button>
+              <button data-pos="top">顶部</button>
+            </div>
+          </div>
+          <div class="switch-row" id="av-pos9-row">
+            <div>
+              <div class="row-title">九宫格定位</div>
+              <div class="row-sub">点击快速摆放到中心 / 左中 / 右上等常用位置；拖动调整与精确滑杆仍可用</div>
+            </div>
+            <div class="pos-grid" id="av-pos9" title="点击快速设置位置"></div>
+          </div>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">调整位置</div>
+              <div class="row-sub" id="av-adjust-hint">点「开始调整」后在桌面上按住动效拖动，松开即保存位置并自动退出</div>
+            </div>
+            <button class="btn small" id="btn-av-adjust">开始调整</button>
+          </div>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">精确位置 <span class="title-hint" id="av-xy-val"></span></div>
+              <div class="row-sub">水平 / 垂直精确调节（屏幕百分比，可直接输入数值）；拖动调整后此处同步显示</div>
+            </div>
+            <div class="av-xy-col">
+              <label class="xy-line">水平<input type="number" id="av-posx-num" min="2" max="98" step="1" style="width:56px"><input type="range" id="av-posx" min="2" max="98" step="1" style="width:110px"></label>
+              <label class="xy-line">垂直<input type="number" id="av-posy-num" min="4" max="96" step="1" style="width:56px"><input type="range" id="av-posy" min="4" max="96" step="1" style="width:110px"></label>
+            </div>
+          </div>
+          <div class="preset-row" id="av-xy-presets" title="点击快速设置到对应角落/居中"></div>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">颜色</div>
+              <div class="row-sub">点击色板快速切换常用配色，或用取色器自定义（渐变模式下向亮色过渡）</div>
+            </div>
+            <div class="av-color-row">
+              <input type="color" id="av-color" value="#7c5cff">
+              <div class="seg" id="av-gradient">
+                <button data-gradient="on">渐变</button>
+                <button data-gradient="off">纯色</button>
+              </div>
+            </div>
+          </div>
+          <div class="preset-row" id="av-colors"></div>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">不透明度 <span class="title-hint" id="av-opacity-val"></span></div>
+              <div class="row-sub"><input type="number" id="av-opacity-num" min="20" max="100" step="5" style="width:64px"> %（20~100，可直接输入）</div>
+            </div>
+            <input type="range" id="av-opacity" min="20" max="100" step="5" style="width:150px">
+          </div>
+          <div class="preset-row" id="av-opacity-presets"></div>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">大小 <span class="title-hint" id="av-size-val"></span></div>
+              <div class="row-sub"><input type="number" id="av-size-num" min="0.5" max="2" step="0.1" style="width:64px"> ×（0.5~2，可直接输入）</div>
+            </div>
+            <input type="range" id="av-size" min="0.5" max="2" step="0.1" style="width:150px">
+          </div>
+          <div class="preset-row" id="av-size-presets"></div>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">灵敏度 <span class="title-hint" id="av-sens-val"></span></div>
+              <div class="row-sub"><input type="number" id="av-sens-num" min="0.5" max="3" step="0.1" style="width:64px">（0.5~3，可直接输入）</div>
+            </div>
+            <input type="range" id="av-sens" min="0.5" max="3" step="0.1" style="width:150px">
+          </div>
+          <div class="preset-row" id="av-sens-presets"></div>
+          <label class="switch-row">
+            <div>
+              <div class="row-title">频谱条镜像倒影</div>
+              <div class="row-sub">在基线另一侧绘制低透明度倒影（仅频谱条样式）</div>
+            </div>
+            <span class="switch"><input type="checkbox" id="av-mirror"><i></i></span>
+          </label>
+        </div>
+        <p class="hint">动效层与桌面组件同层：显示在壁纸与桌面图标之上、所有程序窗口之下，不影响任何操作。切换输出设备（外放 ⇄ 耳机）会自动跟随重新捕获。静音时频谱自然归零。捕获走系统音频环回（WASAPI loopback），不录制、不回放、不产生声音。</p>
       </section>
 
       <!-- 桌面快捷方式转盘 -->
@@ -214,7 +343,7 @@
           <div class="switch-row">
             <div>
               <div class="row-title">同屏显示数量</div>
-              <div class="row-sub">转盘一次显示的图标个数，其余图标通过拖动轮换出现</div>
+              <div class="row-sub"><input type="number" id="lc-count-num" min="1" max="12" step="1" style="width:64px"> 个（4~12，可直接输入），其余图标通过拖动轮换出现</div>
             </div>
             <div class="seg" id="lc-count">
               <button data-count="4">4</button>
@@ -231,17 +360,54 @@
             </div>
             <span class="switch"><input type="checkbox" id="lc-autocollapse"><i></i></span>
           </label>
-          <p class="hint">转盘用法：按住图标条或下方「拖动条」左右拖动即可像转盘一样轮换图标；拖动转盘左侧的 ⋮ 手柄可自由摆放位置；右键转盘可添加/移除快捷方式。</p>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">排列方向</div>
+              <div class="row-sub">图标横向排成一行，或纵向排成一列；摆放位置用下方「调整位置」自由拖动</div>
+            </div>
+            <div class="seg" id="lc-orient">
+              <button data-orient="h">横向</button>
+              <button data-orient="v">纵向</button>
+            </div>
+          </div>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">调整位置</div>
+              <div class="row-sub" id="lc-adjust-hint">点「开始调整」后在桌面上按住转盘拖动，松开即保存位置并自动退出</div>
+            </div>
+            <button class="btn small" id="btn-lc-adjust">开始调整</button>
+          </div>
+          <div class="switch-row" id="lc-pos9-row">
+            <div>
+              <div class="row-title">九宫格定位</div>
+              <div class="row-sub">点击快速摆放到常用位置；「默认」恢复任务栏上方居中，拖动调整仍可用</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="pos-grid" id="lc-pos9" title="点击快速设置位置"></div>
+              <button class="btn ghost small" id="lc-pos-reset">默认</button>
+            </div>
+          </div>
+          <label class="switch-row">
+            <div>
+              <div class="row-title">边缘图标淡化</div>
+              <div class="row-sub">默认关闭：转盘内所有图标全亮度清晰显示；开启后两端图标轻微淡化突出中间</div>
+            </div>
+            <span class="switch"><input type="checkbox" id="lc-edgefade"><i></i></span>
+          </label>
+          <p class="hint">转盘用法：按住图标条或下方「拖动条」左右拖动即可像转盘一样轮换图标，滚轮同样可轮换；需要移动整个转盘时，点上方「调整位置」按钮后按住拖到任意位置；右键转盘可添加/移除快捷方式。</p>
         </div>
         <div class="settings-card">
           <div class="card-title">快捷方式列表 <span class="title-hint" id="lc-shortcut-count"></span></div>
           <div id="lc-list" class="lc-list"></div>
           <div class="btn-row" style="margin-top:12px">
             <button class="btn primary small" id="btn-lc-pick">⊞ 点选 / 框选桌面图标收纳</button>
+            <button class="btn ghost small" id="btn-lc-box-all">📦 一键收纳全部快捷方式</button>
+            <button class="btn ghost small hidden" id="btn-lc-box-public">🛡️ 管理员授权收纳公共桌面</button>
             <button class="btn ghost small" id="btn-lc-add">＋ 从文件添加</button>
             <button class="btn ghost small" id="btn-lc-restore-all">全部恢复到桌面</button>
           </div>
-          <p class="hint">「点选/框选收纳」会把选中的桌面快捷方式（.lnk / .url）移动到应用数据目录保管 — 桌面原位置随之隐藏，转盘中显示并可直接启动；从列表移除或「全部恢复到桌面」即还原到原位置；关闭快捷方式转盘功能也会自动全部还原。公共桌面（所有用户）的快捷方式需要管理员权限，暂不支持收纳。</p>
+          <p class="hint" id="lc-leftover-hint">「一键收纳全部」会收走桌面上所有快捷方式（.lnk / .url，含文件名与显示名不一致的）。系统图标（此电脑 / 回收站等）不是文件、桌面文件夹是用户数据，均不移动；「公共桌面」（所有用户可见）的快捷方式需要管理员权限，收纳后可点上方按钮一次授权批量收进。</p>
+          <p class="hint">「点选/框选收纳」打开全屏选择器，手动勾选要收纳的桌面快捷方式；收纳后从转盘点击图标照常启动对应 App；从列表移除或「全部恢复到桌面」即还原到原位置；关闭快捷方式转盘功能也会自动全部还原。</p>
         </div>
       </section>
 
@@ -335,11 +501,21 @@
           </div>
           <p class="hint">视频壁纸依赖 mpv：将下载的 mpv 解压到程序目录 assets/mpv/ 下，或把 mpv.exe 加入系统 PATH。</p>
         </div>
-        <div class="settings-card">
+        <div class="settings-card" id="about-card">
           <div class="switch-row">
             <div>
               <div class="row-title">关于</div>
-              <div class="row-sub">壁纸工坊 v1.6.0 — 静态 / 动态 / 网页 / EXE 壁纸 · 轮换与桌面组件 · 快捷方式点选收纳转盘 · 桌面与锁屏</div>
+              <div class="row-sub">壁纸工坊 v1.7.0 — 静态 / 动态 / 网页 / EXE 壁纸 · 平滑轮换过渡 · 音律动效 · 桌面组件 · 快捷方式收纳转盘 · 桌面与锁屏</div>
+            </div>
+          </div>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">版本与更新</div>
+              <div class="row-sub" id="update-status">打开客户端时自动检查更新（后台不检查，绝不弹窗打扰）</div>
+            </div>
+            <div class="btn-col">
+              <button class="btn ghost small" id="btn-check-update">检查更新</button>
+              <button class="btn primary small hidden" id="btn-open-download">前往下载新版本</button>
             </div>
           </div>
         </div>

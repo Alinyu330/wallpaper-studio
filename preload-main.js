@@ -39,8 +39,17 @@ contextBridge.exposeInMainWorld('api', {
   addLauncherShortcuts: () => ipcRenderer.invoke('launcher:add'),
   updateLauncherConfig: (patch) => ipcRenderer.invoke('settings:update', { launcher: patch }),
   pickDesktopShortcuts: () => ipcRenderer.invoke('launcher:pick'),
+  boxAllDesktopShortcuts: () => ipcRenderer.invoke('launcher:box-all'),
+  boxPublicDesktopShortcuts: () => ipcRenderer.invoke('launcher:box-public'),
   removeLauncherAt: (idx) => ipcRenderer.invoke('launcher:remove-at', idx),
   restoreAllLauncher: () => ipcRenderer.invoke('launcher:restore-all'),
+  // 位置调整模式（客户端按钮进入 → 桌面按住拖动 → 松手自动保存）
+  setWidgetsAdjust: (key, on) => ipcRenderer.invoke('widgets:set-adjust', key, on),
+  setAvizAdjust: (on) => ipcRenderer.invoke('audioviz:set-adjust', on),
+  setLauncherAdjust: (on) => ipcRenderer.invoke('launcher:set-adjust', on),
+  // 检查更新（静默，无弹窗；结果通过 update:status 事件与返回值提供）
+  checkUpdateNow: () => ipcRenderer.invoke('update:check-now'),
+  openDownloadPage: (url) => ipcRenderer.invoke('update:open-download', url),
   // 窗口控制
   minimize: () => ipcRenderer.send('win:minimize'),
   maximize: () => ipcRenderer.send('win:maximize'),

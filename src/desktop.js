@@ -100,6 +100,8 @@ const WS_POPUP = 0x80000000;
 const GWL_EXSTYLE = -20;
 const WS_EX_LAYERED = 0x00080000;
 const WS_EX_TOOLWINDOW = 0x00000080;
+const WS_EX_NOACTIVATE = 0x08000000;
+const WS_EX_TRANSPARENT = 0x00000020;
 const LWA_ALPHA = 0x00000002;
 
 /**
@@ -225,6 +227,26 @@ function attachToDesktop(hwnd) {
 }
 
 /**
+ * 从桌面带剥离：还原为普通顶层 POPUP 窗口并移回桌面。
+ * 用途：Win11 24H2 桌面带重置 —— 剥离宿主后重新创建覆盖层、
+ * 再整体重新挂载，让新覆盖层赶上"桌面带建立"时机。
+ */
+function detachFromHost(hwnd) {
+  if (!hwnd || !IsWindow(hwnd)) return false;
+  pmv2(() => {
+    const style = BigIntAsInt(GetWindowLongPtrW(hwnd, GWL_STYLE));
+    const newStyle = (style & ~WS_CHILD) | WS_POPUP;
+    SetWindowLongPtrW(hwnd, GWL_STYLE, newStyle);
+  });
+  SetParent(hwnd, 0);
+  pmv2(() => {
+    SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0,
+      SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE | 0x0020 | 0x0040);
+  });
+  return true;
+}
+
+/**
  * 看门狗：确保壁纸窗口始终位于正确层级。
  * 场景：挂到 Progman 后系统才生成 WorkerW（会把我们的窗口挡住），
  * 或 WorkerW 被系统重建导致父窗口变化。返回 'ok' | 'reattached' | 'dead'。
@@ -271,6 +293,10 @@ function setChildAlpha(hwnd, alpha) {
   const a = Math.max(0, Math.min(255, Math.round(alpha)));
   return !!SetLayeredWindowAttributes(hwnd, 0, a, LWA_ALPHA);
 }
+
+// 注意：不要对透明覆盖层调用 SetLayeredWindowAttributes —— 它会把分层窗口
+// 切入 attribute 模式，Win11 24H2 实测该模式下 Chromium 的逐像素透明呈现
+// 完全不上屏（窗口一切状态正常却隐形）。Chromium 自己的逐像素路径无需 attributes。
 
 /**
  * 查找父窗口下指定类名的子窗口
@@ -324,6 +350,10 @@ function attachWidgetsOverlay(hwnd) {
     const style = BigIntAsInt(GetWindowLongPtrW(hwnd, GWL_STYLE));
     const newStyle = (style & ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_POPUP)) | WS_CHILD;
     SetWindowLongPtrW(hwnd, GWL_STYLE, newStyle);
+    // WS_EX_NOACTIVATE：窗口能接收鼠标点击（点击组件/图标），但不抢焦点
+    // （点击后其他窗口仍保持焦点，不打断用户当前操作）
+    const exStyle = BigIntAsInt(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
+    SetWindowLongPtrW(hwnd, GWL_EXSTYLE, exStyle | WS_EX_NOACTIVATE);
   });
   SetParent(hwnd, progman);
   const defView = findDefView();
@@ -334,6 +364,83 @@ function attachWidgetsOverlay(hwnd) {
   fillDesktop(hwnd);
   ShowWindow(hwnd, SW_SHOW);
   return true;
+}
+
+/**
+ * v1.8.2：把覆盖层挂到 WorkerW 之上、DefView 之下（按微软 raised desktop 文档），
+ * 该位置就是图标层之下、壁纸之上 —— 组件显示在图标后面但不被 DefView 遮挡，
+ * 且 WS_EX_LAYERED + alpha=255（满不透明）让 DWM 正常合成，彻底消除透明子窗口
+ * 不合成的问题。返回 true表示成功挂载。
+ */
+function attachDesktopLayerOverlay(hwnd) {
+  if (!hwnd || !IsWindow(hwnd)) return false;
+  const progman = findDesktopHost();
+  if (!progman) return false;
+  // 请求系统生成 WorkerW（已存在则无副作用）
+  try {
+    const out = [0];
+    SendMessageTimeoutW(progman, WM_SPAWN_WORKERW, 0, 0, 0, 500, out);
+  } catch (_) {}
+  const workerW = findWallpaperWorkerW();
+  if (!workerW) {
+    // 没有 WorkerW 就挂到 Progman 并设到 DefView 之下（兜底）
+    pmv2(() => {
+      const style = BigIntAsInt(GetWindowLongPtrW(hwnd, GWL_STYLE));
+      const newStyle = (style & ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_POPUP)) | WS_CHILD;
+      SetWindowLongPtrW(hwnd, GWL_STYLE, newStyle);
+      const exStyle = BigIntAsInt(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
+      SetWindowLongPtrW(hwnd, GWL_EXSTYLE, exStyle | WS_EX_NOACTIVATE);
+    });
+    SetParent(hwnd, progman);
+    const defView = findDefView();
+    pmv2(() => {
+      // HWND_BOTTOM：设到 Progman 子窗口 Z 序底部
+      SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+    });
+    fillDesktop(hwnd);
+    ShowWindow(hwnd, SW_SHOW);
+    return true;
+  }
+  // 转为 WS_CHILD 子窗口（WorkerW 子窗口）
+  pmv2(() => {
+    const style = BigIntAsInt(GetWindowLongPtrW(hwnd, GWL_STYLE));
+    const newStyle = (style & ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_POPUP)) | WS_CHILD;
+    SetWindowLongPtrW(hwnd, GWL_STYLE, newStyle);
+    // WS_EX_NOACTIVATE：可点击但不抢焦点
+    const exStyle = BigIntAsInt(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
+    SetWindowLongPtrW(hwnd, GWL_EXSTYLE, exStyle | WS_EX_NOACTIVATE);
+  });
+  SetParent(hwnd, workerW);
+  const defView = findDefView();
+  pmv2(() => {
+    // 在 WorkerW 内 Z 序：DefView 之后（图标之下）、壁纸之前。
+    // 壁纸用 attachToHost 挂入 WorkerW 时用了 HWND_TOP，所以 DefView 之后
+    // 自动在壁纸之前 = HWND_AFTER(DefView)。
+    if (defView) {
+      SetWindowPos(hwnd, defView, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+    } else {
+      SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+    }
+  });
+  fillDesktop(hwnd);
+  ShowWindow(hwnd, SW_SHOW);
+  return true;
+}
+
+/**
+ * 看门狗：确保组件覆盖层仍位于图标层之下/壁纸之上
+ */
+function ensureDesktopLayerOverlay(hwnd) {
+  if (!hwnd || !IsWindow(hwnd)) return 'dead';
+  const progman = findDesktopHost();
+  if (!progman) return 'ok';
+  const parent = Number(BigIntAsInt(GetAncestor(hwnd, GA_PARENT)));
+  const workerW = findWallpaperWorkerW();
+  if (workerW && parent !== workerW) {
+    attachDesktopLayerOverlay(hwnd);
+    return 'reattached';
+  }
+  return 'ok';
 }
 
 /** 看门狗：确保组件覆盖层仍挂在 Progman 且位于图标层之上 */
@@ -414,56 +521,68 @@ function ensureChildOnTop(parentHwnd, className) {
   return true;
 }
 
-// ---------- 桌面快捷方式转盘覆盖层 ----------
-// 与组件覆盖层同层：挂为 Progman 子窗口、置于图标层(SHELLDLL_DefView)之上、
-// 普通窗口之下 —— 桌面直接点击可用，又不遮挡任何应用窗口。
-// 窗口尺寸为转盘实际大小（非全屏），位置由主进程用物理像素控制。
+// ---------- 桌面覆盖层（组件/音律动效/快捷方式转盘） ----------
+// ★ v1.8.4 架构变更：不再 SetParent 进 Progman。
+// Win11 24H2 实测：被 SetParent 挂入 Progman 的 Chromium 窗口 DComp 呈现通道
+// 被切断 —— 渲染进程持续产帧（capturePage 可读回实时内容），但屏幕停留在
+// 挂入时刻的旧帧；hide-show、invalidate、改样式、重建窗口均无法恢复呈现。
+// 改用 Wallpaper Engine 式方案：保持顶层窗口，插入顶层 Z 序中 Progman 正上方
+// （壁纸带/图标之上、所有应用窗口之下），看门狗周期性重申。
+// Chromium 顶层窗口正常走 DComp 呈现，不存在冻结问题。
 
-/** 把转盘窗口挂到 Progman、置于图标层之上（保持现有尺寸与位置） */
-function attachLauncherOverlay(hwnd) {
-  if (!hwnd || !IsWindow(hwnd)) return false;
+/**
+ * 把覆盖层插入顶层窗口 Z 序中 Progman 的正上方：
+ * 高于整个 Progman 子树（壁纸带 WorkerW + 桌面图标），低于所有普通应用窗口。
+ * 不能用 HWND_BOTTOM —— 那会落到 Progman 之下被壁纸带完全遮住。
+ */
+function placeAboveProgman(hwnd) {
   const progman = findDesktopHost();
   if (!progman) return false;
+  const order = [];
+  const callback = koffi.register((h, _l) => { order.push(Number(h)); return 1; }, koffi.pointer(EnumWindowsProc));
+  try {
+    EnumWindows(callback, 0);
+  } finally {
+    koffi.unregister(callback);
+  }
+  const idx = order.indexOf(progman);
+  if (idx < 0) return false;
+  // EnumWindows 按 Z 序自顶向下：Progman 前一个即"紧贴 Progman 之上"的窗口，
+  // 以其为 insert-after 锚点即落在 Progman 正上方（锚点为自己时等于无操作）
+  const anchor = idx > 0 ? order[idx - 1] : HWND_BOTTOM;
+  return pmv2(() => !!SetWindowPos(hwnd, anchor, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE));
+}
+
+/** 把覆盖层窗口转为顶层并钉到桌面带正上方（保持现有尺寸与位置） */
+function attachLauncherOverlay(hwnd) {
+  if (!hwnd || !IsWindow(hwnd)) return false;
   pmv2(() => {
     const style = BigIntAsInt(GetWindowLongPtrW(hwnd, GWL_STYLE));
-    const newStyle = (style & ~(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_POPUP)) | WS_CHILD;
+    // 去掉子窗口/边框样式，转为顶层 WS_POPUP（坐标即屏幕物理坐标）
+    const newStyle = (style & ~(WS_CHILD | WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX)) | WS_POPUP;
     SetWindowLongPtrW(hwnd, GWL_STYLE, newStyle);
+    // WS_EX_NOACTIVATE：可点击但不抢焦点；WS_EX_TOOLWINDOW：不进任务栏/Alt-Tab
+    const exStyle = BigIntAsInt(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
+    SetWindowLongPtrW(hwnd, GWL_EXSTYLE, exStyle | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW);
   });
-  SetParent(hwnd, progman);
-  const defView = findDefView();
-  pmv2(() => {
-    SetWindowPos(hwnd, defView || 0, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
-  });
+  // 脱离 Progman 父子关系（原本就是顶层时 SetParent(hwnd,0) 无副作用）
+  SetParent(hwnd, 0);
+  placeAboveProgman(hwnd);
   ShowWindow(hwnd, SW_SHOW);
   return true;
 }
 
-/** 看门狗：转盘窗口仍挂在 Progman 且位于图标层之上（不改动位置/尺寸） */
+/** 看门狗：覆盖层仍是顶层窗口且位于桌面带正上方（不改动位置/尺寸） */
 function ensureLauncherOverlay(hwnd) {
   if (!hwnd || !IsWindow(hwnd)) return 'dead';
-  const progman = findDesktopHost();
-  if (!progman) return 'ok';
   const parent = Number(BigIntAsInt(GetAncestor(hwnd, GA_PARENT)));
-  if (parent !== progman) {
+  if (parent) {
+    // 意外成为子窗口（旧版本残留/外部干预）→ 重新转顶层
     attachLauncherOverlay(hwnd);
     return 'reattached';
   }
-  const defView = findDefView();
-  if (defView) {
-    // 确认仍在图标层之上（Explorer 重启会重建 DefView）
-    let prev = 0;
-    let h = Number(BigIntAsInt(FindWindowExW(progman, 0, null, null)));
-    while (h) {
-      if (h === hwnd) break;
-      if (h === defView) prev = h;
-      h = Number(BigIntAsInt(FindWindowExW(progman, h, null, null)));
-    }
-    if (prev) {
-      pmv2(() => {
-        SetWindowPos(hwnd, defView, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
-      });
-    }
-  }
+  // 重申 Z 序：其他程序压底操作（含壁纸软件竞争）后恢复我们的层级
+  placeAboveProgman(hwnd);
   return 'ok';
 }
 
@@ -506,12 +625,29 @@ function getWindowRectScreen(hwnd) {
   });
 }
 
-// ---------- Shell 文件删除（快捷方式收纳用） ----------
+/**
+ * 触发一次无害的窗口重绘（不改变层级/位置/尺寸）。
+ * 背景：透明子窗口挂入 Progman 后，DWM 有时停止合成首帧 —— 内容已渲染
+ * 却不上屏（"鼠标划过才显示"）。SetWindowPos 即使参数不变也会让 DWM
+ * 重新合成该窗口。SWP_NOREDRAW 不设（我们要的就是重绘）；用
+ * SWP_NOZORDER|NOACTIVATE|NOSIZE|NOMOVE 保证纯重绘无副作用。
+ */
+function nudgeWindow(hwnd) {
+  if (!hwnd || !IsWindow(hwnd)) return false;
+  return pmv2(() => {
+    // SWP_NOZORDER(0x4) | SWP_NOACTIVATE(0x10) | SWP_NOSIZE(0x1) | SWP_NOMOVE(0x2) | SWP_ASYNCWINDOWPOS(0x4000)
+    return !!SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x4 | 0x10 | 0x1 | 0x2 | 0x4000);
+  });
+}
+
+// ---------- Shell 文件操作（快捷方式收纳用） ----------
 // 桌面 .lnk 常被 explorer 持有句柄（图标缓存等）：fs.unlink 会被拒绝（EPERM）。
 // SHFileOperationW(FO_DELETE, FOF_ALLOWUNDO) 是资源管理器语义的删除 ——
 // shell 层协调文件句柄，可删除被 explorer 使用的文件，且进回收站可撤销。
 const SHFileOperationW = shell32.func('SHFileOperationW', 'int', ['void *']);
 const FO_DELETE = 3;
+const FO_COPY = 2;
+const FO_MOVE = 1;
 const FOF_NOCONFIRMATION = 0x10, FOF_ALLOWUNDO = 0x40, FOF_SILENT = 0x4, FOF_NOERRORUI = 0x400;
 
 /** 双 null 结尾的 UTF-16 字符串 Buffer（SHFILEOPSTRUCT pFrom 要求） */
@@ -555,6 +691,150 @@ function shellDeleteFile(file) {
       }
     } catch (_) {}
   }
+}
+
+/**
+ * 以资源管理器语义复制文件（fs.copyFileSync 的 shell 回退）。
+ * 用途：恢复公共桌面（C:\Users\Public\Desktop）快捷方式 —— 该目录 ACL
+ * 对普通用户的直接文件写（fs.copyFileSync）常被拒绝，而 shell 复制走
+ * explorer 权限路径可成功（与 shellDeleteFile 能删同目录文件同理）。
+ * @returns {boolean} 是否成功（返回码 0）
+ */
+function shellCopyFile(src, dst) {
+  let hProc = 0, fromAddr = 0, toAddr = 0;
+  try {
+    const fromBuf = zzWide(src);
+    const toBuf = zzWide(dst);
+    const shfo = Buffer.alloc(56);   // SHFILEOPSTRUCTW（x64）
+    shfo.writeUInt32LE(FO_COPY, 8);                                          // wFunc
+    shfo.writeUInt16LE(FOF_SILENT | FOF_NOCONFIRMATION | FOF_NOERRORUI, 32); // fFlags（目标存在时覆盖）
+    hProc = Number(BigIntAsInt(OpenProcess(0x38, 0, process.pid)));
+    if (!hProc) return false;
+    const MEM_COMMIT = 0x1000, PAGE_READWRITE = 4;
+    fromAddr = Number(BigIntAsInt(VirtualAllocEx(hProc, 0, fromBuf.length, MEM_COMMIT, PAGE_READWRITE)));
+    toAddr = Number(BigIntAsInt(VirtualAllocEx(hProc, 0, toBuf.length, MEM_COMMIT, PAGE_READWRITE)));
+    if (!fromAddr || !toAddr) return false;
+    const nWrote = [0];
+    if (!WriteProcessMemory(hProc, fromAddr, fromBuf, fromBuf.length, nWrote)) return false;
+    if (!WriteProcessMemory(hProc, toAddr, toBuf, toBuf.length, nWrote)) return false;
+    shfo.writeBigUInt64LE(BigInt(fromAddr), 16);  // pFrom
+    shfo.writeBigUInt64LE(BigInt(toAddr), 24);    // pTo
+    const r = SHFileOperationW(shfo);
+    return r === 0;
+  } catch (_) {
+    return false;
+  } finally {
+    try {
+      if (hProc) {
+        if (fromAddr) VirtualFreeEx(hProc, fromAddr, 0, 0x8000);
+        if (toAddr) VirtualFreeEx(hProc, toAddr, 0, 0x8000);
+        CloseHandle(hProc);
+      }
+    } catch (_) {}
+  }
+}
+
+/**
+ * 以资源管理器语义「移动」文件（FO_MOVE）：等效于 explorer 里的拖拽移动，
+ * 完整保留文件内容与 .lnk 图标元数据，图标缓存随文件正确迁移（不会变白）。
+ * 相比 copy+delete：explorer 能协调被持有的桌面 .lnk 句柄，且不会产生
+ * "复制重写 → 图标缓存 key 失效 → 白图标"的问题。这是恢复图标变白的根治手段。
+ * @returns {boolean} 是否成功（返回码 0）
+ */
+function shellMoveFile(src, dst) {
+  let hProc = 0, fromAddr = 0, toAddr = 0;
+  try {
+    const fromBuf = zzWide(src);
+    const toBuf = zzWide(dst);
+    const shfo = Buffer.alloc(56);   // SHFILEOPSTRUCTW（x64）
+    shfo.writeUInt32LE(FO_MOVE, 8);  // wFunc = FO_MOVE
+    shfo.writeUInt16LE(FOF_SILENT | FOF_NOCONFIRMATION | FOF_NOERRORUI, 32); // fFlags（目标存在时覆盖）
+    hProc = Number(BigIntAsInt(OpenProcess(0x38, 0, process.pid)));
+    if (!hProc) return false;
+    const MEM_COMMIT = 0x1000, PAGE_READWRITE = 4;
+    fromAddr = Number(BigIntAsInt(VirtualAllocEx(hProc, 0, fromBuf.length, MEM_COMMIT, PAGE_READWRITE)));
+    toAddr = Number(BigIntAsInt(VirtualAllocEx(hProc, 0, toBuf.length, MEM_COMMIT, PAGE_READWRITE)));
+    if (!fromAddr || !toAddr) return false;
+    const nWrote = [0];
+    if (!WriteProcessMemory(hProc, fromAddr, fromBuf, fromBuf.length, nWrote)) return false;
+    if (!WriteProcessMemory(hProc, toAddr, toBuf, toBuf.length, nWrote)) return false;
+    shfo.writeBigUInt64LE(BigInt(fromAddr), 16);  // pFrom
+    shfo.writeBigUInt64LE(BigInt(toAddr), 24);    // pTo
+    const r = SHFileOperationW(shfo);
+    return r === 0;
+  } catch (_) {
+    return false;
+  } finally {
+    try {
+      if (hProc) {
+        if (fromAddr) VirtualFreeEx(hProc, fromAddr, 0, 0x8000);
+        if (toAddr) VirtualFreeEx(hProc, toAddr, 0, 0x8000);
+        CloseHandle(hProc);
+      }
+    } catch (_) {}
+  }
+}
+
+// ---------- Shell 变更通知（快捷方式收纳/恢复后刷新桌面与图标缓存） ----------
+// 桌面 .lnk 被 copy+delete 方式移动后，explorer 的图标缓存常不刷新，
+// 恢复到桌面的快捷方式显示为白色空白图标。单用 SHCNE_ASSOCCHANGED 不够
+// （它只刷新"文件关联"，不刷新 .lnk 的图标缓存 —— .lnk 图标来自目标 exe，
+// 缓存以「路径 + 修改时间」为 key，copy 重写后 key 失效却不自动重建）。
+// 需组合三路通知：目录更新 + 逐项更新 + 关联重建，才能稳定刷白图标。
+const SHChangeNotify = shell32.func('SHChangeNotify', 'void', ['int32', 'uint32', 'intptr_t', 'intptr_t']);
+const SHCNE_ASSOCCHANGED = 0x08000000;
+const SHCNE_UPDATEDIR = 0x00001000;   // 目录内容变更（桌面目录）
+const SHCNE_UPDATEITEM = 0x00002000;  // 单文件/项变更（.lnk 逐个）
+const SHCNE_ATTRIBUTES = 0x00000800;  // 属性变更
+// SHChangeNotify 的 wParam 语义：SHCNE_UPDATEITEM 时 dwItem1=路径, dwItem2=路径2(可空)
+// 用 SHCNF_PATHW(0x5) 表示 dwItem1/dwItem2 是路径字符串指针
+
+/** 把一个宽字符串写入自身进程可寻址内存（供 SHChangeNotify 的指针参数用） */
+function allocWidePtr(str) {
+  try {
+    const buf = zzWide(str);
+    const hProc = Number(BigIntAsInt(OpenProcess(0x38, 0, process.pid)));
+    if (!hProc) return 0;
+    const MEM_COMMIT = 0x1000, PAGE_READWRITE = 4;
+    const addr = Number(BigIntAsInt(VirtualAllocEx(hProc, 0, buf.length, MEM_COMMIT, PAGE_READWRITE)));
+    if (!addr) { CloseHandle(hProc); return 0; }
+    const nWrote = [0];
+    WriteProcessMemory(hProc, addr, buf, buf.length, nWrote);
+    CloseHandle(hProc);
+    return addr;
+  } catch (_) {
+    return 0;
+  }
+}
+
+/**
+ * 通知 Shell 重建图标缓存（收纳/恢复快捷方式后调用）。
+ * 组合：全局关联重建 + 桌面目录更新 + 逐个 .lnk 更新，确保白图标被刷掉。
+ * @param {string[]} [paths] 具体要刷新的文件路径（如恢复回桌面的 .lnk）
+ */
+function notifyShellIconRefresh(paths) {
+  try {
+    // 1) 全量文件关联重建（兜底，代价稍高但最彻底）
+    SHChangeNotify(SHCNE_ASSOCCHANGED, 0, 0, 0);
+    // 2) 桌面目录内容变更
+    try { SHChangeNotify(SHCNE_UPDATEDIR, 0, 0, 0); } catch (_) {}
+    // 3) 逐个文件/项变更通知（最精确，直接命中 .lnk 图标缓存）
+    if (Array.isArray(paths) && paths.length) {
+      for (const p of paths) {
+        if (!p) continue;
+        const addr = allocWidePtr(p);
+        if (!addr) continue;
+        // SHCNF_PATHW = 0x5：dwItem1 为路径；SHCNE_UPDATEITEM 刷新该项
+        try { SHChangeNotify(SHCNE_UPDATEITEM, 0x5, addr, 0); } catch (_) {}
+        try { SHChangeNotify(SHCNE_ATTRIBUTES, 0x5, addr, 0); } catch (_) {}
+        // 释放临时内存
+        try {
+          const hProc = Number(BigIntAsInt(OpenProcess(0x38, 0, process.pid)));
+          if (hProc) { VirtualFreeEx(hProc, addr, 0, 0x8000); CloseHandle(hProc); }
+        } catch (_) {}
+      }
+    }
+  } catch (_) {}
 }
 
 // ---------- 桌面图标枚举（点选/框选收纳） ----------
@@ -782,6 +1062,7 @@ module.exports = {
   findWallpaperWorkerW,
   getDesktopRect,
   attachToDesktop,
+  detachFromHost,
   ensureAttached,
   fillDesktop,
   embedExternalWindow,
@@ -801,13 +1082,19 @@ module.exports = {
   setChildAlpha,
   attachWidgetsOverlay,
   ensureWidgetsOverlay,
+  attachDesktopLayerOverlay,
+  ensureDesktopLayerOverlay,
   attachLauncherOverlay,
   ensureLauncherOverlay,
   moveWindowToScreen,
   resizeWindowToScreen,
   getWindowRectScreen,
+  nudgeWindow,
   getDesktopIcons,
   shellDeleteFile,
+  shellCopyFile,
+  shellMoveFile,
+  notifyShellIconRefresh,
   cursorInRects,
   isWindowVisible: (hwnd) => !!IsWindowVisible(hwnd),
 };

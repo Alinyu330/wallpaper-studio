@@ -59,6 +59,13 @@ class VideoEngine {
     this.eofStuck = 0;              // 结尾定格僵死计数（待命槽缺席时交替无法进行）
     this._prevHealthTp = undefined; // 上次健康检查的播放位置
 
+    // 壁纸切换过渡（v1.7.0）：_ghost = 切换时垫底的旧前台（淡入完成后杀掉）；
+    // _transFade = 进行中的切换淡入描述；_fadeOut* = 淡出停用（视频→静态）状态
+    this._ghost = null;
+    this._transFade = null;
+    this._fadeOutTimer = null;
+    this._fadeOutResolve = null;
+
     this._tickTimer = setInterval(() => this._tick(), TICK_MS);
     this._healthTimer = setInterval(() => this._healthTick(), HEALTH_MS);
     // mpv 子窗口的变更类窗口操作必须走隔离执行器：SetWindowPos 等会向目标
@@ -138,7 +145,13 @@ class VideoEngine {
     this.stopping = true;
     this.gen++;
     this.fading = null;
+    this._transFade = null;
     this._clearFadeTimers();
+    this._dropGhost();
+    if (this._fadeOutTimer) { clearTimeout(this._fadeOutTimer); this._fadeOutTimer = null; }
+    const done = this._fadeOutResolve;
+    this._fadeOutResolve = null;
+    if (done) done(); // 淡出等待方不再阻塞（控制权已被新操作接管）
     this.duration = 0;
     this.stallCount = 0;
     this.unexpectedPauses = 0;
@@ -176,6 +189,189 @@ class VideoEngine {
   restart() {
     if (!this.file) return;
     this.start(this.file, this.wid, this.userParams || this.params);
+  }
+
+  // ---------- 壁纸切换过渡（v1.7.0：跨壁纸无黑屏） ----------
+  //
+  // 与循环溶解同一套「淡入覆盖」数学：垫底层全程不透明，新层 alpha 0→255，
+  // 合成恒为 e*新 + (1-e)*旧，亮度恒定、无黑变无重影。
+  // - 视频→视频：旧前台（_ghost）垫底，新视频槽淡入盖过；
+  // - 静态→视频：Chromium 静态层垫底（mpv 本就在其上），新槽淡入盖过，
+  //   完全盖住后回调 onCovered 让主进程清空静态层（黑底不可见）。
+
+  /**
+   * 平滑切换到新视频（旧画面垫底，新视频淡入覆盖，全程无黑屏）
+   * @param {string} file 新视频路径
+   * @param {number} wid 宿主窗口
+   * @param {object} params 新壁纸参数
+   * @param {() => void} [onCovered] 新视频完全遮盖垫底层后的回调（清空静态层用）
+   */
+  async transitionStart(file, wid, params, onCovered) {
+    this.stopping = false;
+    this.gen++;
+    const gen = this.gen;
+
+    // 中止进行中的淡出（视频→静态过渡被新的切换打断）：清掉步进定时器并解除等待方
+    if (this._fadeOutTimer) { clearTimeout(this._fadeOutTimer); this._fadeOutTimer = null; }
+    const fd = this._fadeOutResolve;
+    this._fadeOutResolve = null;
+    if (fd) fd();
+    // 把当前前台恢复为不透明垫底：它可能正处于上一次「切换淡入/淡出」的半途，
+    // 半透明的垫底层会让黑色宿主透出（过渡变暗）——必须先复原成 255
+    if (this.front && this.front.isRunning) {
+      const fh = this._slotHwnd(this.front);
+      if (fh) this.winOps.fire('alpha', fh, 255);
+    }
+    this._dropGhost(); // 更早的垫底槽已被完全遮盖，直接杀掉
+    const ghost = (this.front && this.front.isRunning) ? this.front : null;
+    if (ghost) ghost.onExit = null; // 过渡期间旧前台退出不触发修复（由淡入回滚逻辑接管）
+    this._dropStandby(); // 待命槽让位：避免三解码器并存的瞬时负载尖峰
+
+    this.file = file;
+    this.wid = wid;
+    this.userParams = { ...params };
+    this.params = { ...params, loop: false };
+    this.expectPause = !!params.paused;
+    this.userLoop = params.loop !== false;
+    this.duration = 0;
+    this.fading = null;
+    this._clearFadeTimers();
+    this.stallCount = 0;
+    this.unexpectedPauses = 0;
+    this.eofStuck = 0;
+    this._prevHealthTp = undefined;
+
+    const fresh = this._makeSlot('front', { paused: true }); // 暂停在第 0 帧，出生定位无 seek
+    fresh.onExit = null; // 切换期间退出一律走回滚逻辑，不触发崩溃修复
+    this.front = fresh;
+    this._ghost = ghost;
+
+    const ok = await this._waitForReady(fresh, gen, 8000);
+    if (gen !== this.gen) return; // 已被更新的操作取代
+    if (!ok || !fresh.isRunning) {
+      console.warn('[engine] 切换淡入：新槽就绪前失效，回滚垫底前台');
+      this.front = ghost || null;
+      this._ghost = null;
+      if (!this.front) return this.start(file, wid, params); // 无垫底可用：直接重启
+      this._applyFrontAlphaWhenFound(255);
+      return;
+    }
+    // 等待子窗口绑定（onReady 回调绑定，可能滞后）
+    for (let i = 0; i < 20 && !fresh.childHwnd && gen === this.gen; i++) {
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    const h = this._slotHwnd(fresh);
+    if (gen !== this.gen) return;
+    if (!h) {
+      console.warn('[engine] 切换淡入：新槽窗口绑定失败，回退直接重启');
+      return this.start(file, wid, params);
+    }
+    this.winOps.fire('alpha', h, 0);  // 从全透明起步（不闪现）
+    const raised = await this.winOps.run('raise', h, 0, 1500); // 隔离执行，防冻结死锁
+    if (gen !== this.gen) return;
+    if (!raised) {
+      console.warn('[engine] 切换淡入：新槽抬升失败，回退直接重启');
+      fresh.stop();
+      this.front = ghost || null;
+      this._ghost = null;
+      if (!this.front) return this.start(file, wid, params);
+      this._applyFrontAlphaWhenFound(255);
+      return;
+    }
+    fresh.setPaused(this.expectPause);
+    if (ghost) { try { ghost.setProperty('mute', true); } catch (_) {} } // 防 0.6s 双声道
+    console.log('[engine] 壁纸切换：新视频淡入覆盖（垫底层保持不透明）');
+    this.fading = { t0: Date.now(), dur: FADE_SEC * 1000 };
+    this._transFade = { slot: fresh, onCovered: onCovered || null };
+    this._fadeTimer = setInterval(() => this._stepTransitionFade(), FADE_STEP_MS);
+    // 时长查询（供循环交替调度）
+    fresh.query('duration', 3000).then((d) => {
+      if (gen !== this.gen || typeof d !== 'number') return;
+      this.duration = d;
+      if (this.smoothLoop && this._loopEnabled) this._ensureStandby().catch(() => {});
+    });
+  }
+
+  /** 切换淡入步进（33ms ≈ 30fps，smoothstep 缓动） */
+  _stepTransitionFade() {
+    const t = this._transFade;
+    const f = this.fading;
+    if (!t || !f) { this._clearFadeTimers(); this._transFade = null; return; }
+    if (!t.slot || !t.slot.isRunning) {
+      // 新槽中途死亡：垫底层完好 → 回滚为前台（无黑屏），必要时完整重启
+      console.warn('[engine] 切换淡入：新槽失效，回滚垫底前台');
+      this._clearFadeTimers();
+      this.fading = null;
+      this._transFade = null;
+      t.slot.stop();
+      this.front = this._ghost || null;
+      this._ghost = null;
+      this._applyFrontAlphaWhenFound(255);
+      if (!this.front && this.file && !this.stopping) {
+        this.start(this.file, this.wid, this.userParams || this.params);
+      }
+      return;
+    }
+    const p = Math.min(1, (Date.now() - f.t0) / f.dur);
+    const e = p * p * (3 - 2 * p);
+    const h = this._slotHwnd(t.slot);
+    if (h) this.winOps.fire('alpha', h, Math.round(255 * e));
+    if (p >= 1) {
+      this._clearFadeTimers();
+      this.fading = null;
+      this._transFade = null;
+      this._applyFrontAlphaWhenFound(255);
+      this._dropGhost(); // 旧画面已被完全遮盖，杀掉无黑屏
+      console.log('[engine] 壁纸切换淡入完成（全程无黑屏）');
+      if (t.onCovered) { try { t.onCovered(); } catch (_) {} }
+      this._scheduleStandbyRebuild(1200); // 稍等解码稳定再重建待命槽
+    }
+  }
+
+  /** 丢掉切换垫底槽（已被完全遮盖/不再需要时） */
+  _dropGhost() {
+    if (this._ghost) {
+      this._ghost.stop();
+      this._ghost = null;
+    }
+  }
+
+  /**
+   * 淡出并停用当前视频（视频→静态壁纸切换用）：
+   * Chromium 静态层已在 mpv 之下渲染就绪，把 mpv alpha 255→0 平滑露出静态层，
+   * 完成后停掉全部槽位。期间 fading 标志防止看门狗抬升干扰。
+   * @returns {Promise<void>}
+   */
+  fadeOutAndStop(durMs = FADE_SEC * 1000) {
+    return new Promise((resolve) => {
+      const front = this.front;
+      const h = this._frontChildHwnd();
+      if (!front || !front.isRunning || !h) {
+        this.stopAll();
+        return resolve();
+      }
+      this.stopping = true; // 暂停 tick/health 干预
+      this.gen++;           // 使旧异步流程失效
+      this.fading = { t0: Date.now(), dur: durMs }; // 防 raiseFront/看门狗干扰
+      this._transFade = null;
+      this._clearFadeTimers();
+      this._dropGhost();
+      const t0 = Date.now();
+      const step = () => {
+        this._fadeOutTimer = null;
+        const p = Math.min(1, (Date.now() - t0) / durMs);
+        const e = p * p * (3 - 2 * p);
+        if (desktop.isWindowAlive(h)) this.winOps.fire('alpha', h, Math.round(255 * (1 - e)));
+        if (p >= 1) {
+          this.stopAll();
+          resolve();
+        } else {
+          this._fadeOutTimer = setTimeout(step, FADE_STEP_MS);
+        }
+      };
+      this._fadeOutResolve = resolve; // stopAll 被外部抢先调用时解除等待
+      this._fadeOutTimer = setTimeout(step, FADE_STEP_MS);
+    });
   }
 
   /** 同步期望暂停状态（用户暂停/全局暂停/性能暂停统一入口） */

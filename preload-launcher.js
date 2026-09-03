@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('launcherHost', {
   // 主进程 → 页面
   onConfig: (cb) => ipcRenderer.on('launcher:config', (_e, cfg) => cb(cfg)),
   onHover: (cb) => ipcRenderer.on('launcher:hover', (_e, v) => cb(v)),
+  onAdjust: (cb) => ipcRenderer.on('launcher:adjust-mode', (_e, v) => cb(v)), // {on} 调整模式开关
   // 页面 → 主进程
   ready: () => ipcRenderer.send('launcher:ready'),
   reportMetrics: (m) => ipcRenderer.send('launcher:metrics', m),     // {w,h} CSS px

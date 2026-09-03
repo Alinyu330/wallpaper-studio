@@ -4,15 +4,15 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Version](https://img.shields.io/badge/version-1.6.0-7c5cff)
+![Version](https://img.shields.io/badge/version-1.7.0-7c5cff)
 
 > **官网介绍页**：<https://wallpaper-studio.pages.dev/> （GitHub Pages：<https://alinyu330.github.io/wallpaper-studio/> ）
 >
-> **安装包下载**（v1.6.0，Windows x64）：
+> **安装包下载**（v1.7.0，Windows x64）：
 >
-> - 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.6.0/WallpaperStudio-Setup-1.6.0.exe)
+> - 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.7.0/WallpaperStudio-Setup-1.7.0.exe)
 >
-> - 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.6.0/WallpaperStudio-Setup-1.6.0.exe)
+> - 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.7.0/WallpaperStudio-Setup-1.7.0.exe)
 >
 > - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
@@ -22,9 +22,9 @@
 
 - **mpv 播放引擎**：全格式硬解直读，无需转码，内置完整解码器
 
-- **桌面快捷方式转盘**（v1.5.0）：常用 App 以转盘形式收纳在桌面 — 点击图标一键启动；按住图标条或拖动条左右拖动即可像转盘一样轮换（带惯性甩动）；拖动 ⋮ 手柄自由摆放位置；同屏数量 4\~12 可调；空闲自动收起为小胶囊，悬停展开，不遮挡窗口、不影响壁纸观感
+- **桌面快捷方式转盘**（v1.5.0，v1.7.0 增强）：常用 App 以转盘形式收纳在桌面 — 点击图标一键启动；按住图标条或拖动条左右拖动即可像转盘一样轮换（带惯性甩动）；拖动 ⋮ 手柄自由摆放位置；同屏数量 4\~12 可调；真彩图标解析（EXE / LNK / 系统项图标高清提取）、图标垂直倒影、去面板边框更沉浸；空闲自动收起为小药丸，悬停药丸展开，不遮挡窗口、不影响壁纸观感
 
-- **点选 / 框选收纳**（v1.6.0）：全屏选择器直接点选或拖框选择桌面快捷方式，一键收纳进转盘 — 原桌面图标随之隐藏（实际移动文件到应用数据目录保管）；从转盘移除、一键"全部恢复"或关闭功能时，自动移回桌面原位置（恢复显示）
+- **点选 / 框选收纳**（v1.6.0，v1.7.0 增强）：全屏选择器直接点选或拖框选择桌面快捷方式，一键收纳进转盘 — 原桌面图标随之隐藏（实际移动文件到应用数据目录保管）；支持回收站、此电脑等系统项收纳与过滤无效文件；从转盘移除、一键"全部恢复"或关闭功能时，自动移回桌面原位置（恢复显示）
 
 - **平滑循环过渡 2.0**（v1.5.0）：循环交界处新画面柔和淡入覆盖（旧画面保持不透明垫底），亮度恒定、无黑变无重影；smoothstep 缓动曲线，过渡如行云流水
 
@@ -34,7 +34,9 @@
 
 - **实时预览**：按主显示器真实比例预览；预览区可放大缩小；支持弹出独立预览窗口，参数实时同步
 
-- **桌面 DIY 组件**（v1.2.0）：时钟（12/24 小时制点击切换）、CPU / GPU / 内存占用率实时监控条、音量控制条 — 自由搭配融入壁纸，桌面直接拖动调音量、点击静音，全部可交互
+- **音律动效**（v1.7.0）：系统音频实时频谱可视化，随音乐律动；条形频谱 + 垂直镜像倒影，支持渐变色、大小缩放、灵敏度调节，融入壁纸不突兀
+
+- **桌面 DIY 组件**（v1.2.0，v1.7.0 重构）：时钟（12/24 小时制点击切换）、CPU / GPU / 内存占用率实时监控条、音量控制条、音律动效 — 每个组件独立小窗口，无边框融入壁纸；新增「调整模式」：客户端一键进入拖动调整、桌面默认只显示不误触；组件 / 音律动效 / 转盘均支持九宫格快速定位（三行三列一键吸附，保留自由拖动）
 
 - **壁纸暂停**（v1.2.0）：一键暂停视频播放与轮换，恢复桌面清爽；支持托盘操作，重启后保持状态
 
@@ -98,9 +100,12 @@ npm run build   # 生成 Windows 安装包（dist/ 目录）
 │   ├── video-engine.js   # 双槽视频引擎（淡入覆盖循环/无黑屏自愈/健康检查）
 │   ├── win-ops.js        # 窗口操作隔离执行器（worker 线程池/队列化派发/超时保护）
 │   ├── launcher.js       # 桌面快捷方式转盘宿主（图标层之上覆盖窗口）
+│   ├── widgets-host.js   # 桌面组件独立窗口宿主（时钟/监控/音量/音律动效，每组件一窗口）
+│   ├── icons.js          # 快捷方式图标解析（EXE/LNK/系统项 → PNG，icon-extract.ps1）
 │   ├── exe-wallpaper.js  # EXE 壁纸嵌入控制器
 │   ├── lockscreen.js     # 锁屏壁纸（PersonalizationCSP）
 │   ├── widgets-stats.js  # 系统信息采集（CPU/GPU/内存，PDH 计数器）
+│   ├── updater.js        # 版本更新检查
 │   ├── store.js          # 配置持久化
 │   └── file-types.js     # 文件类型识别
 ├── renderer/             # 界面（主界面/壁纸窗口/预览弹窗/组件窗口/转盘窗口/选择器窗口）

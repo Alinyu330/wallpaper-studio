@@ -40,6 +40,7 @@
     #topbar button:hover { filter: brightness(1.15); transform: translateY(-1px); }
     #btn-done { background: linear-gradient(135deg, #7c5cff, #4f8cff); color: #fff; }
     #btn-cancel { background: rgba(255,255,255,.10); color: #cfd4e6; }
+    #btn-all { background: rgba(124, 92, 255, .18); color: #b9a6ff; border: 1px solid rgba(124, 92, 255, .35); }
 
     /* 图标选框（覆盖在桌面图标上方） */
     .sel-box {
@@ -90,6 +91,7 @@
 <body>
   <div id="topbar">
     <span class="tip">点选或拖框选择桌面快捷方式（.lnk / .url）· 已选 <span class="count" id="sel-count">0</span> 个</span>
+    <button id="btn-all">全选</button>
     <button id="btn-done">收纳到转盘</button>
     <button id="btn-cancel">取消 (Esc)</button>
   </div>
@@ -205,6 +207,14 @@
     }
     document.getElementById('btn-done').addEventListener('click', done);
     document.getElementById('btn-cancel').addEventListener('click', () => H.cancel());
+    // 全选 / 全不选（快捷方式之外的系统图标在确认收纳时会自动跳过）
+    const btnAll = document.getElementById('btn-all');
+    btnAll.addEventListener('click', () => {
+      if (icons.length && selected.size >= icons.length) selected.clear();
+      else icons.forEach(ic => selected.add(ic.name));
+      btnAll.textContent = icons.length && selected.size >= icons.length ? '全不选' : '全选';
+      refreshUI();
+    });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') done();
       else if (e.key === 'Escape') H.cancel();

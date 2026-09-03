@@ -6,137 +6,155 @@
   <style>
     html, body {
       margin: 0; padding: 0; width: 100%; height: 100%;
-      overflow: hidden; background: transparent;
+      /* 不能用纯 transparent：全透明首帧 Chromium 会跳过 present，
+         DWM 视为"无首帧"，Win11 24H2 桌面带建立后拒绝合成该窗口（隐身根因）。
+         1/255 白底肉眼不可见，仅保证首帧非空 */
+      overflow: hidden; background: rgba(255, 255, 255, 0.004);
       font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
       user-select: none;
     }
-    /* 九宫格容器：组件按配置锚定到对应区域 */
-    #stage {
-      position: absolute; inset: 0;
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      grid-template-rows: 1fr 1fr 1fr;
-      pointer-events: none;
-    }
-    .slot { position: relative; }
-    .slot.tl, .slot.tc, .slot.tr { grid-row: 1; }
-    .slot.ml, .slot.mc, .slot.mr { grid-row: 2; }
-    .slot.bl, .slot.bc, .slot.br { grid-row: 3; }
-    .slot.tl, .slot.ml, .slot.bl { grid-column: 1; }
-    .slot.tc, .slot.mc, .slot.bc { grid-column: 2; }
-    .slot.tr, .slot.mr, .slot.br { grid-column: 3; }
-    .slot.tl, .slot.ml, .slot.bl { justify-items: start; align-items: end; }
-    .slot.tc, .slot.mc, .slot.bc { justify-items: center; align-items: end; }
-    .slot.tr, .slot.mr, .slot.br { justify-items: end; align-items: end; }
-    .slot.tl, .slot.tc, .slot.tr { padding-top: 26px; }
-    .slot.ml, .slot.mc, .slot.mr { padding-top: 0; }
-    .slot.bl, .slot.bc, .slot.br { padding-top: 0; }
-
-    /* 组件卡片：毛玻璃 */
+    /* ---------- 极简融入壁纸（无卡片/无边框/无底色） ----------
+       只保留内容本身：白色文字 + 轻微投影保证任意壁纸上可读。
+       浅色主题（用户显式选择）切深色文字 + 白色投影。 */
     .wg {
-      pointer-events: auto;
-      margin: 0 26px 26px 0;
-      border-radius: 14px;
-      padding: 14px 18px;
-      color: #fff;
-      line-height: 1.15;
-      backdrop-filter: blur(14px) saturate(1.3);
-      -webkit-backdrop-filter: blur(14px) saturate(1.3);
-      box-shadow: 0 4px 22px rgba(0,0,0,.22);
-      transition: background .2s;
-      cursor: default;
+      position: absolute; inset: 0;
+      display: none;               /* 由 JS 按当前 part 显示 */
+      flex-direction: column; justify-content: center;
+      color: #fff; line-height: 1.15;
+      padding: 12px 20px; box-sizing: border-box;
+      text-shadow: 0 1px 10px rgba(0,0,0,.60), 0 0 26px rgba(0,0,0,.30);
     }
-    body.theme-dark .wg { background: rgba(10, 12, 18, var(--op)); border: 1px solid rgba(255,255,255,.09); }
-    body.theme-light .wg { background: rgba(245, 247, 252, var(--op)); border: 1px solid rgba(255,255,255,.5); color: #16181f; }
-    body:not(.theme-dark):not(.theme-light) .wg { background: rgba(14, 16, 24, var(--op)); border: 1px solid rgba(255,255,255,.10); }
+    body.theme-light .wg {
+      color: #1a1d26;
+      text-shadow: 0 1px 8px rgba(255,255,255,.65), 0 0 20px rgba(255,255,255,.35);
+    }
+    body.has-wg .wg { display: flex; }
+    body.has-wg.clock .wg { text-align: center; cursor: pointer; }
 
-    /* 时钟 */
-    .wg.clock { text-align: center; cursor: pointer; }
-    .wg .time { font-weight: 600; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
-    .wg .time .sec { opacity: .55; font-size: .45em; font-weight: 400; }
-    .wg .date { margin-top: 4px; opacity: .75; font-size: 13px; }
-    .size-s .time { font-size: 30px; } .size-s .date { font-size: 11px; }
-    .size-m .time { font-size: 46px; } .size-m .date { font-size: 13px; }
-    .size-l .time { font-size: 68px; } .size-l .date { font-size: 16px; }
+    /* 时钟：大号细字重 */
+    .time { font-weight: 200; letter-spacing: 2px; font-variant-numeric: tabular-nums; font-size: 58px; }
+    .time .sec { opacity: .5; font-size: .42em; font-weight: 300; }
+    .date {
+      margin-top: 6px; opacity: .75; font-size: 12.5px; letter-spacing: 3.5px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .date::before, .date::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,.16); }
+    body.theme-light .date::before, body.theme-light .date::after { background: rgba(0,0,0,.12); }
 
-    /* 指标（CPU/GPU/内存） */
-    .wg.metric { min-width: 148px; }
-    .wg .m-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-    .wg .m-label { font-size: 12px; font-weight: 600; letter-spacing: 2px; opacity: .8; }
-    .wg .m-val { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
-    .size-s .m-val { font-size: 17px; } .size-l .m-val { font-size: 28px; }
-    .wg .m-bar { margin-top: 8px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.16); overflow: hidden; }
-    body.theme-light .wg .m-bar { background: rgba(0,0,0,.12); }
-    .wg .m-bar i { display: block; height: 100%; width: 0; border-radius: 3px;
-      background: linear-gradient(90deg, #6ee7a8, #34d399); transition: width .5s ease; }
-    .wg .m-bar i.warn { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
-    .wg .m-bar i.crit { background: linear-gradient(90deg, #fb7185, #f43f5e); }
+    /* 指标（CPU/GPU/内存）：标签 + 数值 + 细进度条 */
+    .m-head { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+    .m-label { font-size: 10.5px; font-weight: 600; letter-spacing: 2.5px; opacity: .62; }
+    .m-val { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .m-bar { margin-top: 9px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.14); overflow: hidden; }
+    body.theme-light .m-bar { background: rgba(0,0,0,.12); }
+    .m-bar i {
+      display: block; height: 100%; width: 0; border-radius: 2px;
+      background: linear-gradient(90deg, #34d399, #6ee7a8);
+      transition: width .6s cubic-bezier(.4, 0, .2, 1);
+    }
+    .m-bar i.warn { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .m-bar i.crit { background: linear-gradient(90deg, #f43f5e, #fb7185); }
 
     /* 音量（可交互） */
-    .wg.vol { cursor: pointer; }
-    .wg .v-head { display: flex; align-items: center; gap: 10px; }
-    .wg .v-ico { font-size: 18px; line-height: 1; opacity: .9; }
-    .wg .v-val { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 38px; }
-    .wg .v-track { margin-top: 10px; width: 160px; height: 22px; display: flex; align-items: center; cursor: pointer; }
-    .size-s .v-track { width: 110px; } .size-l .v-track { width: 200px; }
-    .wg .v-rail { position: relative; width: 100%; height: 5px; border-radius: 3px; background: rgba(255,255,255,.16); }
-    body.theme-light .wg .v-rail { background: rgba(0,0,0,.12); }
-    .wg .v-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px;
-      background: linear-gradient(90deg, #7c5cff, #4f8cff); }
-    .wg .v-knob { position: absolute; top: 50%; width: 13px; height: 13px; border-radius: 50%;
-      background: #fff; transform: translate(-50%, -50%); box-shadow: 0 1px 5px rgba(0,0,0,.4); }
-    .wg .v-hint { margin-top: 6px; font-size: 10.5px; opacity: .55; }
-    .wg:hover .v-hint { opacity: .8; }
+    .v-head { display: flex; align-items: center; gap: 10px; }
+    .v-ico { font-size: 19px; line-height: 1; opacity: .9; cursor: pointer; }
+    .v-val { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .v-track { margin-top: 10px; width: 100%; height: 20px; display: flex; align-items: center; cursor: pointer; }
+    .v-rail { position: relative; width: 100%; height: 4px; border-radius: 2px; background: rgba(255,255,255,.16); }
+    body.theme-light .v-rail { background: rgba(0,0,0,.14); }
+    .v-fill {
+      position: absolute; left: 0; top: 0; bottom: 0; border-radius: 2px;
+      background: linear-gradient(90deg, #7c5cff, #4f8cff);
+    }
+    .v-knob {
+      position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 50%;
+      background: #fff; transform: translate(-50%, -50%);
+      box-shadow: 0 1px 5px rgba(0,0,0,.4);
+    }
+    .v-hint { margin-top: 6px; font-size: 10.5px; opacity: .55; letter-spacing: .5px; }
+
+    /* ---------- 音律动效（独立小窗：画布填满窗口） ---------- */
+    #av-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: none; }
+
+    /* ---------- 调整模式（客户端「调整位置」按钮触发） ----------
+       桌面平时只正常播放显示；进入调整模式后整窗虚线高亮 + 可按住拖动，
+       松手自动保存位置并退出（主进程 setAdjust 控制）。 */
+    body.adjusting { cursor: move; }
+    body.adjusting::after {
+      content: ''; position: fixed; inset: 3px; z-index: 9;
+      border: 2px dashed rgba(124, 92, 255, .9); border-radius: 12px;
+      background: rgba(124, 92, 255, .06);
+      pointer-events: none;
+    }
+    #adjust-tip {
+      position: fixed; top: 8px; left: 50%; transform: translateX(-50%);
+      z-index: 10; display: none;
+      padding: 4px 12px; border-radius: 20px;
+      background: rgba(20, 16, 44, .85); color: #fff;
+      font-size: 12px; letter-spacing: 1px; white-space: nowrap;
+      box-shadow: 0 2px 10px rgba(0,0,0,.4);
+      pointer-events: none;
+    }
+    body.adjusting #adjust-tip { display: block; }
   </style>
 </head>
 <body>
-  <div id="stage"></div>
+  <div class="wg" id="root"></div>
+  <div id="adjust-tip">按住拖动调整位置 · 松手自动保存</div>
+  <canvas id="av-canvas"></canvas>
   <script>
-    const stage = document.getElementById('stage');
-    let cfg = null;        // { theme, opacity, items, scaleFactor }
+    // 每个窗口只渲染一个"部件"（Wallpaper Engine 式独立小表面）：
+    // part = clock | cpu | gpu | mem | volume | aviz
+    // 桌面侧只负责显示与正常功能交互（点击启动/音量/时钟）；位置调整
+    // 一律从客户端「调整位置」按钮进入调整模式后拖动完成。
+    const PART = new URLSearchParams(location.search).get('part') || '';
+    const IS_AVIZ = PART === 'aviz';
+
+    const root = document.getElementById('root');
+    let cfg = null;        // 组件窗: {part,theme,item,scaleFactor} / aviz窗: {part,audioViz,scaleFactor}
     let stats = { cpu: null, gpu: null, mem: null, volume: 0, mute: false };
     let h24 = true;        // 时钟 12/24 小时制（点击切换）
-    let clockTimer = null;
     let volDragging = false;
 
-    const SLOTS = ['tl','tc','tr','ml','mc','mr','bl','bc','br'];
+    const sfNow = () => (cfg && cfg.scaleFactor) || window.devicePixelRatio || 1;
 
     // ---------- 渲染 ----------
+    const LABELS = { cpu: 'CPU', gpu: 'GPU', mem: '内存' };
+
     function build() {
-      if (!cfg) return;
-      document.body.className = 'theme-' + (cfg.theme || 'auto');
-      document.documentElement.style.setProperty('--op', cfg.opacity ?? 0.72);
-      stage.innerHTML = '';
-      for (const s of SLOTS) {
-        const el = document.createElement('div');
-        el.className = 'slot ' + s;
-        el.dataset.slot = s;
-        stage.appendChild(el);
+      const theme = cfg && cfg.theme === 'light' ? ' theme-light' : '';
+      // 调整模式类不能被覆盖（主进程随时可能开关调整模式）
+      const base = `part-${PART}${IS_AVIZ ? '' : ' has-wg'}${theme}`;
+      document.body.className = document.body.classList.contains('adjusting') ? base + ' adjusting' : base;
+      if (IS_AVIZ) {
+        root.style.display = 'none';
+      } else {
+        buildWidget();
+        renderWidget();
       }
-      for (const [key, item] of Object.entries(cfg.items || {})) {
-        if (!item || !item.on) continue;
-        const slot = stage.querySelector('.slot.' + (item.pos || 'tl'));
-        if (!slot) continue;
-        const wg = document.createElement('div');
-        wg.className = `wg ${key} size-${item.size || 'm'}`;
-        wg.dataset.widget = key;
-        if (key === 'clock') wg.title = '点击切换 12/24 小时制';
-        slot.appendChild(wg);
-      }
-      bindWidgetEvents();
-      renderAll();
       scheduleRects();
     }
 
-    function renderAll() {
-      renderClock();
-      renderMetrics();
-      renderVolume();
+    function buildWidget() {
+      if (PART === 'clock') {
+        root.innerHTML = '<div class="time" id="w-time"></div><div class="date" id="w-date"></div>';
+      } else if (LABELS[PART]) {
+        root.innerHTML =
+          `<div class="m-head"><span class="m-label">${LABELS[PART]}</span><span class="m-val" id="w-val">--</span></div>` +
+          `<div class="m-bar"><i id="w-bar"></i></div>`;
+      } else if (PART === 'volume') {
+        root.innerHTML =
+          '<div class="v-head"><span class="v-ico" id="w-ico">🔊</span><span class="v-val" id="w-val">0%</span></div>' +
+          '<div class="v-track" id="w-track"><div class="v-rail"><div class="v-fill" id="w-fill"></div>' +
+          '<div class="v-knob" id="w-knob"></div></div></div>' +
+          '<div class="v-hint">拖动调节 · 点击图标静音</div>';
+        bindVolumeEvents();
+      }
     }
 
     function renderClock() {
-      const el = stage.querySelector('[data-widget="clock"]');
-      if (!el) return;
+      const t = document.getElementById('w-time');
+      if (!t) return;
       const d = new Date();
       let h = d.getHours();
       let suffix = '';
@@ -145,104 +163,125 @@
       const mm = String(d.getMinutes()).padStart(2, '0');
       const ss = String(d.getSeconds()).padStart(2, '0');
       const week = ['日','一','二','三','四','五','六'][d.getDay()];
-      el.innerHTML =
-        `<div class="time">${hh}:${mm}<span class="sec"> ${ss}${suffix}</span></div>` +
+      t.innerHTML = `<div class="time">${hh}:${mm}<span class="sec"> ${ss}${suffix}</span></div>` +
         `<div class="date">${d.getMonth()+1}月${d.getDate()}日 星期${week}</div>`;
     }
 
-    function metricEl(key, label) {
-      const el = stage.querySelector(`[data-widget="${key}"]`);
-      if (!el) return;
-      const v = stats[key];
-      const txt = (v === null || v === undefined) ? '--' : Math.round(v) + '%';
-      let cls = '';
-      if (typeof v === 'number') {
-        if (v >= 85) cls = 'crit'; else if (v >= 60) cls = 'warn';
+    function renderWidget() {
+      if (PART === 'clock') { renderClock(); return; }
+      if (LABELS[PART]) {
+        const v = stats[PART];
+        const val = document.getElementById('w-val');
+        const bar = document.getElementById('w-bar');
+        if (!val) return;
+        val.textContent = (v === null || v === undefined) ? '--' : Math.round(v) + '%';
+        if (bar) {
+          let cls = '';
+          if (typeof v === 'number') {
+            if (v >= 85) cls = 'crit'; else if (v >= 60) cls = 'warn';
+          }
+          bar.className = cls;
+          bar.style.width = (typeof v === 'number' ? Math.min(100, v) : 0) + '%';
+        }
+        return;
       }
-      el.innerHTML =
-        `<div class="m-head"><span class="m-label">${label}</span><span class="m-val">${txt}</span></div>` +
-        `<div class="m-bar"><i class="${cls}" style="width:${typeof v === 'number' ? Math.min(100, v) : 0}%"></i></div>`;
-    }
-
-    function renderMetrics() {
-      metricEl('cpu', 'CPU');
-      metricEl('gpu', 'GPU');
-      metricEl('mem', '内存');
+      if (PART === 'volume') renderVolume();
     }
 
     function renderVolume() {
-      const el = stage.querySelector('[data-widget="volume"]');
-      if (!el) return;
+      const val = document.getElementById('w-val');
+      if (!val) return;
       const v = Math.round(stats.volume || 0);
       const mute = !!stats.mute;
-      const ico = mute || v === 0 ? '🔇' : v < 40 ? '🔈' : v < 75 ? '🔉' : '🔊';
-      el.innerHTML =
-        `<div class="v-head"><span class="v-ico">${ico}</span><span class="v-val">${v}%</span></div>` +
-        `<div class="v-track"><div class="v-rail">` +
-        `<div class="v-fill" style="width:${mute ? 0 : v}%"></div>` +
-        `<div class="v-knob" style="left:${mute ? 0 : v}%"></div></div></div>` +
-        `<div class="v-hint">拖动调节 · 点击图标静音</div>`;
+      const ico = document.getElementById('w-ico');
+      const fill = document.getElementById('w-fill');
+      const knob = document.getElementById('w-knob');
+      if (ico) ico.textContent = mute || v === 0 ? '🔇' : v < 40 ? '🔈' : v < 75 ? '🔉' : '🔊';
+      val.textContent = `${v}%`;
+      if (fill) fill.style.width = `${mute ? 0 : v}%`;
+      if (knob) knob.style.left = `${mute ? 0 : v}%`;
     }
 
-    // ---------- 交互（原生 DOM 事件驱动） ----------
-    // 覆盖层默认鼠标穿透；主进程轮询光标，命中组件矩形时切换为可点击，
-    // 之后浏览器原生鼠标事件（点击/拖动/滚轮）直达组件 DOM。
-    function bindWidgetEvents() {
-      // 交互锁：按下期间保持可点击（拖出矩形也不中断），释放后恢复
-      window.addEventListener('mousedown', (e) => {
-        if (e.target.closest('.wg')) window.widgetHost.setInteracting(true);
-      }, true);
-      window.addEventListener('mouseup', () => window.widgetHost.setInteracting(false), true);
-
-      // 时钟：点击切换 12/24h
-      const clock = stage.querySelector('[data-widget="clock"]');
-      if (clock) {
-        clock.addEventListener('click', () => { h24 = !h24; renderClock(); });
-      }
-      // 音量：拖动轨道 / 点击图标静音 / 滚轮调节
-      const vol = stage.querySelector('[data-widget="volume"]');
-      if (vol) {
-        const setFromX = (clientX) => {
-          const rail = vol.querySelector('.v-rail');
-          if (!rail) return;
-          const r = rail.getBoundingClientRect();
-          const pct = Math.min(100, Math.max(0, ((clientX - r.left) / r.width) * 100));
-          stats.volume = Math.round(pct);
-          stats.mute = false;
-          window.widgetHost.setVolume(stats.volume);
-          renderVolume();
-        };
-        vol.addEventListener('mousedown', (e) => {
-          if (e.target.closest('.v-ico')) {
-            window.widgetHost.toggleMute();
-            return;
-          }
-          volDragging = true;
-          setFromX(e.clientX);
-        });
-        window.addEventListener('mousemove', (e) => {
-          if (volDragging) setFromX(e.clientX);
-        });
-        window.addEventListener('mouseup', () => { volDragging = false; });
-        vol.addEventListener('wheel', (e) => {
-          e.preventDefault();
-          stats.volume = Math.min(100, Math.max(0, (stats.volume || 0) - Math.sign(e.deltaY) * 5));
-          stats.mute = false;
-          window.widgetHost.setVolume(stats.volume);
-          renderVolume();
-        }, { passive: false });
-      }
+    // ---------- 交互 ----------
+    // 覆盖层默认鼠标穿透；主进程 30ms 光标轮询命中组件矩形后切换为可点击。
+    // 调整模式下主进程整窗放开输入，捕获阶段的拖动处理器会拦截原生交互。
+    function bindVolumeEvents() {
+      const track = document.getElementById('w-track');
+      if (!track) return;
+      const setFromX = (clientX) => {
+        const rail = track.querySelector('.v-rail');
+        if (!rail) return;
+        const r = rail.getBoundingClientRect();
+        const pct = Math.min(100, Math.max(0, ((clientX - r.left) / r.width) * 100));
+        stats.volume = Math.round(pct);
+        stats.mute = false;
+        window.wallpaperHost.setVolume(stats.volume);
+        renderVolume();
+      };
+      root.addEventListener('mousedown', (e) => {
+        window.wallpaperHost.setInteracting(true);
+        if (e.target.closest('.v-ico')) { window.wallpaperHost.toggleMute(); return; }
+        if (e.target.closest('.v-track')) { volDragging = true; setFromX(e.clientX); }
+      });
+      window.addEventListener('mousemove', (e) => { if (volDragging) setFromX(e.clientX); });
+      window.addEventListener('mouseup', () => { volDragging = false; window.wallpaperHost.setInteracting(false); });
+      track.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        stats.volume = Math.min(100, Math.max(0, (stats.volume || 0) - Math.sign(e.deltaY) * 5));
+        stats.mute = false;
+        window.wallpaperHost.setVolume(stats.volume);
+        renderVolume();
+      }, { passive: false });
     }
+
+    // 时钟：点击切换 12/24 小时制
+    if (PART === 'clock') {
+      root.addEventListener('mousedown', () => window.wallpaperHost.setInteracting(true));
+      root.addEventListener('mouseup', () => window.wallpaperHost.setInteracting(false));
+      root.addEventListener('click', () => { h24 = !h24; renderClock(); });
+    } else if (!IS_AVIZ) {
+      // 指标组件：按下期间保持可点击
+      root.addEventListener('mousedown', () => window.wallpaperHost.setInteracting(true));
+      window.addEventListener('mouseup', () => window.wallpaperHost.setInteracting(false));
+    }
+
+    // ---------- 调整模式：整窗按住拖动（主进程移动窗口，松手自动保存并退出） ----------
+    let adjustDrag = false;
+    window.addEventListener('pointerdown', (e) => {
+      if (!document.body.classList.contains('adjusting')) return;
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      adjustDrag = true;
+      window.wallpaperHost.setInteracting(true);
+      window.wallpaperHost.dragStart();
+    }, true);
+    window.addEventListener('pointermove', (e) => {
+      if (!adjustDrag) return;
+      e.stopPropagation();
+      window.wallpaperHost.dragMove();
+    }, true);
+    window.addEventListener('pointerup', (e) => {
+      if (!adjustDrag) return;
+      e.stopPropagation();
+      adjustDrag = false;
+      window.wallpaperHost.dragEnd();
+      window.wallpaperHost.setInteracting(false);
+    }, true);
 
     // ---------- 主进程消息 ----------
-    window.widgetHost.onConfig((c) => {
+    window.wallpaperHost.onConfig((c) => {
       cfg = c;
       build();
+      if (IS_AVIZ) avApplyConfig(c.audioViz);
     });
-    window.widgetHost.onStats((s) => {
+    window.wallpaperHost.onStats((s) => {
       stats = { ...stats, ...s };
-      renderMetrics();
-      renderVolume();
+      if (!IS_AVIZ) renderWidget();
+    });
+    window.wallpaperHost.onAdjust((v) => {
+      document.body.classList.toggle('adjusting', !!(v && v.on));
+      scheduleRects();
     });
 
     // ---------- 交互矩形上报（物理像素，供主进程光标轮询命中检测） ----------
@@ -252,22 +291,490 @@
       rectsTimer = setTimeout(reportRects, 150);
     }
     function reportRects() {
-      if (!cfg) return;
-      const sf = cfg.scaleFactor || 1;
+      const sf = sfNow();
       const rects = [];
-      stage.querySelectorAll('.wg').forEach((el) => {
-        const r = el.getBoundingClientRect();
-        if (r.width > 0) {
-          rects.push({ x: r.left * sf, y: r.top * sf, w: r.width * sf, h: r.height * sf });
-        }
-      });
-      window.widgetHost.reportRects(rects);
+      if (!IS_AVIZ && !document.body.classList.contains('adjusting')) {
+        // 组件窗：上报内容矩形（音量拖动/时钟点击用）；音律动效纯展示不上报
+        const r = root.getBoundingClientRect();
+        if (r.width > 0) rects.push({ x: r.left * sf, y: r.top * sf, w: r.width * sf, h: r.height * sf });
+      }
+      window.wallpaperHost.reportRects(rects);
     }
-    // 定期上报（位置/大小变化兜底）
     setInterval(scheduleRects, 2000);
 
-    // 时钟走秒
-    clockTimer = setInterval(renderClock, 1000);
+    if (PART === 'clock') setInterval(renderClock, 1000);
+
+    // ==================== 音律动效（仅 aviz 窗） ====================
+    // 捕获 Windows 系统混音（主进程 setDisplayMediaRequestHandler 已授权 loopback），
+    // WebAudio Analyser 频谱分析 + Canvas 绘制；窗口即动效条带，几何随窗口尺寸。
+    // 样式：bars 频谱条 / wave 波浪 / circle 圆环 / mountain 山峦 /
+    //       dots 圆点 / rings 同心环 / blocks LED 块
+    const avCanvas = document.getElementById('av-canvas');
+    const g2d = avCanvas.getContext('2d');
+    const av = {
+      on: false, cfg: {},
+      audioCtx: null, analyser: null, srcNode: null, track: null,
+      freq: null, wave: null,
+      raf: 0, restartTimer: null, failCount: 0, spin: 0,
+      _peak: 0, _lastError: null, _devAt: 0, _blkPeaks: null,
+      _ring0: 0, _ring1: 0, _ring2: 0,
+    };
+
+    function avHexToRgb(hex) {
+      const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+      if (!m) return [124, 92, 255];
+      const n = parseInt(m[1], 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+    const avRgba = (rgb, a) => `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
+    const avLighten = (rgb, k) => rgb.map((v) => Math.round(v + (255 - v) * k));
+
+    function avResizeCanvas() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      avCanvas.width = Math.round(window.innerWidth * dpr);
+      avCanvas.height = Math.round(window.innerHeight * dpr);
+      g2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener('resize', () => {
+      if (av.on) avResizeCanvas();
+    });
+
+    /** 几何：窗口即条带，内容居中（缩放已由窗口尺寸体现） */
+    function avGeom() {
+      const W = window.innerWidth, H = window.innerHeight;
+      return {
+        W, H, cx: W / 2, cy: H / 2,
+        maxH: H * 0.66,
+        maxAmp: H * 0.36,
+        R: Math.min(W, H) * 0.30,
+        maxLen: Math.min(W, H) * 0.20,
+      };
+    }
+
+    async function avStartCapture() {
+      if (av.analyser || !av.on) return;
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        const tracks = stream.getAudioTracks();
+        if (!tracks.length) throw new Error('无音频轨（系统 loopback 不可用）');
+        stream.getVideoTracks().forEach((t) => t.stop()); // 只留声音，砍掉屏幕采集开销
+        const track = tracks[0];
+        const actx = new AudioContext();
+        const srcNode = actx.createMediaStreamSource(new MediaStream([track]));
+        const analyser = actx.createAnalyser();
+        analyser.fftSize = 1024;
+        analyser.smoothingTimeConstant = 0.82;
+        srcNode.connect(analyser); // 不连 destination：不回放，避免声反馈
+        av.audioCtx = actx; av.srcNode = srcNode; av.analyser = analyser; av.track = track;
+        av.freq = new Uint8Array(analyser.frequencyBinCount);
+        av.wave = new Uint8Array(analyser.fftSize);
+        try { await actx.resume(); } catch (_) {}
+        actx.onstatechange = () => {
+          if (av.on && av.analyser && actx.state === 'suspended') {
+            try { actx.resume(); } catch (_) {}
+          }
+        };
+        av.failCount = 0;
+        av._lastError = null;
+        if (!av.raf) av.raf = requestAnimationFrame(avDraw);
+        track.onended = () => { // 音频设备切换/系统重置：自动恢复捕获
+          if (!av.on) return;
+          avReleaseAudio();
+          avScheduleRestart();
+        };
+        console.log('[audioViz] 系统音频捕获已启动（loopback）');
+      } catch (e) {
+        av._lastError = (e && e.message) || '捕获失败';
+        console.warn('[audioViz] 捕获失败:', av._lastError);
+        avReleaseAudio();
+        avScheduleRestart();
+      }
+    }
+
+    /** 失败重试（退避重试，最多 12 次；成功即清零） */
+    function avScheduleRestart() {
+      if (!av.on || av.restartTimer) return;
+      if (++av.failCount > 12) return;
+      const delay = Math.min(8000, 1200 * av.failCount);
+      av.restartTimer = setTimeout(() => {
+        av.restartTimer = null;
+        if (av.on && !av.analyser) avStartCapture();
+      }, delay);
+    }
+
+    function avReleaseAudio() {
+      try { if (av.track) av.track.stop(); } catch (_) {}
+      try { if (av.srcNode) av.srcNode.disconnect(); } catch (_) {}
+      try { if (av.audioCtx) av.audioCtx.close(); } catch (_) {}
+      av.track = null; av.srcNode = null; av.analyser = null; av.audioCtx = null;
+    }
+
+    function avStopAll() {
+      if (av.restartTimer) { clearTimeout(av.restartTimer); av.restartTimer = null; }
+      if (av.raf) { cancelAnimationFrame(av.raf); av.raf = 0; }
+      avReleaseAudio();
+      av.failCount = 0;
+      av._peak = 0;
+      av._blkPeaks = null;
+      g2d.clearRect(0, 0, avCanvas.width, avCanvas.height);
+    }
+
+    function avApplyConfig(c) {
+      const prevOn = av.on;
+      av.cfg = c || {};
+      const want = !!av.cfg.enabled;
+      av.on = want;
+      if (want) {
+        avCanvas.style.display = 'block';
+        avResizeCanvas();
+        if (!prevOn) {
+          avStartCapture();
+          av.raf = requestAnimationFrame(avDraw);
+        }
+      } else {
+        avStopAll();
+        avCanvas.style.display = 'none';
+      }
+      scheduleRects();
+    }
+
+    /** 取第 i/N 根柱的频谱值（对数采样：低频密集、高频稀疏，接近听感） */
+    function avBarValue(i, n, usable) {
+      const t = Math.pow((i + 1) / n, 1.55);
+      const idx = Math.min(usable - 1, Math.floor(t * usable));
+      return (av.freq[idx] || 0) / 255;
+    }
+
+    function avDraw() {
+      if (!av.on) return;
+      av.raf = requestAnimationFrame(avDraw);
+      if (!av.analyser) return;
+      const c = av.cfg;
+      const g = avGeom();
+      const sens = Math.min(3, Math.max(0.5, Number(c.sensitivity) || 1.2));
+      const alpha = Math.min(1, Math.max(0.2, Number(c.opacity) || 0.85));
+      const rgb = avHexToRgb(c.color);
+      const rgb2 = c.gradient === false ? rgb : avLighten(rgb, 0.5);
+      g2d.clearRect(0, 0, g.W, g.H);
+      g2d.globalAlpha = alpha;
+
+      const st = c.style;
+      if (st === 'circle') {
+        av.analyser.getByteFrequencyData(av.freq);
+        avDrawCircle(g, rgb, rgb2, sens);
+      } else if (st === 'rings') {
+        av.analyser.getByteFrequencyData(av.freq);
+        avDrawRings(g, rgb, rgb2, sens);
+      } else if (st === 'wave') {
+        av.analyser.getByteTimeDomainData(av.wave);
+        avDrawWave(g, rgb, rgb2, sens);
+      } else if (st === 'mountain') {
+        av.analyser.getByteFrequencyData(av.freq);
+        avDrawMountain(g, rgb, rgb2, sens);
+      } else if (st === 'dots') {
+        av.analyser.getByteFrequencyData(av.freq);
+        avDrawDots(g, rgb, rgb2, sens);
+      } else if (st === 'blocks') {
+        av.analyser.getByteFrequencyData(av.freq);
+        avDrawBlocks(g, rgb, rgb2, sens);
+      } else {
+        av.analyser.getByteFrequencyData(av.freq);
+        avDrawBars(g, rgb, rgb2, sens, c.mirror !== false);
+      }
+      g2d.globalAlpha = 1;
+    }
+
+    /** 频谱条：垂直居中于窗口，可带镜像倒影 */
+    function avDrawBars(g, rgb, rgb2, sens, mirror) {
+      const N = 64;
+      const { maxH } = g;
+      const baseline = g.cy + maxH / 2;
+      const totalW = g.W * 0.86;
+      const bw = totalW / N;
+      const barW = Math.max(2, bw * 0.62);
+      const x0 = g.cx - totalW / 2;
+      const grad = g2d.createLinearGradient(x0, 0, x0 + totalW, 0);
+      grad.addColorStop(0, avRgba(rgb, 1));
+      grad.addColorStop(1, avRgba(rgb2, 1));
+      g2d.fillStyle = grad;
+      g2d.shadowColor = avRgba(rgb, 0.55);
+      g2d.shadowBlur = 12;
+      const usable = Math.floor(av.freq.length * 0.75);
+      for (let i = 0; i < N; i++) {
+        const v = Math.pow(avBarValue(i, N, usable), 1.15) * sens;
+        const h = Math.max(2.5, Math.min(1, v) * maxH);
+        const x = x0 + i * bw + (bw - barW) / 2;
+        const y = baseline - h;
+        const r = Math.min(barW / 2, 3);
+        g2d.beginPath();
+        if (g2d.roundRect) g2d.roundRect(x, y, barW, h, r);
+        else g2d.rect(x, y, barW, h);
+        g2d.fill();
+        if (mirror) {
+          g2d.save();
+          g2d.globalAlpha *= 0.22;
+          g2d.beginPath();
+          if (g2d.roundRect) g2d.roundRect(x, baseline, barW, h * 0.55, r);
+          else g2d.rect(x, baseline, barW, h * 0.55);
+          g2d.fill();
+          g2d.restore();
+        }
+      }
+      g2d.shadowBlur = 0;
+    }
+
+    /** 波浪：时域波形曲线，基线过窗口中心 */
+    function avDrawWave(g, rgb, rgb2, sens) {
+      const maxAmp = g.maxAmp;
+      const baseline = g.cy;
+      const grad = g2d.createLinearGradient(0, 0, g.W, 0);
+      grad.addColorStop(0, avRgba(rgb, 1));
+      grad.addColorStop(1, avRgba(rgb2, 1));
+      g2d.strokeStyle = grad;
+      g2d.lineWidth = 3;
+      g2d.lineCap = 'round';
+      g2d.lineJoin = 'round';
+      g2d.shadowColor = avRgba(rgb, 0.6);
+      g2d.shadowBlur = 16;
+      g2d.beginPath();
+      const n = av.wave.length;
+      const step = Math.max(1, Math.floor(n / 256));
+      const x0 = g.W * 0.07;
+      const span = g.W * 0.86;
+      for (let i = 0, k = 0; i < n; i += step, k++) {
+        const v = (av.wave[i] - 128) / 128;
+        const x = x0 + (i / (n - 1)) * span;
+        const y = baseline - v * maxAmp * sens;
+        if (k === 0) g2d.moveTo(x, y); else g2d.lineTo(x, y);
+      }
+      g2d.stroke();
+      g2d.shadowBlur = 0;
+    }
+
+    /** 圆环：以窗口中心为圆心的旋转放射频谱环 */
+    function avDrawCircle(g, rgb, rgb2, sens) {
+      const { cx, cy, R, maxLen } = g;
+      const N = 96;
+      av.spin += 0.0016;
+      const usable = Math.floor(av.freq.length * 0.75);
+      g2d.shadowColor = avRgba(rgb, 0.5);
+      g2d.shadowBlur = 10;
+      for (let i = 0; i < N; i++) {
+        const v = Math.pow(avBarValue(i % (N / 2), N / 2, usable), 1.15) * sens; // 左右对称
+        const len = Math.max(2, Math.min(1, v) * maxLen);
+        const ang = av.spin + (i / N) * Math.PI * 2;
+        const cos = Math.cos(ang), sin = Math.sin(ang);
+        const grad = g2d.createLinearGradient(cx + cos * R, cy + sin * R, cx + cos * (R + len), cy + sin * (R + len));
+        grad.addColorStop(0, avRgba(rgb, 0.95));
+        grad.addColorStop(1, avRgba(rgb2, 0.95));
+        g2d.strokeStyle = grad;
+        g2d.lineWidth = Math.max(2, (2 * Math.PI * R / N) * 0.55);
+        g2d.lineCap = 'round';
+        g2d.beginPath();
+        g2d.moveTo(cx + cos * R, cy + sin * R);
+        g2d.lineTo(cx + cos * (R + len), cy + sin * (R + len));
+        g2d.stroke();
+      }
+      let sum = 0;
+      for (let i = 0; i < usable; i += 8) sum += av.freq[i];
+      const level = Math.min(1, (sum / (usable / 8) / 255) * sens);
+      const glow = g2d.createRadialGradient(cx, cy, 0, cx, cy, R * (0.5 + level * 0.5));
+      glow.addColorStop(0, avRgba(rgb, 0.16 + level * 0.22));
+      glow.addColorStop(1, avRgba(rgb, 0));
+      g2d.fillStyle = glow;
+      g2d.beginPath();
+      g2d.arc(cx, cy, R * (0.55 + level * 0.45), 0, Math.PI * 2);
+      g2d.fill();
+      g2d.shadowBlur = 0;
+    }
+
+    /** 山峦：频谱填充面积图 + 顶部亮线（低频在左，随节奏起伏） */
+    function avDrawMountain(g, rgb, rgb2, sens) {
+      const N = 64;
+      const { maxH } = g;
+      const baseline = g.cy + maxH / 2;
+      const x0 = g.W * 0.07, span = g.W * 0.86;
+      const usable = Math.floor(av.freq.length * 0.75);
+      const pts = [];
+      for (let i = 0; i < N; i++) {
+        const v = Math.pow(avBarValue(i, N, usable), 1.15) * sens;
+        const h = Math.max(2, Math.min(1, v) * maxH);
+        pts.push([x0 + (i / (N - 1)) * span, baseline - h]);
+      }
+      const fill = g2d.createLinearGradient(0, baseline - maxH, 0, baseline);
+      fill.addColorStop(0, avRgba(rgb2, 0.55));
+      fill.addColorStop(1, avRgba(rgb, 0.08));
+      g2d.beginPath();
+      g2d.moveTo(x0, baseline);
+      for (const [x, y] of pts) g2d.lineTo(x, y);
+      g2d.lineTo(x0 + span, baseline);
+      g2d.closePath();
+      g2d.fillStyle = fill;
+      g2d.fill();
+      const line = g2d.createLinearGradient(x0, 0, x0 + span, 0);
+      line.addColorStop(0, avRgba(rgb, 1));
+      line.addColorStop(1, avRgba(rgb2, 1));
+      g2d.strokeStyle = line;
+      g2d.lineWidth = 2.5;
+      g2d.lineJoin = 'round';
+      g2d.shadowColor = avRgba(rgb, 0.55);
+      g2d.shadowBlur = 14;
+      g2d.beginPath();
+      pts.forEach(([x, y], i) => (i ? g2d.lineTo(x, y) : g2d.moveTo(x, y)));
+      g2d.stroke();
+      g2d.shadowBlur = 0;
+    }
+
+    /** 圆点：列×行点阵矩阵，列能量点亮对应数量的点 */
+    function avDrawDots(g, rgb, rgb2, sens) {
+      const cols = 32, rows = 12;
+      const { maxH } = g;
+      const baseline = g.cy + maxH / 2;
+      const totalW = g.W * 0.86;
+      const cw = totalW / cols;
+      const rh = maxH / rows;
+      const x0 = g.cx - totalW / 2;
+      const usable = Math.floor(av.freq.length * 0.75);
+      const rDot = Math.max(1.6, Math.min(cw, rh) * 0.28);
+      const lit2 = g2d.createLinearGradient(x0, 0, x0 + totalW, 0);
+      lit2.addColorStop(0, avRgba(rgb, 1));
+      lit2.addColorStop(1, avRgba(rgb2, 1));
+      for (let i = 0; i < cols; i++) {
+        const v = Math.pow(avBarValue(i, cols, usable), 1.15) * sens;
+        const lit = Math.round(Math.min(1, v) * rows);
+        for (let r = 0; r < rows; r++) {
+          const x = x0 + i * cw + cw / 2;
+          const y = baseline - (r + 0.5) * rh;
+          if (r < lit) {
+            g2d.fillStyle = lit2;
+            g2d.shadowColor = avRgba(rgb, 0.5);
+            g2d.shadowBlur = 8;
+          } else {
+            g2d.fillStyle = 'rgba(255,255,255,0.08)';
+            g2d.shadowBlur = 0;
+          }
+          g2d.beginPath();
+          g2d.arc(x, y, rDot, 0, Math.PI * 2);
+          g2d.fill();
+        }
+      }
+      g2d.shadowBlur = 0;
+    }
+
+    /** 同心环：低/中/高三环随各自频段能量脉动（响亮时开口收拢） */
+    function avDrawRings(g, rgb, rgb2, sens) {
+      const { cx, cy, R } = g;
+      const usable = Math.floor(av.freq.length * 0.75);
+      const levels = [];
+      for (let b = 0; b < 3; b++) {
+        let sum = 0, n = 0;
+        const lo = Math.floor(usable * b / 3), hi = Math.floor(usable * (b + 1) / 3);
+        for (let i = lo; i < hi; i += 4) { sum += av.freq[i]; n++; }
+        const raw = Math.min(1, (sum / Math.max(1, n) / 255) * sens);
+        const key = '_ring' + b;
+        av[key] = Math.max(raw, (av[key] || 0) * 0.90); // 平滑回落
+        levels.push(av[key]);
+      }
+      av.spin += 0.0012;
+      const radii = [0.52, 0.76, 1.0];
+      g2d.lineCap = 'round';
+      for (let b = 0; b < 3; b++) {
+        const level = levels[b];
+        const r = R * radii[b] * (1 + level * 0.16);
+        g2d.strokeStyle = b % 2 ? avRgba(rgb2, 0.9) : avRgba(rgb, 0.9);
+        g2d.lineWidth = Math.max(2.5, R * (0.10 - b * 0.022)) * (0.8 + level * 0.9);
+        g2d.shadowColor = avRgba(rgb, 0.45 + level * 0.3);
+        g2d.shadowBlur = 12 + level * 16;
+        g2d.beginPath();
+        // 旋转开口环：能量越高缺口越小（环"合拢"）
+        const gap = (0.55 - level * 0.4) * Math.PI;
+        g2d.arc(cx, cy, r, av.spin * (b % 2 ? -1 : 1) + gap / 2 + b, av.spin * (b % 2 ? -1 : 1) + Math.PI * 2 - gap / 2 + b);
+        g2d.stroke();
+      }
+      const glow = g2d.createRadialGradient(cx, cy, 0, cx, cy, R * 0.5);
+      glow.addColorStop(0, avRgba(rgb, 0.10 + levels[0] * 0.25));
+      glow.addColorStop(1, avRgba(rgb, 0));
+      g2d.fillStyle = glow;
+      g2d.beginPath();
+      g2d.arc(cx, cy, R * 0.5, 0, Math.PI * 2);
+      g2d.fill();
+      g2d.shadowBlur = 0;
+    }
+
+    /** LED 块：块状能量柱 + 峰值保持下落点 */
+    function avDrawBlocks(g, rgb, rgb2, sens) {
+      const cols = 28, rows = 14;
+      const { maxH } = g;
+      const baseline = g.cy + maxH / 2;
+      const totalW = g.W * 0.86;
+      const cw = totalW / cols, rh = maxH / rows;
+      const x0 = g.cx - totalW / 2;
+      const usable = Math.floor(av.freq.length * 0.75);
+      if (!av._blkPeaks || av._blkPeaks.length !== cols) av._blkPeaks = new Array(cols).fill(0);
+      const bw = cw * 0.66, bh = rh * 0.62;
+      const lit2 = g2d.createLinearGradient(x0, 0, x0 + totalW, 0);
+      lit2.addColorStop(0, avRgba(rgb, 1));
+      lit2.addColorStop(1, avRgba(rgb2, 1));
+      for (let i = 0; i < cols; i++) {
+        const v = Math.pow(avBarValue(i, cols, usable), 1.15) * sens;
+        const lit = Math.round(Math.min(1, v) * rows);
+        av._blkPeaks[i] = Math.max(lit, av._blkPeaks[i] - 0.08);
+        const peak = Math.round(av._blkPeaks[i]);
+        for (let r = 0; r < rows; r++) {
+          const x = x0 + i * cw + (cw - bw) / 2;
+          const y = baseline - (r + 1) * rh + (rh - bh) / 2;
+          if (r < lit) {
+            g2d.fillStyle = lit2;
+            g2d.shadowColor = avRgba(rgb, 0.45);
+            g2d.shadowBlur = 7;
+          } else if (peak > lit && r === peak - 1) {
+            g2d.fillStyle = avRgba(rgb2, 0.85);
+            g2d.shadowBlur = 0;
+          } else {
+            g2d.fillStyle = 'rgba(255,255,255,0.07)';
+            g2d.shadowBlur = 0;
+          }
+          g2d.beginPath();
+          if (g2d.roundRect) g2d.roundRect(x, y, bw, bh, Math.min(2.5, bh / 2));
+          else g2d.rect(x, y, bw, bh);
+          g2d.fill();
+        }
+      }
+      g2d.shadowBlur = 0;
+    }
+
+    // ---------- 输出设备切换（外放 ⇄ 耳机 ⇄ HDMI）：自动跟随默认设备重捕 ----------
+    try {
+      navigator.mediaDevices.addEventListener('devicechange', () => {
+        if (!av.on) return;
+        const now = Date.now();
+        if (now - av._devAt < 2500) return;
+        av._devAt = now;
+        console.log('[audioViz] 音频设备变化，重新捕获默认输出');
+        avReleaseAudio();
+        setTimeout(() => { if (av.on && !av.analyser) avStartCapture(); }, 700);
+      });
+    } catch (_) {}
+
+    // ---------- 实时状态上报（主界面设置页电平指示） ----------
+    setInterval(() => {
+      if (!av.on) return;
+      let level = 0;
+      if (av.analyser && av.freq) {
+        let m = 0;
+        for (let i = 0; i < 120; i++) m = Math.max(m, av.freq[i]);
+        av._peak = Math.max(m / 255, (av._peak || 0) * 0.82);
+        level = av._peak;
+      }
+      window.wallpaperHost.reportAvStatus({
+        capturing: !!av.analyser,
+        level: Math.round(level * 100) / 100,
+        error: av._lastError,
+      });
+    }, 600);
+
+    // ---------- 就绪通知（launcher 同款双保险时序） ----------
+    try { window.wallpaperHost.ready(); } catch (_) {}
   </script>
 </body>
 </html>

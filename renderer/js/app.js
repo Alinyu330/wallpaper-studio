@@ -11,6 +11,7 @@ const state = {
   search: '',
   display: null,       // 主显示器信息（预览比例用）
   pausedAll: false,    // 全局暂停（视频冻结 + 轮换停止）
+  update: null,        // {hasUpdate, current, latest, releaseUrl, error?}
 };
 
 const TYPE_LABEL = { image: '图片', video: '视频', exe: '程序', web: '网页' };
@@ -44,6 +45,7 @@ async function init() {
   renderSites();
   renderSettingsPage();
   renderLauncherSettings();
+  renderAudioVizSettings();
   checkMpv();
   loadDisplayInfo();
   refreshLockScreenDetail();
@@ -55,6 +57,7 @@ async function init() {
   bindParamsPanel();
   bindModal();
   bindWindowControls();
+  bindUpdateCheck();
 
   // 全局暂停状态恢复
   state.pausedAll = !!state.settings.wallpaperPaused;
@@ -76,12 +79,14 @@ async function init() {
     }
     renderGrid();
     renderParamsPanel();
+    renderRotationQueue(); // 轮换队列跟随壁纸库变化
   });
   window.api.on('wallpaper:current-changed', (d) => {
     state.current = d || null;
     renderGrid();
     renderParamsPanel();
     updateStopButton();
+    renderRotationQueue(); // 队列中"当前"标记跟随切换
   });
   window.api.on('wallpaper:params-updated', (params) => {
     if (state.current) state.current.params = params;
@@ -90,6 +95,18 @@ async function init() {
     }
   });
   window.api.on('wallpaper:exe-exited', ({ name }) => toast(`程序壁纸「${name}」已退出`, 'error'));
+  // 更新检查结果（主进程静默推送）：只做文字与亮点提示，绝不弹窗
+  window.api.on('update:status', (result) => {
+    state.update = result;
+    renderUpdateStatus();
+  });
+  // 音律动效实时状态（捕获状态 + 电平）→ 设置页指示器
+  window.api.on('audioViz:status', (s) => updateAvStatusMeter(s));
+  // 配置同步：主进程写入后（桌面拖动保存位置等）回写本地 state，
+  // 防止界面下一次保存用旧 state 覆盖新值（enabled/posX 被抹掉的根源）
+  window.api.on('settings:sync', (s) => {
+    if (s && typeof s === 'object') state.settings = s;
+  });
   // 快捷方式转盘变化（收纳结果/移除/恢复）→ 刷新设置页
   window.api.on('launcher:changed', (result) => {
     renderLauncherSettings();
@@ -105,6 +122,22 @@ async function init() {
     state.pausedAll = !!paused;
     state.settings.wallpaperPaused = !!paused;
     updatePauseAllButton();
+  });
+  // 调整模式状态回传（主进程为权威，拖动结束自动退出）：同步按钮文案与设置页
+  window.api.on('widgets:adjust-state', ({ key, on }) => {
+    if (key === 'aviz') {
+      avAdjusting = !!on;
+      setAdjustBtnUi('#btn-av-adjust', '#av-adjust-hint', avAdjusting, '动效');
+      if (!on) renderAudioVizSettings();
+    } else {
+      wgAdjustingKey = on ? key : (wgAdjustingKey === key ? null : wgAdjustingKey);
+      renderWidgetsSettings();
+    }
+  });
+  window.api.on('launcher:adjust-state', ({ on }) => {
+    lcAdjusting = !!on;
+    setAdjustBtnUi('#btn-lc-adjust', '#lc-adjust-hint', lcAdjusting, '转盘');
+    if (!on) renderLauncherSettings();
   });
 }
 
@@ -147,6 +180,10 @@ function bindNav() {
       $$('.nav-item').forEach(b => b.classList.toggle('active', b === btn));
       const page = btn.dataset.page;
       $$('.page').forEach(p => p.classList.toggle('active', p.id === `page-${page}`));
+      // 轮换队列视频不自动播放（省 CPU、不打扰）：悬停缩略图时才播放，移开暂停
+      if (page !== 'rotation') {
+        document.querySelectorAll('#rot-queue video').forEach(v => v.pause());
+      }
     });
   });
 }
@@ -750,6 +787,7 @@ function renderRotationSettings() {
     row.appendChild(b);
   });
   renderRotationPickGrid();
+  renderRotationQueue();
 }
 
 /** 自定义轮换列表：多选网格 */
@@ -768,18 +806,8 @@ function renderRotationPickGrid() {
     const item = document.createElement('button');
     item.className = 'rot-pick' + (picked ? ' picked' : '');
     item.title = wp.name;
-    // 缩略图
-    if (wp.type === 'image') {
-      const img = document.createElement('img');
-      img.src = 'file:///' + wp.path.replace(/\\/g, '/');
-      img.onerror = () => img.remove();
-      item.appendChild(img);
-    } else {
-      const ic = document.createElement('div');
-      ic.className = 'pick-icon';
-      ic.innerHTML = ICONS[wp.type] || ICONS.web;
-      item.appendChild(ic);
-    }
+    // 缩略图（视频取第一帧，不再是空白图标）
+    item.appendChild(makeThumbMedia(wp));
     const name = document.createElement('span');
     name.className = 'pick-name';
     name.textContent = wp.name;
@@ -828,6 +856,109 @@ function saveRotation(patch) {
   };
   state.settings.rotation = rot;
   window.api.updateSettings({ rotation: rot });
+  renderRotationQueue(); // 范围/列表变化 → 队列实时刷新
+}
+
+// ---------- 轮换队列实时预览 ----------
+/** 客户端解析当前轮换列表（与主进程 getRotationList 同逻辑） */
+function getRotationListClient() {
+  const rot = state.settings.rotation || {};
+  if (rot.scope === 'favorite') return state.wallpapers.filter(w => w.favorite);
+  if (rot.scope === 'custom') {
+    return (rot.list || []).map(id => state.wallpapers.find(w => w.id === id)).filter(Boolean);
+  }
+  return state.wallpapers;
+}
+
+/** 构建缩略媒体元素（图片=img / 视频=静音循环播放 / 其他=图标） */
+function makeThumbMedia(wp, { playing = false } = {}) {
+  if (wp.type === 'image') {
+    const img = document.createElement('img');
+    img.src = 'file:///' + wp.path.replace(/\\/g, '/');
+    img.onerror = () => img.remove();
+    return img;
+  }
+  if (wp.type === 'video') {
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.muted = true;
+    v.playsInline = true;
+    if (playing) { v.autoplay = true; v.loop = true; }
+    v.src = 'file:///' + wp.path.replace(/\\/g, '/') + (playing ? '' : '#t=0.5');
+    v.onerror = () => v.remove();
+    return v;
+  }
+  const ic = document.createElement('div');
+  ic.className = 'pick-icon';
+  ic.innerHTML = ICONS[wp.type] || ICONS.web;
+  return ic;
+}
+
+/**
+ * 轮换队列：横向胶片条，实时展示参与轮换的壁纸（视频直接小窗播放）。
+ * 调节轮换范围（全部/收藏/自定义勾选）时立即增删，一目了然；
+ * 点击任意一张立即平滑切换；自定义范围可点 ✕ 移出。
+ */
+function renderRotationQueue() {
+  const queue = $('#rot-queue');
+  const empty = $('#rot-queue-empty');
+  const count = $('#rot-queue-count');
+  if (!queue || !empty || !count) return;
+  const list = getRotationListClient();
+  count.textContent = list.length ? `共 ${list.length} 张` : '';
+  queue.innerHTML = '';
+  empty.style.display = list.length ? 'none' : '';
+  const rot = state.settings.rotation || {};
+  const curId = state.current?.wallpaper?.id;
+  for (const wp of list) {
+    const tile = document.createElement('div');
+    tile.className = 'rot-tile' + (wp.id === curId ? ' current' : '');
+    tile.title = wp.name + (wp.id === curId ? '（当前显示）' : '（点击立即切换）');
+    const thumb = document.createElement('div');
+    thumb.className = 'rot-thumb';
+    thumb.appendChild(makeThumbMedia(wp, { playing: false }));
+    tile.appendChild(thumb);
+    const name = document.createElement('span');
+    name.className = 'rot-name';
+    name.textContent = wp.name;
+    tile.appendChild(name);
+    const badge = document.createElement('span');
+    badge.className = 'type-badge ' + wp.type;
+    badge.textContent = TYPE_LABEL[wp.type];
+    thumb.appendChild(badge);
+    if (wp.id === curId) {
+      const cur = document.createElement('span');
+      cur.className = 'using-badge';
+      cur.textContent = '当前';
+      thumb.appendChild(cur);
+    }
+    if (rot.scope === 'custom') {
+      const rm = document.createElement('button');
+      rm.className = 'rot-remove';
+      rm.title = '从轮换列表移除';
+      rm.textContent = '✕';
+      rm.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const cur = state.settings.rotation.list || [];
+        saveRotation({ list: cur.filter(id => id !== wp.id) });
+        renderRotationSettings();
+      });
+      tile.appendChild(rm);
+    }
+    // 悬停才播放视频预览（不自动播放，省 CPU）
+    tile.addEventListener('mouseenter', () => {
+      thumb.querySelectorAll('video').forEach(v => v.play().catch(() => {}));
+    });
+    tile.addEventListener('mouseleave', () => {
+      thumb.querySelectorAll('video').forEach(v => v.pause());
+    });
+    tile.addEventListener('click', async () => {
+      const res = await window.api.apply(wp.id);
+      if (res.ok) toast(`已切换到「${wp.name}」`);
+      else toast(res.error || '切换失败', 'error');
+    });
+    queue.appendChild(tile);
+  }
 }
 
 // ---------- 桌面组件 ----------
@@ -850,6 +981,57 @@ function saveWidgets(patch) {
   window.api.updateSettings({ widgets: w });
 }
 
+// ---------- 设置页通用：数值输入 + 固定调整点 + 调整模式 ----------
+let wgAdjustingKey = null;   // 当前处于调整模式的组件 key（null = 无）
+let avAdjusting = false;     // 音律动效调整模式
+let lcAdjusting = false;     // 快捷方式转盘调整模式
+
+/** 高亮与当前值一致的固定调整点 */
+function highlightPresetRow(row, v) {
+  if (!row) return;
+  row.querySelectorAll('.preset-chip').forEach(b => {
+    b.classList.toggle('active', Math.abs(parseFloat(b.dataset.val) - v) < 0.001);
+  });
+}
+
+/** 生成一行固定调整点（presets：标量数组或 {val,label} 数组），onPick(val) 生效 */
+function renderPresetRow(row, presets, onPick) {
+  if (!row) return;
+  row.innerHTML = '';
+  for (const p of presets) {
+    const val = typeof p === 'object' ? p.val : p;
+    const b = document.createElement('button');
+    b.className = 'preset-chip';
+    b.dataset.val = val;
+    b.textContent = typeof p === 'object' ? p.label : String(p);
+    b.addEventListener('click', () => onPick(val));
+    row.appendChild(b);
+  }
+}
+
+/** 音律动效 X/Y 角落预设：需 X/Y 同时匹配才高亮 */
+function highlightXyPresets() {
+  const row = $('#av-xy-presets');
+  if (!row || !row.children.length) return;
+  const px = Math.round(parseFloat($('#av-posx').value));
+  const py = Math.round(parseFloat($('#av-posy').value));
+  row.querySelectorAll('.preset-chip').forEach(b => {
+    b.classList.toggle('active', +b.dataset.x === px && +b.dataset.y === py);
+  });
+}
+
+/** 「调整位置」按钮与提示文案同步（主进程状态回传后调用） */
+function setAdjustBtnUi(btnId, hintId, on, noun = '目标') {
+  const btn = $(btnId);
+  if (btn) btn.textContent = on ? '结束调整' : '开始调整';
+  const hint = $(hintId);
+  if (hint) {
+    hint.textContent = on
+      ? '调整中：直接在桌面上按住拖到目标位置，松开即保存并自动退出（也可再点一次按钮退出）'
+      : `点「开始调整」后在桌面上按住${noun}直接拖动，松开即保存位置并自动退出`;
+  }
+}
+
 function renderWidgetsSettings() {
   const w = state.settings.widgets || {};
   $('#wg-enabled').checked = !!w.enabled;
@@ -857,6 +1039,7 @@ function renderWidgetsSettings() {
   const op = Math.round((w.opacity ?? 0.72) * 100);
   $('#wg-opacity').value = op;
   $('#wg-opacity-num').value = op;
+  highlightPresetRow($('#wg-opacity-presets'), op);
   // 组件卡片
   const wrap = $('#wg-items');
   wrap.innerHTML = '';
@@ -914,6 +1097,21 @@ function renderWidgetsSettings() {
     }
     sizeWrap.appendChild(seg);
     body.appendChild(sizeWrap);
+    // 摆放：进入调整模式后整窗可拖动（桌面无手柄，位置保存后自动退出）
+    const adjWrap = document.createElement('div');
+    adjWrap.className = 'wg-size';
+    adjWrap.innerHTML = '<span class="wg-pos-label">摆放</span>';
+    const adjBtn = document.createElement('button');
+    adjBtn.className = 'btn ghost small';
+    adjBtn.textContent = wgAdjustingKey === key ? '调整中 · 点此结束' : '调整位置';
+    adjBtn.title = '进入调整模式后，直接在桌面上按住组件拖动，松开即保存位置';
+    adjBtn.addEventListener('click', async () => {
+      const turnOn = wgAdjustingKey !== key;
+      const ok = await window.api.setWidgetsAdjust(key, turnOn);
+      if (!ok && turnOn) toast('该组件未启用，先打开开关再调整', 'error');
+    });
+    adjWrap.appendChild(adjBtn);
+    body.appendChild(adjWrap);
     card.appendChild(body);
     wrap.appendChild(card);
   }
@@ -923,15 +1121,36 @@ function renderWidgetsSettings() {
     t.addEventListener('change', () => {
       const key = t.dataset.wgToggle;
       const item = state.settings.widgets?.items?.[key] || { on: false, pos: 'tl', size: 'm' };
-      saveWidgets({ items: { [key]: { ...item, on: t.checked } } });
+      const patch = { items: { [key]: { ...item, on: t.checked } } };
+      // 点亮单个组件时总开关没开 → 自动开启（否则"开了组件没效果"）
+      if (t.checked && !(state.settings.widgets?.enabled)) {
+        patch.enabled = true;
+      }
+      saveWidgets(patch);
+      if (patch.enabled) renderWidgetsSettings();
     });
   });
 }
 
 function bindWidgetsSettings() {
   $('#wg-enabled').addEventListener('change', (e) => {
-    saveWidgets({ enabled: e.target.checked });
-    toast(e.target.checked ? '桌面组件已开启，回到桌面查看效果' : '桌面组件已关闭');
+    const on = e.target.checked;
+    // 修复"开了没效果"：开启总开关但一个组件都没选时，默认点亮时钟
+    if (on) {
+      const items = state.settings.widgets?.items || {};
+      const anyOn = Object.values(items).some(i => i && i.on);
+      if (!anyOn) {
+        saveWidgets({
+          enabled: true,
+          items: { clock: { ...(items.clock || { pos: 'tl', size: 'l' }), on: true } },
+        });
+        renderWidgetsSettings();
+        toast('桌面组件已开启（已默认添加时钟，回到桌面查看效果）');
+        return;
+      }
+    }
+    saveWidgets({ enabled: on });
+    toast(on ? '桌面组件已开启，回到桌面查看效果' : '桌面组件已关闭');
   });
   $$('#wg-theme button').forEach(b => {
     b.addEventListener('click', () => {
@@ -944,16 +1163,314 @@ function bindWidgetsSettings() {
     $('#wg-opacity').value = v;
     $('#wg-opacity-num').value = v;
     saveWidgets({ opacity: v / 100 });
+    highlightPresetRow($('#wg-opacity-presets'), v);
   };
   $('#wg-opacity').addEventListener('input', (e) => {
     $('#wg-opacity-num').value = e.target.value;
+    applyOpacity(parseFloat(e.target.value));
   });
-  $('#wg-opacity').addEventListener('change', (e) => applyOpacity(parseFloat(e.target.value)));
   $('#wg-opacity-num').addEventListener('change', (e) => applyOpacity(parseFloat(e.target.value)));
+  $('#wg-opacity-num').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { applyOpacity(parseFloat(e.target.value)); e.target.blur(); }
+  });
+  renderPresetRow($('#wg-opacity-presets'), [30, 50, 72, 85, 100], applyOpacity);
+}
+
+// ---------- 音律动效 ----------
+const AV_DEFAULTS = {
+  enabled: false, style: 'bars', color: '#7c5cff', gradient: true,
+  opacity: 0.85, size: 1, pos: 'bottom', posX: null, posY: null,
+  mirror: true, sensitivity: 1.2,
+};
+/* 常用配色（点击快速切换） */
+const AV_COLORS = [
+  { c: '#7c5cff', n: '紫罗兰' },
+  { c: '#4f8cff', n: '海蓝' },
+  { c: '#22d3ee', n: '冰青' },
+  { c: '#34d399', n: '翡翠绿' },
+  { c: '#a3e635', n: '青柠' },
+  { c: '#ffb15c', n: '琥珀橙' },
+  { c: '#ff5c8a', n: '霓虹粉' },
+  { c: '#f4f6ff', n: '月光白' },
+];
+
+/* 九宫格快速定位槽位 → 音律动效中心点（屏幕百分比 posX/posY） */
+const AV_GRID = {
+  tl: [8, 10], tm: [50, 10], tr: [92, 10],
+  ml: [8, 50], mc: [50, 50], mr: [92, 50],
+  bl: [8, 90], bc: [50, 90], br: [92, 90],
+};
+
+function saveAudioViz(patch) {
+  const av = { ...AV_DEFAULTS, ...(state.settings.audioViz || {}), ...patch };
+  state.settings.audioViz = av;
+  window.api.updateSettings({ audioViz: av });
+}
+
+function renderAudioVizSettings() {
+  const av = { ...AV_DEFAULTS, ...(state.settings.audioViz || {}) };
+  $('#av-enabled').checked = !!av.enabled;
+  $$('#av-style button').forEach(b => b.classList.toggle('active', b.dataset.style === av.style));
+  // 位置：手动拖动过（posY 非空）则预设不亮，由拖动位置接管
+  $$('#av-pos button').forEach(b => b.classList.toggle('active', av.posY == null && b.dataset.pos === av.pos));
+  $$('#av-gradient button').forEach(b => b.classList.toggle('active', (b.dataset.gradient === 'on') === !!av.gradient));
+  $('#av-color').value = av.color;
+  const syncNum = (id, v) => {
+    const el = $(id);
+    if (document.activeElement !== el) el.value = v;
+  };
+  const opPct = Math.round(av.opacity * 100);
+  $('#av-opacity').value = opPct;
+  $('#av-opacity-val').textContent = opPct + '%';
+  syncNum('#av-opacity-num', opPct);
+  highlightPresetRow($('#av-opacity-presets'), opPct);
+  $('#av-size').value = av.size;
+  $('#av-size-val').textContent = Number(av.size).toFixed(1) + '×';
+  syncNum('#av-size-num', Number(av.size).toFixed(1));
+  highlightPresetRow($('#av-size-presets'), Number(av.size));
+  $('#av-sens').value = av.sensitivity;
+  $('#av-sens-val').textContent = Number(av.sensitivity).toFixed(1);
+  syncNum('#av-sens-num', Number(av.sensitivity).toFixed(1));
+  highlightPresetRow($('#av-sens-presets'), Number(av.sensitivity));
+  $('#av-mirror').checked = av.mirror !== false;
+  // 圆环/同心环固定居中（底部/顶部预设不适用，仍可进入调整模式摆位）
+  const circular = av.style === 'circle' || av.style === 'rings';
+  $('#av-pos-row').style.opacity = circular ? 0.45 : 1;
+  // 精确位置滑杆（手动拖动过 → 显示拖动位置；否则显示预设等效值）
+  const defPosY = circular ? 0.5 : (av.pos === 'top' ? 0.10 : 0.90);
+  const px = Math.round((av.posX ?? 0.5) * 100);
+  const py = Math.round((av.posY ?? defPosY) * 100);
+  $('#av-posx').value = px;
+  $('#av-posy').value = py;
+  syncNum('#av-posx-num', px);
+  syncNum('#av-posy-num', py);
+  $('#av-xy-val').textContent = `X ${px}% · Y ${py}%`;
+  highlightXyPresets();
+  syncAvGrid(av, circular);
+  renderAvColors(av.color);
+}
+
+/** 常用配色色板 */
+function renderAvColors(current) {
+  const row = $('#av-colors');
+  if (!row) return;
+  row.innerHTML = '';
+  for (const { c, n } of AV_COLORS) {
+    const b = document.createElement('button');
+    b.className = 'av-swatch' + (c.toLowerCase() === String(current || '').toLowerCase() ? ' active' : '');
+    b.style.background = c;
+    b.title = n;
+    b.addEventListener('click', () => {
+      $('#av-color').value = c;
+      saveAudioViz({ color: c });
+      renderAvColors(c);
+    });
+    row.appendChild(b);
+  }
+}
+
+/** 音律动效九宫格高亮：posX/posY（未手动设置时用预设等效值）落在槽位上才点亮 */
+function syncAvGrid(av, circular) {
+  const grid = $('#av-pos9');
+  if (!grid || !grid.children.length) return;
+  const defY = circular ? 0.5 : (av.pos === 'top' ? 0.10 : 0.90);
+  const cx = Math.round((av.posX ?? 0.5) * 100);
+  const cy = Math.round((av.posY ?? defY) * 100);
+  grid.querySelectorAll('.pos-cell').forEach(b => {
+    const [gx, gy] = AV_GRID[b.dataset.cell] || [];
+    b.classList.toggle('active', gx === cx && gy === cy);
+  });
+}
+
+/** 实时音频状态（主进程每 600ms 推送）：文字 + 电平条 */
+function updateAvStatusMeter(s) {
+  const meter = $('#av-meter');
+  const status = $('#av-status');
+  if (!meter || !status) return;
+  const av = { ...AV_DEFAULTS, ...(state.settings.audioViz || {}) };
+  if (!av.enabled) {
+    status.textContent = '已关闭';
+    meter.querySelectorAll('i').forEach(i => i.classList.remove('on'));
+    return;
+  }
+  if (!s) return;
+  if (s.error) {
+    status.textContent = `捕获异常：${s.error}（自动重试中…）`;
+  } else if (s.capturing) {
+    status.textContent = s.level > 0.01
+      ? '正在捕获系统声音 · 随节奏起伏'
+      : '正在捕获系统声音 · 当前安静（播放音乐试试）';
+  } else {
+    status.textContent = '正在建立音频捕获…';
+  }
+  const cells = meter.querySelectorAll('i');
+  const lit = Math.round(Math.min(1, s.level || 0) * cells.length);
+  cells.forEach((c, i) => c.classList.toggle('on', i < lit));
+}
+
+function buildAvMeter() {
+  const meter = $('#av-meter');
+  if (!meter || meter.children.length) return;
+  for (let i = 0; i < 14; i++) {
+    const bar = document.createElement('i');
+    bar.style.height = (6 + i * 1.2) + 'px';
+    meter.appendChild(bar);
+  }
+}
+
+function bindAudioVizSettings() {
+  $('#av-enabled').addEventListener('change', (e) => {
+    saveAudioViz({ enabled: e.target.checked });
+    if (!e.target.checked) updateAvStatusMeter(null);
+    toast(e.target.checked ? '音律动效已开启，播放任意声音即可看到效果（外放/耳机均可）' : '音律动效已关闭');
+  });
+  $$('#av-style button').forEach(b => {
+    b.addEventListener('click', () => {
+      $$('#av-style button').forEach(x => x.classList.toggle('active', x === b));
+      saveAudioViz({ style: b.dataset.style });
+      renderAudioVizSettings();
+    });
+  });
+  $$('#av-pos button').forEach(b => {
+    b.addEventListener('click', () => {
+      $$('#av-pos button').forEach(x => x.classList.toggle('active', x === b));
+      // 点预设 = 清除手动拖动位置，回到底部/顶部
+      saveAudioViz({ pos: b.dataset.pos, posX: null, posY: null });
+      renderAudioVizSettings();
+    });
+  });
+  // 九宫格快速定位：点击写入 posX/posY（与滑杆/拖动同一数据源，原有调节全部保留）
+  const avGrid = $('#av-pos9');
+  if (avGrid && !avGrid.children.length) {
+    for (const cell of Object.keys(AV_GRID)) {
+      const b = document.createElement('button');
+      b.className = 'pos-cell';
+      b.dataset.cell = cell;
+      b.title = POS_LABELS[cell];
+      b.addEventListener('click', () => {
+        const [gx, gy] = AV_GRID[cell];
+        saveAudioViz({ posX: gx / 100, posY: gy / 100 });
+        renderAudioVizSettings();
+      });
+      avGrid.appendChild(b);
+    }
+  }
+  // 精确位置滑杆（X/Y 百分比，拖动即保存；桌面调整模式拖动结果也同步到这里）
+  const avXyApply = () => {
+    const px = Math.round(parseFloat($('#av-posx').value));
+    const py = Math.round(parseFloat($('#av-posy').value));
+    $('#av-xy-val').textContent = `X ${px}% · Y ${py}%`;
+    highlightXyPresets();
+  };
+  const avXyLine = (sliderId, numId, key) => {
+    $(sliderId).addEventListener('input', (e) => {
+      $(numId).value = e.target.value;
+      saveAudioViz({ [key]: parseFloat(e.target.value) / 100 });
+      avXyApply();
+    });
+    const applyNum = () => {
+      const el = $(numId);
+      let v = parseFloat(el.value);
+      if (Number.isNaN(v)) return;
+      v = Math.min(parseFloat(el.max), Math.max(parseFloat(el.min), v));
+      $(sliderId).value = v;
+      el.value = v;
+      saveAudioViz({ [key]: v / 100 });
+      avXyApply();
+    };
+    $(numId).addEventListener('change', applyNum);
+    $(numId).addEventListener('keydown', (e) => { if (e.key === 'Enter') { applyNum(); e.target.blur(); } });
+  };
+  avXyLine('#av-posx', '#av-posx-num', 'posX');
+  avXyLine('#av-posy', '#av-posy-num', 'posY');
+  // X/Y 固定调整点：四角 + 居中
+  const xyRow = $('#av-xy-presets');
+  if (xyRow) {
+    xyRow.innerHTML = '';
+    for (const p of [
+      { label: '↖ 左上', x: 10, y: 12 }, { label: '↗ 右上', x: 90, y: 12 },
+      { label: '◎ 居中', x: 50, y: 50 },
+      { label: '↙ 左下', x: 10, y: 88 }, { label: '↘ 右下', x: 90, y: 88 },
+    ]) {
+      const b = document.createElement('button');
+      b.className = 'preset-chip';
+      b.dataset.x = p.x;
+      b.dataset.y = p.y;
+      b.textContent = p.label;
+      b.addEventListener('click', () => {
+        $('#av-posx').value = p.x; $('#av-posx-num').value = p.x;
+        $('#av-posy').value = p.y; $('#av-posy-num').value = p.y;
+        saveAudioViz({ posX: p.x / 100, posY: p.y / 100 });
+        avXyApply();
+      });
+      xyRow.appendChild(b);
+    }
+  }
+  $$('#av-gradient button').forEach(b => {
+    b.addEventListener('click', () => {
+      $$('#av-gradient button').forEach(x => x.classList.toggle('active', x === b));
+      saveAudioViz({ gradient: b.dataset.gradient === 'on' });
+    });
+  });
+  $('#av-color').addEventListener('input', (e) => {
+    saveAudioViz({ color: e.target.value });
+    renderAvColors(e.target.value);
+  });
+  const bindAvSlider = (id, key, fmt, presetsRow, presets) => {
+    const apply = (v) => {
+      $(id + '-val').textContent = fmt(v);
+      saveAudioViz({ [key]: v });
+      highlightPresetRow(presetsRow, v);
+    };
+    $(id).addEventListener('input', (e) => {
+      const v = parseFloat(e.target.value);
+      $(id + '-num').value = v;
+      apply(v);
+    });
+    const applyNum = () => {
+      const el = $(id + '-num');
+      let v = parseFloat(el.value);
+      if (Number.isNaN(v)) return;
+      v = Math.min(parseFloat(el.max), Math.max(parseFloat(el.min), v));
+      $(id).value = v;
+      el.value = String(v);
+      apply(v);
+    };
+    $(id + '-num').addEventListener('change', applyNum);
+    $(id + '-num').addEventListener('keydown', (e) => { if (e.key === 'Enter') { applyNum(); e.target.blur(); } });
+    if (presetsRow && presets) renderPresetRow(presetsRow, presets, apply);
+  };
+  bindAvSlider('#av-opacity', 'opacity', v => Math.round(v) + '%', $('#av-opacity-presets'), [30, 50, 70, 85, 100]);
+  bindAvSlider('#av-size', 'size', v => v.toFixed(1) + '×', $('#av-size-presets'), [0.5, 0.8, 1, 1.5, 2]);
+  bindAvSlider('#av-sens', 'sensitivity', v => v.toFixed(1), $('#av-sens-presets'), [0.5, 1, 1.5, 2, 3]);
+  $('#av-mirror').addEventListener('change', (e) => saveAudioViz({ mirror: e.target.checked }));
+  // 调整位置：进入调整模式后桌面整窗可拖动（主进程回传状态同步按钮）
+  $('#btn-av-adjust').addEventListener('click', async () => {
+    const res = await window.api.setAvizAdjust(!avAdjusting);
+    if (!res && !avAdjusting) toast('音律动效未启用，无法调整位置', 'error');
+  });
+  buildAvMeter();
 }
 
 // ---------- 桌面快捷方式转盘 ----------
 let launcherCfg = null;
+
+/** 一键收纳后的剩余情况提示：显示/隐藏管理员按钮 + 更新提示文案 */
+function updateBoxLeftoverHint(res) {
+  const btn = $('#btn-lc-box-public');
+  const hint = $('#lc-leftover-hint');
+  if (!btn || !hint) return;
+  const hasPublic = res && res.publicLeft > 0;
+  btn.classList.toggle('hidden', !hasPublic);
+  if (res && (hasPublic || res.folders > 0)) {
+    const parts = [];
+    if (hasPublic) parts.push(`公共桌面还有 ${res.publicLeft} 个快捷方式待管理员授权收纳（点上方 🛡️ 按钮）`);
+    if (res.folders > 0) parts.push(`桌面还有 ${res.folders} 个文件夹（用户数据，不自动移动）`);
+    hint.textContent = parts.join('；') + '。系统图标（此电脑 / 回收站等）不是文件，无法收纳。';
+  } else if (res) {
+    hint.textContent = '桌面快捷方式已全部收纳。系统图标（此电脑 / 回收站等）不是文件、桌面文件夹是用户数据，均不移动。';
+  }
+}
 
 async function renderLauncherSettings() {
   try {
@@ -964,7 +1481,12 @@ async function renderLauncherSettings() {
   const lc = launcherCfg;
   $('#lc-enabled').checked = !!lc.enabled;
   $$('#lc-count button').forEach(b => b.classList.toggle('active', +b.dataset.count === (lc.count || 8)));
+  const lcCountNum = $('#lc-count-num');
+  if (document.activeElement !== lcCountNum) lcCountNum.value = lc.count || 8;
   $('#lc-autocollapse').checked = lc.autoCollapse !== false;
+  $$('#lc-orient button').forEach(b => b.classList.toggle('active', b.dataset.orient === (lc.orientation || 'h')));
+  $('#lc-edgefade').checked = !!lc.edgeFade;
+  syncLcGrid();
 
   const list = $('#lc-list');
   list.innerHTML = '';
@@ -981,7 +1503,10 @@ async function renderLauncherSettings() {
     item.className = 'lc-item';
     const ico = document.createElement('div');
     ico.className = 'lc-ico';
-    if (s.icon) {
+    if (s.type === 'system') {
+      const sysEmoji = { recycle: '🗑️', control: '⚙️', network: '🌐', thispc: '💻' };
+      ico.textContent = sysEmoji[s.sysId] || '🖥️';
+    } else if (s.icon) {
       const img = document.createElement('img');
       img.src = s.icon;
       ico.appendChild(img);
@@ -1012,21 +1537,72 @@ async function renderLauncherSettings() {
   });
 }
 
+/** 转盘九宫格高亮跟随 launcherCfg.grid（null/拖动自定义位置 = 不亮） */
+function syncLcGrid() {
+  $$('#lc-pos9 .pos-cell').forEach(b =>
+    b.classList.toggle('active', !!launcherCfg && launcherCfg.grid === b.dataset.cell));
+}
+
 function bindLauncherSettings() {
   $('#lc-enabled').addEventListener('change', async (e) => {
     await window.api.updateLauncherConfig({ enabled: e.target.checked });
     toast(e.target.checked ? '快捷方式转盘已开启，回到桌面查看效果' : '快捷方式转盘已关闭，收纳的快捷方式已恢复到桌面');
   });
+  const applyLcCount = async (v) => {
+    v = Math.min(12, Math.max(1, Math.round(v) || 8));
+    $('#lc-count-num').value = v;
+    launcherCfg.count = v;
+    $$('#lc-count button').forEach(x => x.classList.toggle('active', +x.dataset.count === v));
+    await window.api.updateLauncherConfig({ count: v });
+  };
   $$('#lc-count button').forEach(b => {
-    b.addEventListener('click', async () => {
-      $$('#lc-count button').forEach(x => x.classList.toggle('active', x === b));
-      await window.api.updateLauncherConfig({ count: +b.dataset.count });
-      launcherCfg.count = +b.dataset.count;
-    });
+    b.addEventListener('click', () => applyLcCount(+b.dataset.count));
+  });
+  const lcCountNum = $('#lc-count-num');
+  lcCountNum.addEventListener('change', () => applyLcCount(parseFloat(lcCountNum.value)));
+  lcCountNum.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { applyLcCount(parseFloat(lcCountNum.value)); lcCountNum.blur(); }
   });
   $('#lc-autocollapse').addEventListener('change', (e) => {
     launcherCfg.autoCollapse = e.target.checked;
     window.api.updateLauncherConfig({ autoCollapse: e.target.checked });
+  });
+  $$('#lc-orient button').forEach(b => {
+    b.addEventListener('click', async () => {
+      $$('#lc-orient button').forEach(x => x.classList.toggle('active', x === b));
+      launcherCfg.orientation = b.dataset.orient;
+      await window.api.updateLauncherConfig({ orientation: b.dataset.orient });
+    });
+  });
+  // 调整位置：进入调整模式后桌面整窗可拖动（主进程回传状态同步按钮）
+  $('#btn-lc-adjust').addEventListener('click', async () => {
+    const res = await window.api.setLauncherAdjust(!lcAdjusting);
+    if (!res && !lcAdjusting) toast('快捷方式转盘未启用，无法调整位置', 'error');
+  });
+  // 九宫格快速定位：点击 → 主进程换算物理坐标并即时挪窗；「默认」恢复底部居中
+  const lcGrid = $('#lc-pos9');
+  if (lcGrid && !lcGrid.children.length) {
+    for (const cell of Object.keys(POS_LABELS)) {
+      const b = document.createElement('button');
+      b.className = 'pos-cell';
+      b.dataset.cell = cell;
+      b.title = POS_LABELS[cell];
+      b.addEventListener('click', async () => {
+        await window.api.updateLauncherConfig({ grid: cell });
+        if (launcherCfg) launcherCfg.grid = cell;
+        syncLcGrid();
+      });
+      lcGrid.appendChild(b);
+    }
+  }
+  $('#lc-pos-reset').addEventListener('click', async () => {
+    await window.api.updateLauncherConfig({ grid: null });
+    if (launcherCfg) launcherCfg.grid = null;
+    syncLcGrid();
+  });
+  $('#lc-edgefade').addEventListener('change', (e) => {
+    launcherCfg.edgeFade = e.target.checked;
+    window.api.updateLauncherConfig({ edgeFade: e.target.checked });
   });
   $('#btn-lc-add').addEventListener('click', async () => {
     const res = await window.api.addLauncherShortcuts();
@@ -1037,6 +1613,36 @@ function bindLauncherSettings() {
     const res = await window.api.pickDesktopShortcuts();
     if (!res.ok) toast(res.error || '无法打开桌面图标选择器', 'error');
     // 确认/取消后主进程通过 launcher:changed 通知刷新并提示结果
+  });
+  $('#btn-lc-box-all').addEventListener('click', async () => {
+    const res = await window.api.boxAllDesktopShortcuts();
+    if (res.boxed > 0) {
+      let msg = `已收纳全部 ${res.boxed} 个桌面快捷方式`;
+      const left = [];
+      if (res.publicLeft > 0) left.push(`${res.publicLeft} 个公共桌面快捷方式（需管理员，点下方按钮授权收纳）`);
+      if (res.folders > 0) left.push(`${res.folders} 个文件夹`);
+      if (left.length) msg += `；桌面剩余 ${left.join('、')}`;
+      toast(msg);
+    } else {
+      toast('桌面上没有可收纳的快捷方式', 'error');
+    }
+    updateBoxLeftoverHint(res);
+    renderLauncherSettings();
+  });
+  $('#btn-lc-box-public').addEventListener('click', async () => {
+    const btn = $('#btn-lc-box-public');
+    btn.disabled = true;
+    const res = await window.api.boxPublicDesktopShortcuts();
+    btn.disabled = false;
+    if (res.declined) toast('已取消授权（可稍后再试）', 'error');
+    else if (res.moved > 0) toast(`已收纳 ${res.moved} 个公共桌面快捷方式${res.failed ? `（${res.failed} 个失败）` : ''}`);
+    else if (res.failed) toast(`收纳失败 ${res.failed} 个`, 'error');
+    else toast('公共桌面没有待收纳的快捷方式');
+    renderLauncherSettings();
+    // 重新统计剩余情况
+    const cfg = await window.api.getLauncherConfig();
+    updateBoxLeftoverHint({ publicLeft: 0 }); // boxPublic 后公共桌面已处理，粗略隐藏按钮
+    if (!res.moved) $('#btn-lc-box-public').classList.remove('hidden');
   });
   $('#btn-lc-restore-all').addEventListener('click', async () => {
     const res = await window.api.restoreAllLauncher();
@@ -1156,6 +1762,62 @@ async function checkMpv() {
   }
 }
 
+// ---------- 检查更新（静默：无弹窗，只有文字与亮点提示） ----------
+function renderUpdateStatus() {
+  const dot = $('#update-dot');
+  const status = $('#update-status');
+  const dlBtn = $('#btn-open-download');
+  if (!dot || !status) return;
+  const u = state.update;
+  if (!u) {
+    dot.classList.add('hidden');
+    dlBtn?.classList.add('hidden');
+    return;
+  }
+  if (u.hasUpdate) {
+    // 有新版本：标题栏呼吸亮点 + 设置页高亮与下载入口（是否更新用户自己决定）
+    dot.classList.remove('hidden');
+    dot.title = `发现新版本 v${u.latest}（当前 v${u.current}），点击查看`;
+    status.innerHTML = `<b class="upd-hint">发现新版本 v${u.latest}</b>（当前 v${u.current}）· 是否更新由你决定`;
+    if (dlBtn) dlBtn.classList.remove('hidden');
+  } else if (u.error) {
+    dot.classList.add('hidden');
+    dlBtn?.classList.add('hidden');
+    status.textContent = `检查更新失败：${u.error}（可在网络恢复后手动重试）`;
+  } else {
+    dot.classList.add('hidden');
+    dlBtn?.classList.add('hidden');
+    status.textContent = `已是最新版本 v${u.current}`;
+  }
+}
+
+function bindUpdateCheck() {
+  // 标题栏亮点：点击跳到设置页"版本与更新"
+  $('#update-dot').addEventListener('click', () => {
+    const nav = document.querySelector('.nav-item[data-page="settings"]');
+    if (nav) nav.click();
+    const card = $('#about-card');
+    if (card) {
+      card.classList.remove('upd-flash');
+      void card.offsetWidth; // 重置动画
+      card.classList.add('upd-flash');
+    }
+  });
+  $('#btn-check-update').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const status = $('#update-status');
+    btn.disabled = true;
+    status.textContent = '正在检查更新…';
+    const result = await window.api.checkUpdateNow();
+    state.update = result;
+    renderUpdateStatus();
+    btn.disabled = false;
+  });
+  $('#btn-open-download').addEventListener('click', () => {
+    window.api.openDownloadPage(state.update?.releaseUrl);
+  });
+}
+
 // ---------- 网页壁纸弹窗 ----------
 function bindModal() {
   $('#web-cancel').addEventListener('click', () => $('#modal-web').classList.add('hidden'));
@@ -1196,5 +1858,7 @@ document.addEventListener('DOMContentLoaded', () => {
   init();
   bindRotation();
   bindSettings();
+  bindWidgetsSettings(); // ★ v1.6.0 遗漏：组件设置页开关从未绑定 → 点总开关无任何效果
   bindLauncherSettings();
+  bindAudioVizSettings();
 });

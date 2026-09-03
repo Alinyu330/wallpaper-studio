@@ -1,5 +1,5 @@
 // main.js — Electron 主进程：窗口管理、壁纸引擎调度、IPC、托盘
-const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, screen, nativeImage, shell, globalShortcut, powerMonitor, powerSaveBlocker } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, dialog, screen, nativeImage, shell, globalShortcut, powerMonitor, powerSaveBlocker, session, desktopCapturer } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const util = require('util');
@@ -9,9 +9,33 @@ const { VideoEngine } = require('./src/video-engine');
 const { ExeWallpaper } = require('./src/exe-wallpaper');
 const { StatsCollector } = require('./src/widgets-stats');
 const { LauncherHost } = require('./src/launcher');
+const { WidgetsHost } = require('./src/widgets-host');
 const desktop = require('./src/desktop');
 const { detectType, DIALOG_FILTERS } = require('./src/file-types');
 const lockscreen = require('./src/lockscreen');
+const updater = require('./src/updater');
+
+// ---------- 渲染策略 ----------
+// 组件覆盖层/转盘窗口常驻桌面且从不获得焦点：Chromium 自动播放策略会把
+// 这类窗口的 AudioContext 置为 suspended（resume() 也被拒绝），
+// 音律动效频谱恒为 0 —— 表现为"打开动效后桌面没有任何反应"。
+// 关闭自动播放手势要求，让后台覆盖层窗口的 WebAudio 正常工作。
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
+// ---------- 覆盖层渲染保活（核心修复） ----------
+// 挂到 Progman 的透明子窗口（转盘/组件/音律动效）会被 Chromium 的
+// 原生窗口遮挡计算(CalculateNativeWinOcclusion)判为"被完全遮挡/不可见"，
+// 从而完全停止合成新帧 —— 表现为：画面冻结在旧帧（收纳后"一片空白"）、
+// 鼠标靠近才显示、偶现鼠标靠近无法唤醒、拖动时画面不动看似无响应。
+// 本机是 Win11 raised desktop（Progman 带 WS_EX_NOREDIRECTIONBITMAP），
+// 透明子窗口还受 EnableTransparentHwndEnlargement 影响。
+// ★ v1.8.3 移除 EnableTransparentHwndEnlargement：保留它会引发 mpv 视频渲染异常
+// （widgets 全屏透明子窗口挂壁纸上时，mpv 子窗口的视频帧会被 DWM 抑制合成），
+// 导致壁纸"不会正常播放"。仅保留 CalculateNativeWinOcclusion —— 这是修复
+// "鼠标靠近才显示"的最小必要开关（用户上轮确认该状态下壁纸播放正常）。
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 
 // ---------- 全局异常防护 ----------
 // 背景：Electron 主进程的定时器/事件回调若抛出未捕获异常，默认行为是弹出
@@ -61,14 +85,11 @@ let launcherHost = null;
 let rotationTimer = null;
 let isQuitting = false;
 
-// 桌面 DIY 组件（覆盖层窗口 + 数据采集 + 光标轮询输入开关）
-let widgetsWindow = null;
-let widgetsHwnd = 0;
-let widgetRects = [];      // 组件可交互矩形（物理像素，相对组件窗口）
+// 桌面 DIY 组件 + 音律动效（v1.9.0：Wallpaper Engine 式每组件独立小窗口。
+// v1.8.x 的全屏透明组件窗口会毒化 DWM 对 Progman 树的合成 —— mpv 视频帧被
+// 抑制（壁纸冻结）、组件自身"鼠标靠近才显示"，已整体废弃）
+let widgetsHost = null;
 let statsCollector = null;
-let widgetsInputTimer = null; // 光标轮询定时器
-let widgetsInputOn = false;   // 当前是否允许组件接收鼠标（非穿透）
-let widgetsInteracting = false; // 组件交互中（拖动等，保持可点击直到鼠标释放）
 
 // 全局暂停（视频冻结 + 轮换停止）
 let globalPaused = false;
@@ -80,6 +101,8 @@ let lastPreviewData = null; // {wallpaper, params, display}
 // 当前生效的壁纸与参数
 let currentWallpaper = null;   // {id,name,path,type}
 let currentParams = null;
+let lastApplyAt = 0;           // 上次应用/切换壁纸的时间戳（启动恢复看门狗用）
+let applyRetryCount = 0;       // 启动后引擎拉起失败的重试次数
 
 const DEFAULT_PARAMS = {
   speed: 1,          // 播放速度 0.25~4
@@ -111,6 +134,12 @@ if (!gotLock) {
 
 // ---------- 壁纸渲染窗口 ----------
 let wallpaperHwnd = 0; // 壁纸窗口 HWND（用于 mpv 嵌入与铺满）
+// Win11 24H2 桌面带规则（实测）：覆盖层窗口只有在壁纸挂载建立桌面带之前
+// 呈现首帧，才会被 DWM 持续合成 —— 晚于壁纸挂载的组件/转盘会永久隐身。
+let overlayBootBarrier = Promise.resolve(); // 启动屏障：壁纸挂载前等全部覆盖层首帧
+let bootPhase = true; // 启动阶段（桌面带尚未建立，无需重置）
+let bandSuspended = false; // 桌面带重置中（暂停挂载相关看门狗）
+let bandResetChain = Promise.resolve(); // 序列化重置任务
 function createWallpaperWindow() {
   // 用 Electron screen 计算所有显示器的并集（DIP 坐标，Electron 自动处理 DPI 转换）
   const displays = screen.getAllDisplays();
@@ -141,13 +170,19 @@ function createWallpaperWindow() {
   // 页面就绪后：先以非激活方式显示，再挂载到桌面壁图层
   wallpaperHwnd = Number(wallpaperWindow.getNativeWindowHandle().readBigInt64LE(0));
   wallpaperWindow.once('ready-to-show', () => {
-    wallpaperWindow.showInactive();
-    // attach 内部会优先挂到 WorkerW 并用物理像素精确铺满虚拟桌面
-    const ok = desktop.attachToDesktop(wallpaperHwnd);
-    console.log(`[engine] 壁纸窗口嵌入桌面 ${ok ? '成功' : '失败'} hwnd=${wallpaperHwnd}`);
-    // WorkerW 可能延迟生成：稍后复查挂载层级
-    setTimeout(() => checkWallpaperAttach(), 800);
-    setTimeout(() => checkWallpaperAttach(), 2500);
+    // 启动屏障：等全部组件/转盘呈现首帧后再挂壁纸（桌面带建立），
+    // 让覆盖层赶上建立时机、被 DWM 持续合成
+    overlayBootBarrier.then(() => {
+      if (!wallpaperWindow || wallpaperWindow.isDestroyed() || !wallpaperHwnd) return;
+      wallpaperWindow.showInactive();
+      // attach 内部会优先挂到 WorkerW 并用物理像素精确铺满虚拟桌面
+      const ok = desktop.attachToDesktop(wallpaperHwnd);
+      console.log(`[engine] 壁纸窗口嵌入桌面 ${ok ? '成功' : '失败'} hwnd=${wallpaperHwnd}`);
+      // v1.8.2: 组件/音律动效在独立 widgets 窗口内（不发给 wallpaper）
+      // WorkerW 可能延迟生成：稍后复查挂载层级
+      setTimeout(() => checkWallpaperAttach(), 800);
+      setTimeout(() => checkWallpaperAttach(), 2500);
+    });
   });
   // 窗口被系统销毁（如 WorkerW 重建）时自动恢复
   wallpaperWindow.on('closed', () => {
@@ -159,10 +194,21 @@ function createWallpaperWindow() {
 
 /** 复查壁纸窗口挂载层级（WorkerW 延迟生成/重建时自动纠正） */
 function checkWallpaperAttach() {
+  if (bandSuspended) return; // 桌面带重置中，避免并发挂载竞争
   if (!wallpaperWindow || wallpaperWindow.isDestroyed() || !wallpaperHwnd) return;
   const r = desktop.ensureAttached(wallpaperHwnd);
   if (r === 'reattached') console.log('[engine] 已重新挂载壁纸窗口（桌面层级变化）');
   if (r === 'dead') scheduleWallpaperRecovery();
+}
+
+/**
+ * 历史遗留包装：v1.8.4 前覆盖层挂 Progman 子窗口，晚于壁纸创建的覆盖层
+ * 不被 DWM 合成，需剥离壁纸宿主重建桌面带（伴随 mpv 重建卡顿）。
+ * 现覆盖层为顶层窗口插入 Z 序 Progman 正上方（见 desktop.js），呈现与桌面带无关，
+ * 直接执行任务即可 —— 消除组件增删时的壁纸重建。
+ */
+async function resetWallpaperBand(job) {
+  return job();
 }
 
 /** 壁纸窗口丢失时重建并恢复当前壁纸 */
@@ -190,10 +236,8 @@ function scheduleWallpaperRecovery() {
 function setupWallpaperWatch() {
   setInterval(() => {
     if (isQuitting) return;
-    // 组件覆盖层保活（保持在图标层之上、普通窗口之下）
-    if (widgetsWindow && !widgetsWindow.isDestroyed() && widgetsHwnd) {
-      desktop.ensureWidgetsOverlay(widgetsHwnd);
-    }
+    // 组件窗口保活（v1.9.0：每组件独立小窗口，launcher 同款位置/配方）
+    if (widgetsHost) widgetsHost.watchdog();
     // 快捷方式转盘保活（图标层之上，位置不变）
     if (launcherHost) launcherHost.watchdog();
     if (!wallpaperWindow || wallpaperWindow.isDestroyed()) {
@@ -201,8 +245,22 @@ function setupWallpaperWatch() {
       return;
     }
     checkWallpaperAttach();
+    // 启动恢复兜底：开机/启动后 mpv 因窗口竞态等原因未拉起（引擎既无前台槽），
+    // 15 秒宽限期后自动重新应用当前壁纸（最多 3 次），修复"重启后壁纸不显示"
+    if (
+      currentWallpaper && currentWallpaper.type === 'video'
+      && !videoEngine.isRunning
+      && Date.now() - lastApplyAt > 15000
+      && applyRetryCount < 3
+    ) {
+      applyRetryCount++;
+      console.warn(`[engine] 恢复看门狗：视频壁纸未在运行，自动重新应用（第 ${applyRetryCount}/3 次）`);
+      applyWallpaper(currentWallpaper, currentParams);
+      return;
+    }
     // Chromium 重建渲染层（GPU 重启等）可能把 mpv 窗口重新压底，周期性确保
     if (currentWallpaper?.type === 'video' && videoEngine?.isRunning) {
+      applyRetryCount = 0; // 引擎健康运行：清空重试计数（后续故障可再获重试额度）
       raiseMpvWindow();
       // 暂停状态对账：防止 mpv 实际状态与应用期望状态脱节（如快速切换壁纸的时序竞态
       // 导致 mpv 被置暂停后无人恢复，视频壁纸永久卡住）。幂等设置，无副作用。
@@ -211,99 +269,83 @@ function setupWallpaperWatch() {
   }, 4000);
 }
 
-// ---------- 桌面 DIY 组件（叠加在壁纸上、图标层之下） ----------
-/** 是否有任一组件启用 */
-function widgetsActive() {
-  const w = store?.settings?.widgets;
-  if (!w || !w.enabled) return false;
-  return Object.values(w.items || {}).some(i => i && i.on);
+/**
+ * 覆盖层高频重绘看门狗（独立 1s 循环）。
+ * 透明子窗口（组件/音律动效/转盘）挂入 Progman 后，DWM 会不定期停止合成，
+ * 表现为"开了没效果、鼠标划过才显示"。低频（4s）重绘不够及时 —— 用 1s 周期
+ * invalidate + nudge 强制 DWM 持续合成，彻底消除"悬停才显示"。
+ */
+function setupOverlayRepaintWatch() {
+  // v1.9.0：每个组件小窗口 + 转盘定期强制重绘，防 DWM 停止合成
+  setInterval(() => {
+    if (isQuitting) return;
+    if (widgetsHost) widgetsHost.repaintAll();
+    if (launcherHost && launcherHost.win && !launcherHost.win.isDestroyed()) {
+      launcherHost.repaint();
+    }
+  }, 1000);
 }
 
-/** 应用组件配置：创建/销毁组件窗口，启停采集与输入轮询 */
-function applyWidgetsConfig() {
-  const active = widgetsActive();
-  if (active) {
-    createWidgetsWindow();
-    startStatsCollector();
-  } else {
-    destroyWidgetsWindow();
-    stopStatsCollector();
+// ---------- 桌面 DIY 组件 + 音律动效（v1.9.0：每组件独立小窗口） ----------
+/** 配置变化入口（设置页开关/参数、桌面拖动落位后）：增删组件窗口 + 推送 */
+async function applyWidgetsConfig() {
+  if (!widgetsHost) return;
+  await widgetsHost.sync(); // 串行链：await 后 parts 才反映最新开关（wantsStats 依赖）
+  if (widgetsHost.wantsStats()) startStatsCollector();
+  else stopStatsCollector();
+}
+
+/** 设置更新统一入口（IPC settings:update 与调试端点共用） */
+function applySettingsUpdate(patch) {
+  // widgets 深合并（items 单项更新；item 内字段也合并，防止局部补丁
+  // 丢失 on/pos 等字段 —— 曾表现为「调节参数后组件被异常关闭」）
+  if (patch && patch.widgets) {
+    const old = store.settings.widgets || {};
+    const w = patch.widgets;
+    const mergedItems = { ...(old.items || {}) };
+    for (const [k, v] of Object.entries(w.items || {})) {
+      mergedItems[k] = { ...(mergedItems[k] || {}), ...(v && typeof v === 'object' ? v : {}) };
+    }
+    patch = {
+      ...patch,
+      widgets: { ...old, ...w, items: mergedItems },
+    };
   }
-  sendWidgetsConfig();
-}
-
-function sendWidgetsConfig() {
-  if (!widgetsWindow || widgetsWindow.isDestroyed()) return;
-  const sf = screen.getPrimaryDisplay().scaleFactor || 1;
-  widgetsWindow.webContents.send('widgets:config', {
-    ...store.settings.widgets,
-    scaleFactor: sf,
-  });
-}
-
-function createWidgetsWindow() {
-  if (widgetsWindow && !widgetsWindow.isDestroyed()) return;
-  const displays = screen.getAllDisplays();
-  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
-  for (const d of displays) {
-    x1 = Math.min(x1, d.bounds.x); y1 = Math.min(y1, d.bounds.y);
-    x2 = Math.max(x2, d.bounds.x + d.bounds.width); y2 = Math.max(y2, d.bounds.y + d.bounds.height);
+  // launcher 深合并（关键：只调 orientation/bgOpacity/edgeFade 等参数时，
+  // 若整体替换会丢失 enabled/shortcuts/boxed/count —— 表现为「调节参数后
+  // 转盘开关被异常关闭、已收纳项消失」）
+  if (patch && patch.launcher) {
+    const old = store.settings.launcher || {};
+    patch = {
+      ...patch,
+      launcher: { ...old, ...patch.launcher },
+    };
   }
-  widgetsWindow = new BrowserWindow({
-    x: x1, y: y1, width: x2 - x1, height: y2 - y1,
-    frame: false,
-    show: false,
-    resizable: true,
-    movable: false,
-    skipTaskbar: true,
-    focusable: false,
-    transparent: true,
-    hasShadow: false,
-    backgroundColor: '#00000000',
-    webPreferences: {
-      preload: path.join(__dirname, 'preload-widgets.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      backgroundThrottling: false, // 组件需要实时更新（时钟/占用率）
-    },
-  });
-  widgetsWindow.loadFile(path.join(__dirname, 'renderer', 'widgets.html'));
-  widgetsWindow.once('ready-to-show', () => {
-    widgetsWindow.showInactive();
-    widgetsHwnd = Number(widgetsWindow.getNativeWindowHandle().readBigInt64LE(0));
-    // 挂为 Progman 子窗口、置于图标层之上（普通窗口之下），默认鼠标穿透
-    desktop.attachWidgetsOverlay(widgetsHwnd);
-    widgetsWindow.setIgnoreMouseEvents(true);
-    widgetsInputOn = false;
-    sendWidgetsConfig();
-    startWidgetsInput();
-    console.log(`[widgets] 组件覆盖层已嵌入桌面（图标层之上）hwnd=${widgetsHwnd}`);
-    setTimeout(() => {
-      if (widgetsHwnd) desktop.ensureWidgetsOverlay(widgetsHwnd);
-    }, 1500);
-  });
-  widgetsWindow.on('closed', () => {
-    widgetsWindow = null;
-    widgetsHwnd = 0;
-    widgetRects = [];
-    widgetsInteracting = false;
-  });
-}
-
-function destroyWidgetsWindow() {
-  if (widgetsWindow && !widgetsWindow.isDestroyed()) widgetsWindow.close();
-  widgetsWindow = null;
-  widgetsHwnd = 0;
-  widgetRects = [];
-  widgetsInteracting = false;
+  store.updateSettings(patch);
+  if (patch.autoStart !== undefined) {
+    applyAutoStartSetting(!!patch.autoStart);
+  }
+  if (patch.rotation !== undefined) setupRotation();
+  if (patch.widgets !== undefined) applyWidgetsConfig();
+  if (patch.audioViz !== undefined) applyWidgetsConfig(); // 音律动效与组件共用覆盖层
+  if (patch.launcher !== undefined && launcherHost) launcherHost.applyPatch(patch.launcher);
+  if (patch.wallpaperPaused !== undefined) setWallpaperPaused(patch.wallpaperPaused);
+  if (patch.hotkeyPause !== undefined) applyHotkeySetting();
+  if (patch.smoothLoop !== undefined && videoEngine) videoEngine.setSmoothLoop(patch.smoothLoop);
+  if (patch.performance !== undefined) updatePerfFlags();
+  // 推送最新配置给主界面，本地 state 与主进程保持一致
+  // （否则桌面拖动等经主进程直接写入后，界面下一次保存会用旧 state 覆盖新值）
+  notifyMain('settings:sync', store.settings);
+  return { ok: true };
 }
 
 function startStatsCollector() {
   if (!statsCollector) {
     statsCollector = new StatsCollector();
     statsCollector.on((data) => {
-      if (widgetsWindow && !widgetsWindow.isDestroyed()) {
-        widgetsWindow.webContents.send('widgets:stats', {
+      // 广播给所有组件小窗口（CPU/GPU/内存/音量各自消费）
+      if (widgetsHost) {
+        widgetsHost.broadcast({
           ...data,
           volume: currentParams?.volume ?? 0,
           mute: !!currentParams?.mute,
@@ -316,31 +358,6 @@ function startStatsCollector() {
 
 function stopStatsCollector() {
   statsCollector?.stop();
-}
-
-/**
- * 组件输入轮询：默认整窗鼠标穿透（不影响桌面操作）；
- * 光标进入任一组件矩形（或组件交互中）时切换为可点击，
- * 组件收到原生 DOM 鼠标事件（点击/拖动/滚轮），桌面不再响应。
- * 替代低级鼠标钩子方案（WH_MOUSE_LL 钩子回调会与主线程消息泵
- * 互相等待导致事件循环死锁、mpv 崩溃后无法自动恢复）。
- */
-function startWidgetsInput() {
-  if (widgetsInputTimer) return;
-  widgetsInputTimer = setInterval(() => {
-    if (!widgetsWindow || widgetsWindow.isDestroyed() || !widgetsHwnd) return;
-    const hit = widgetsInteracting || desktop.cursorInRects(widgetsHwnd, widgetRects);
-    if (hit !== widgetsInputOn) {
-      widgetsInputOn = hit;
-      try { widgetsWindow.setIgnoreMouseEvents(!hit); } catch (_) {}
-    }
-  }, 30);
-}
-
-function stopWidgetsInput() {
-  if (widgetsInputTimer) { clearInterval(widgetsInputTimer); widgetsInputTimer = null; }
-  widgetsInputOn = false;
-  widgetsInteracting = false;
 }
 
 // ---------- 壁纸引擎 ----------
@@ -373,13 +390,51 @@ function sendToWallpaper(payload) {
   }
 }
 
+// ---------- 渲染就绪回执（视频→静态平滑过渡用） ----------
+// 壁纸窗口每完成一次 image/web 渲染（图片解码完成/页面加载）发送 render:ready，
+// 主进程等到回执再把 mpv 淡出 —— 保证淡出露出的是已就绪的新静态画面而非黑底。
+let renderReadyCb = null;
+ipcMain.on('render:ready', () => {
+  const cb = renderReadyCb;
+  renderReadyCb = null;
+  if (cb) cb();
+});
+function waitForRenderReady(ms = 2500) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      renderReadyCb = null;
+      clearTimeout(timer);
+      resolve();
+    };
+    renderReadyCb = finish; // 新的等待覆盖旧等待（以最新渲染指令为准）
+    const timer = setTimeout(finish, ms);
+  });
+}
+
 /**
  * 应用壁纸（核心调度）
  * @param {object} wp 壁纸对象 {id,name,path,type}
  * @param {object} params 播放参数
+ * @param {object} [opts] { transition: 切换到不同壁纸时用平滑过渡（无黑屏/无重影） }
  */
-function applyWallpaper(wp, params) {
+function applyWallpaper(wp, params, opts = {}) {
   if (!wp) return;
+  const prev = currentWallpaper;
+  // 平滑过渡条件：运行期切换到「另一张」壁纸，且新旧都不是 EXE（EXE 需独占桌面层）
+  const useTransition = !!opts.transition
+    && prev && prev.id !== wp.id
+    && prev.type !== 'exe' && wp.type !== 'exe'
+    && !isQuitting;
+  if (useTransition) return transitionWallpaper(wp, params, prev);
+  lastApplyAt = Date.now();
+  applyWallpaperDirect(wp, params);
+}
+
+/** 直接应用壁纸（启动恢复 / 窗口重建恢复 / 同壁纸重应用） */
+function applyWallpaperDirect(wp, params) {
   currentWallpaper = wp;
   currentParams = { ...DEFAULT_PARAMS, ...(wp.params || {}), ...(params || {}) };
   store.setCurrent(wp.id, currentParams);
@@ -425,6 +480,62 @@ function applyWallpaper(wp, params) {
     }
   }
   notifyMain('wallpaper:current-changed', { wallpaper: wp, params: currentParams });
+}
+
+/**
+ * 平滑切换壁纸（v1.7.0）：动↔动 / 静↔静 / 动↔静 全组合无黑屏过渡。
+ * 原理与视频循环溶解一致 —— 垫底层全程不透明，新层淡入覆盖：
+ * - 视频→视频：旧 mpv 前台垫底，新 mpv 槽淡入盖过后杀旧；
+ * - 视频→静态：先让静态层在 mpv 之下渲染就绪（回执确认），再淡出 mpv 露出静态层；
+ * - 静态→视频：静态层垫底，新 mpv 槽淡入盖过，完全遮盖后清空静态层（黑底不可见）；
+ * - 静态→静态：wallpaper.html 内 CSS 交叉淡入（新图叠旧图淡入）。
+ */
+async function transitionWallpaper(wp, params, prev) {
+  lastApplyAt = Date.now();
+  currentWallpaper = wp;
+  currentParams = { ...DEFAULT_PARAMS, ...(wp.params || {}), ...(params || {}) };
+  store.setCurrent(wp.id, currentParams);
+  console.log(`[engine] 平滑切换壁纸: ${prev.name}(${prev.type}) → ${wp.name}(${wp.type})`);
+  updatePowerSaveBlocker();
+  // 先行通知（不等过渡完成）：主界面立即反映当前壁纸
+  notifyMain('wallpaper:current-changed', { wallpaper: wp, params: currentParams });
+  if (trayRebuild) trayRebuild();
+
+  const rect = desktop.getDesktopRect();
+  const toVideo = wp.type === 'video';
+  const fromVideo = prev.type === 'video' && videoEngine.isRunning;
+
+  if (toVideo) {
+    exeWallpaper.stop();
+    if (wallpaperWindow && !wallpaperWindow.isVisible()) wallpaperWindow.show();
+    if (fromVideo) {
+      // 视频→视频：旧前台保持不透明垫底，新视频淡入覆盖
+      videoEngine.transitionStart(wp.path, wallpaperHwnd, currentParams);
+    } else {
+      // 静态→视频：静态层垫底，新视频淡入盖过；完全遮盖后再清空静态层
+      videoEngine.transitionStart(wp.path, wallpaperHwnd, currentParams, () => {
+        sendToWallpaper({ type: 'video', params: currentParams, rect: desktop.getDesktopRect() });
+      });
+    }
+  } else {
+    // 切到静态（图片/网页）
+    exeWallpaper.stop();
+    if (wallpaperWindow && !wallpaperWindow.isVisible()) wallpaperWindow.show();
+    if (fromVideo) {
+      // 视频→静态：先渲染静态层（mpv 之下），就绪回执后再淡出 mpv
+      sendToWallpaper({ type: wp.type, src: wp.path, url: wp.url, params: currentParams, rect });
+      await waitForRenderReady(2500);
+      if (isQuitting || !(currentWallpaper && currentWallpaper.id === wp.id)) return; // 已被新切换接管
+      await videoEngine.fadeOutAndStop();
+    } else {
+      // 静态→静态：CSS 交叉淡入（新图加载完成后叠在旧图上淡入）
+      videoEngine.stopAll();
+      sendToWallpaper({
+        type: wp.type, src: wp.path, url: wp.url, params: currentParams, rect,
+        crossfade: prev.type === 'image' && wp.type === 'image',
+      });
+    }
+  }
 }
 
 /** 实时更新当前壁纸参数（无需重启；分辨率/质量变化自动重启 mpv） */
@@ -561,6 +672,27 @@ function updatePowerSaveBlocker() {
 
 // ---------- 全局快捷键：暂停/恢复壁纸 ----------
 const HOTKEY_TOGGLE = 'Control+Alt+W';
+
+/**
+ * 注册/注销开机自启（登录项）。
+ * 关键修复：开发模式下 process.execPath 是 electron.exe，不带应用目录参数的
+ * 登录项重启后只会启动一个空白 Electron —— 必须把项目路径作为参数写入；
+ * 打包后 execPath 即应用 exe，无需参数。启动时也会对已开启的自启做一次
+ * 重注册自愈（修复历史版本写坏的登录项）。
+ */
+function applyAutoStartSetting(on) {
+  try {
+    app.setLoginItemSettings({
+      openAtLogin: !!on,
+      path: process.execPath,
+      args: app.isPackaged ? [] : [path.resolve(app.getAppPath())],
+    });
+    console.log(`[autostart] 开机自启${on ? '已注册' : '已注销'} (${app.isPackaged ? 'packaged' : 'dev: ' + path.resolve(app.getAppPath())})`);
+  } catch (e) {
+    console.warn('[autostart] 注册失败:', e.message);
+  }
+}
+
 function applyHotkeySetting() {
   try {
     globalShortcut.unregister(HOTKEY_TOGGLE);
@@ -581,7 +713,7 @@ function setVideoPaused(paused) {
 // ---------- 全局暂停（视频冻结 + 轮换停止） ----------
 function setWallpaperPaused(paused) {
   globalPaused = !!paused;
-  store.updateSettings({ wallpaperPaused: globalPaused });
+  // 暂停是运行态，不写入配置（见 app.whenReady 中的启动重置）
   if (globalPaused) {
     if (rotationTimer) { clearInterval(rotationTimer); rotationTimer = null; }
     console.log('[engine] 壁纸已全局暂停');
@@ -629,7 +761,7 @@ function setupRotation() {
   const ms = Math.max(1, rot.intervalMin) * 60 * 1000;
   rotationTimer = setInterval(() => {
     const next = pickNextWallpaper();
-    if (next) applyWallpaper(next, next.params);
+    if (next) applyWallpaper(next, next.params, { transition: true }); // 平滑过渡切换
   }, ms);
   console.log(`[rotation] 定时轮换已开启，间隔 ${rot.intervalMin} 分钟，范围 ${rot.scope}，${rot.order === 'sequential' ? '顺序' : '随机'}`);
 }
@@ -638,7 +770,7 @@ function setupRotation() {
 function rotationNext() {
   const next = pickNextWallpaper();
   if (next) {
-    applyWallpaper(next, next.params);
+    applyWallpaper(next, next.params, { transition: true });
     return { ok: true, name: next.name };
   }
   return { ok: false, error: '轮换列表不足两张壁纸' };
@@ -664,6 +796,8 @@ function createMainWindow() {
   });
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.once('ready-to-show', () => mainWindow.show());
+  // 打开客户端（含从托盘重新显示）→ 静默检查更新；后台驻留（隐藏）不检查
+  mainWindow.on('show', () => scheduleAutoUpdateCheck());
   mainWindow.on('close', (e) => {
     // 点关闭 = 隐藏到托盘，真正退出走托盘菜单
     if (!isQuitting) {
@@ -688,6 +822,21 @@ function notifyMain(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send(channel, payload);
   }
+}
+
+// ---------- 检查更新（静默，无弹窗） ----------
+/** 推送更新状态给主界面（文字提示 / 亮点提示由渲染层呈现） */
+function pushUpdateStatus(result) {
+  if (!result) return;
+  notifyMain('update:status', result);
+}
+
+/** 主窗口打开时触发：静默检查，失败静默（仅日志），结果只做界面提示 */
+async function scheduleAutoUpdateCheck() {
+  try {
+    const result = await updater.autoCheck(); // 内部限频 10 分钟
+    pushUpdateStatus(result);
+  } catch (_) { /* 静默：更新检查绝不打扰 */ }
 }
 
 // ---------- 托盘 ----------
@@ -780,7 +929,7 @@ function setupIpc() {
         return { ok: false, error: '未找到 mpv 播放器，请在设置中配置 mpv 路径或将其加入 PATH' };
       }
     }
-    applyWallpaper(wp, wp.params);
+    applyWallpaper(wp, wp.params, { transition: true });
     return { ok: true };
   });
 
@@ -811,52 +960,92 @@ function setupIpc() {
   });
 
   // 设置更新
-  ipcMain.handle('settings:update', (_e, patch) => {
-    // widgets 深合并（items 单项更新）
-    if (patch && patch.widgets) {
-      const old = store.settings.widgets || {};
-      const w = patch.widgets;
-      patch = {
-        ...patch,
-        widgets: {
-          ...old,
-          ...w,
-          items: { ...(old.items || {}), ...(w.items || {}) },
-        },
-      };
-    }
-    store.updateSettings(patch);
-    if (patch.autoStart !== undefined) {
-      app.setLoginItemSettings({ openAtLogin: !!patch.autoStart, path: process.execPath });
-    }
-    if (patch.rotation !== undefined) setupRotation();
-    if (patch.widgets !== undefined) applyWidgetsConfig();
-    if (patch.launcher !== undefined && launcherHost) launcherHost.applyPatch(patch.launcher);
-    if (patch.wallpaperPaused !== undefined) setWallpaperPaused(patch.wallpaperPaused);
-    if (patch.hotkeyPause !== undefined) applyHotkeySetting();
-    if (patch.smoothLoop !== undefined && videoEngine) videoEngine.setSmoothLoop(patch.smoothLoop);
-    if (patch.performance !== undefined) updatePerfFlags();
-    return { ok: true };
+  ipcMain.handle('settings:update', (_e, patch) => applySettingsUpdate(patch));
+
+  // ---------- 桌面组件 / 音律动效 ----------
+  // v1.9.0：wallpaper-* IPC（矩形上报/穿透切换/拖动/音量/静音/动效状态）已随
+  // 全屏组件窗口一起移入 src/widgets-host.js（多窗口按 sender 归属）。
+  // 位置调整模式：主界面按钮 → 覆盖层整窗可拖动 → 松手自动保存并退出。
+  ipcMain.handle('widgets:set-adjust', (_e, key, on) => {
+    const k = String(key || '');
+    if (!k || !/^[a-z]+$/.test(k)) return false;
+    return widgetsHost ? widgetsHost.setAdjust(k, !!on) : false;
+  });
+  ipcMain.handle('audioviz:set-adjust', (_e, on) => (widgetsHost ? widgetsHost.setAdjust('aviz', !!on) : false));
+  ipcMain.handle('launcher:set-adjust', (_e, on) => (launcherHost ? launcherHost.setAdjust(!!on) : false));
+
+  // v1.8.2 调试端点：对桌面窗口调用 capturePage 并保存到 userData/.workbuddy/，
+  // 用于精确诊断组件是否真的渲染到合成层（不依赖 desktopCapturer 外部截图）。
+  ipcMain.handle('debug:capture-windows', async () => {
+    return await captureDebugScreens();
   });
 
-  // ---------- 桌面组件 ----------
-  // 组件窗口上报可交互矩形（输入轮询命中检测用）
-  ipcMain.on('widgets:report-rects', (_e, rects) => {
-    widgetRects = Array.isArray(rects) ? rects : [];
-  });
-  // 组件交互状态（按下时保持可点击直到释放，保证拖动不中断）
-  ipcMain.on('widgets:set-interacting', (_e, v) => {
-    widgetsInteracting = !!v;
-  });
-  // 音量组件调节（更新当前壁纸参数 → mpv）
-  ipcMain.on('widgets:set-volume', (_e, v) => {
-    if (currentWallpaper) updateParams({ volume: Math.min(100, Math.max(0, Math.round(v))) });
-  });
-  ipcMain.on('widgets:toggle-mute', () => {
-    if (currentWallpaper) updateParams({ mute: !currentParams?.mute });
-  });
+  // 同时提供 HTTP 控制端点（避免需要启动第二个 Electron 进程触发）
+  try {
+    const http = require('http');
+    http.createServer(async (req, res) => {
+      res.setHeader('Content-Type', 'application/json');
+      if (req.url === '/capture') {
+        const r = await captureDebugScreens();
+        res.end(JSON.stringify(r, null, 2));
+      } else if (process.env.WP_DEBUG === '1' && req.url.startsWith('/settings')) {
+        // WP_DEBUG=1 调试端点：模拟客户端 settings:update 全链路（仅本机回环）
+        try {
+          const u = new URL(req.url, 'http://127.0.0.1');
+          const patch = JSON.parse(u.searchParams.get('patch') || '{}');
+          res.end(JSON.stringify(applySettingsUpdate(patch)));
+        } catch (e) {
+          res.end(JSON.stringify({ ok: false, error: e.message }));
+        }
+      } else if (process.env.WP_DEBUG === '1' && req.url.startsWith('/bandreset')) {
+        // WP_DEBUG=1 诊断：桌面带全量重置（销毁全部覆盖层 → 无壁纸状态下重建 → 重挂壁纸）
+        const job = async () => {
+          widgetsHost.destroyAll();
+          if (launcherHost && launcherHost.win) launcherHost.destroy();
+          await new Promise((r) => setTimeout(r, 250));
+          for (const key of widgetsHost._wantParts()) widgetsHost._createPart(key);
+          if (launcherHost && launcherHost.cfg.enabled && !launcherHost.win) launcherHost.create();
+          await Promise.all([...widgetsHost._wantParts()].map((k) => widgetsHost._whenPartShown(k, 6000)));
+          await launcherHost.whenSettled(6000);
+        };
+        resetWallpaperBand(job)
+          .then(() => res.end('{"ok":true}'))
+          .catch((e) => res.end(JSON.stringify({ ok: false, error: e.message })));
+      } else if (process.env.WP_DEBUG === '1' && req.url.startsWith('/adjust')) {
+        // WP_DEBUG=1 时提供运行时触发调整模式的测试端点（仅本机回环）
+        const u = new URL(req.url, 'http://127.0.0.1');
+        const key = u.searchParams.get('key') || '';
+        const on = u.searchParams.get('on') === '1';
+        let ok = false;
+        if (key === 'launcher') ok = launcherHost ? launcherHost.setAdjust(on) : false;
+        else if (/^[a-z]+$/.test(key)) ok = widgetsHost ? widgetsHost.setAdjust(key, on) : false;
+        res.end(JSON.stringify({ ok }));
+      } else {
+        res.end('{"ok":true}');
+      }
+    }).listen(7851, '127.0.0.1', () => console.log('[debug] HTTP 控制端点已启用 http://127.0.0.1:7851/capture'));
+  } catch (e) { console.warn('[debug] HTTP 端点启动失败:', e.message); }
 
-  // ---------- 全局暂停 / 轮换 ----------
+  async function captureDebugScreens() {
+    const fs = require('fs');
+    const dir = path.join(app.getPath('userData'), '.workbuddy');
+    try { fs.mkdirSync(dir, { recursive: true }); } catch (_) {}
+    const result = {};
+    const parts = widgetsHost ? widgetsHost.captureList() : [];
+    for (const [name, win] of [['wallpaper', wallpaperWindow], ...parts, ['launcher', launcherHost?.win]]) {
+      if (!win || win.isDestroyed()) { result[name] = 'no-window'; continue; }
+      try {
+        const img = await win.webContents.capturePage();
+        const p = path.join(dir, `dbg-${name}.png`);
+        fs.writeFileSync(p, img.toPNG());
+        result[name] = { file: p, size: img.getSize() };
+      } catch (e) {
+        result[name] = 'capture-err: ' + e.message;
+      }
+    }
+    return result;
+  }
+
   ipcMain.handle('wallpaper:pause-all', (_e, paused) => {
     setWallpaperPaused(!!paused);
     return { ok: true, paused: globalPaused };
@@ -876,6 +1065,19 @@ function setupIpc() {
     const hasBundled = fs.existsSync(bundled);
     const inPath = checkMpvInPath();
     return { bundled: hasBundled, inPath, bundledPath: hasBundled ? bundled : null };
+  });
+
+  // ---------- 检查更新 ----------
+  // 手动检查（设置页按钮）：强制发起并返回结果（渲染层只做文字提示）
+  ipcMain.handle('update:check-now', async () => {
+    const result = await updater.autoCheck(true);
+    pushUpdateStatus(result);
+    return result;
+  });
+  // 前往下载（是否更新由用户决定，打开发布页手动下载安装）
+  ipcMain.handle('update:open-download', (_e, url) => {
+    updater.openDownloadPage(url);
+    return { ok: true };
   });
 
   // 显示器信息（预览比例用）
@@ -1015,17 +1217,55 @@ app.whenReady().then(() => {
   launcherHost = new LauncherHost(store);
   // 收纳/恢复/移除后通知主界面刷新快捷方式设置页（payload 为收纳结果时附带提示）
   launcherHost.onChanged = (result) => notifyMain('launcher:changed', result || null);
+  // 桌面组件 + 音律动效宿主（每组件独立小窗口）
+  widgetsHost = new WidgetsHost(store, {
+    onAvStatus: (s) => notifyMain('audioViz:status', s),
+    onVolume: (v) => { if (currentWallpaper) updateParams({ volume: Math.min(100, Math.max(0, Math.round(v))) }); },
+    onToggleMute: () => { if (currentWallpaper) updateParams({ mute: !currentParams?.mute }); },
+    onConfigChanged: () => notifyMain('settings:sync', store.settings),
+    // 调整模式状态变化 → 主界面按钮复位（拖动落位自动退出时）
+    onAdjustState: (key, on) => notifyMain('widgets:adjust-state', { key, on }),
+  });
+  // 转盘调整模式状态变化 → 主界面按钮复位
+  launcherHost.onAdjustState = (on) => notifyMain('launcher:adjust-state', { on });
+  // 覆盖层创建任务路由到桌面带重置：晚于壁纸挂载创建的覆盖层需随带重建合成
+  widgetsHost.hooks.createJob = (job) => resetWallpaperBand(job);
+  launcherHost.onCreateJob = (job) => resetWallpaperBand(job);
   createWallpaperWindow();
   createMainWindow();
   setupIpc();
   createTray();
 
-  // 恢复全局暂停状态（暂停时轮换不启动）
-  globalPaused = !!store.settings.wallpaperPaused;
+  // 开机自启自愈：设置已开启但登录项缺失/损坏（旧版本注册的坏项）时重写一次
+  if (store.settings.autoStart) applyAutoStartSetting(true);
+
+  // ---------- 音律动效：系统声音环回捕获授权 ----------
+  // 组件覆盖层通过 getDisplayMedia({audio:true}) 捕获 Windows 系统混音（WASAPI
+  // loopback）：这里程序化授权（仅允许 widgets.html 发起），视频轨由页面停用，
+  // 音频轨送 WebAudio Analyser 做频谱分析 —— 播放任何音乐/视频都会驱动动效。
+  try {
+    session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+      const url = request.frame?.url || '';
+      if (!url.includes('widgets.html')) return callback({}); // v1.8.2: 音律动效在 widgets.html 内发起
+      desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
+        callback({ video: sources[0], audio: 'loopback' });
+      }).catch(() => callback({}));
+    }, { enableLocalEcho: false });
+    console.log('[audioViz] 系统音频环回捕获已就绪（loopback）');
+  } catch (e) {
+    console.warn('[audioViz] 环回捕获初始化失败:', e.message);
+  }
+
+  // 暂停是运行态，不跨启动保留：旧版本曾把它持久化进配置，导致
+  // “暂停过一次 → 之后每次启动壁纸都是冻结画面”，这里强制恢复播放，
+  // 并把历史配置残留的 true 清理回 false（客户端初始 UI 以配置为准）
+  globalPaused = false;
+  if (store.settings.wallpaperPaused) store.updateSettings({ wallpaperPaused: false });
 
   setupRotation();
   setupPerformanceWatch();
   setupWallpaperWatch();
+  setupOverlayRepaintWatch();
   applyHotkeySetting();
 
   // 电池状态初始同步（笔记本拔电使用时立即生效）
@@ -1037,10 +1277,17 @@ app.whenReady().then(() => {
   // 恢复桌面快捷方式转盘（配置了则创建转盘窗口）
   if (store.settings.launcher?.enabled) launcherHost.create();
 
+  // 启动屏障：壁纸挂载（桌面带建立）前，等全部组件/转盘呈现真实内容帧
+  // （含 painted 等待，见 widgets-host/launcher whenSettled）
+  overlayBootBarrier = Promise.all([
+    widgetsHost.whenSettled(5000),
+    launcherHost.whenSettled(5000),
+  ]).then(() => { bootPhase = false; });
+
   // 监听屏幕分辨率变化，重新铺满（只注册一次）
   screen.on('display-metrics-changed', () => {
-    if (wallpaperHwnd) desktop.ensureAttached(wallpaperHwnd);
-    if (widgetsHwnd) { desktop.ensureAttached(widgetsHwnd); desktop.raiseToTopInParent(widgetsHwnd); }
+    if (wallpaperHwnd && !bandSuspended) desktop.ensureAttached(wallpaperHwnd);
+    if (widgetsHost) widgetsHost.onDisplayChange();
     if (exeWallpaper && exeWallpaper.isRunning && exeWallpaper.hwnd) desktop.fillDesktop(exeWallpaper.hwnd);
     launcherHost?.onDisplayChange();
   });
@@ -1083,12 +1330,12 @@ app.on('will-quit', () => {
   videoEngine?.stopAll();
   exeWallpaper?.stop();
   launcherHost?.destroy();
+  widgetsHost?.destroyAll();
   if (powerSaveId !== null) {
     try { powerSaveBlocker.stop(powerSaveId); } catch (_) {}
     powerSaveId = null;
   }
   try { globalShortcut.unregisterAll(); } catch (_) {}
-  stopWidgetsInput();
   stopStatsCollector();
 });
 

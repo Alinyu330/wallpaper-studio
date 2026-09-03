@@ -7,11 +7,13 @@
     :root {
       --icon-size: 46px;
       --slot: 56px;            /* 图标位宽 = 46 + 10 间距 */
+      --bg-op: 0.32;           /* 面板底色不透明度（配置可调） */
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
       width: 100%; height: 100%; overflow: hidden;
-      background: transparent;
+      /* 1/255 白底：全透明首帧 Chromium 跳过 present → DWM 拒绝合成（见 widgets.html） */
+      background: rgba(255, 255, 255, 0.004);
       font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
       user-select: none; -webkit-user-select: none;
       cursor: default;
@@ -19,39 +21,43 @@
 
     #widget { position: absolute; left: 0; top: 0; }
 
-    /* ---------- 展开的转盘（无边框轻量风格） ---------- */
+    /* ---------- 展开的转盘（无面板：仅图标 + 旋转条，悬浮于壁纸） ---------- */
     #expanded {
       display: flex; flex-direction: column; align-items: stretch;
-      padding: 7px 10px 6px;
+      padding: 4px 8px;
       border-radius: 20px;
-      /* 无边框：仅一层极淡的柔光底，图标区近乎悬浮于壁纸上 */
-      background: rgba(12, 14, 20, 0.30);
-      backdrop-filter: blur(10px) saturate(1.25);
-      -webkit-backdrop-filter: blur(10px) saturate(1.25);
-      box-shadow: 0 3px 16px rgba(0, 0, 0, .16);
       transition: opacity .28s ease, transform .28s cubic-bezier(.2, .8, .3, 1);
       transform-origin: 14px 50%;
     }
+    /* 倒影空间：横向在右侧图标下方渐隐（由 #dragbar 顶距留出），纵向在右侧预留 */
+    body.vertical #expanded { padding-right: 38px; }
+    body.vertical #expanded { transform-origin: 50% 14px; }
     body.collapsed #expanded {
       opacity: 0; transform: scale(.12);
       pointer-events: none;
     }
 
     #row { display: flex; align-items: center; gap: 10px; }
+    /* 纵向排列：整列布局 */
+    body.vertical #expanded { flex-direction: column; align-items: center; }
+    body.vertical #row { flex-direction: column; gap: 8px; }
 
-    /* 移动手柄（拖动摆放位置）——弱化为细点 */
-    .grip {
-      flex: none; width: 18px; height: var(--icon-size);
-      border-radius: 7px;
-      background-image: radial-gradient(circle, rgba(255,255,255,.5) 1.1px, transparent 1.2px);
-      background-size: 7px 9px; background-position: center;
-      opacity: .32; cursor: move;
-      transition: opacity .15s, background-color .15s;
+    /* ---------- 调整模式（客户端「调整位置」按钮触发；桌面本身无拖动手柄） ---------- */
+    body.adjusting #expanded {
+      outline: 2px dashed rgba(124, 92, 255, .9);
+      outline-offset: 5px;
+      cursor: move;
     }
-    .grip:hover { opacity: .85; background-color: rgba(255,255,255,.08); }
+    body.adjusting #dragbar .bar-hint {
+      opacity: 1;
+      background: rgba(124, 92, 255, .9);
+      color: #fff;
+    }
 
-    /* 图标条 */
-    #strip { position: relative; height: var(--icon-size); }
+    /* 图标条（横 / 纵由 JS 设定尺寸） */
+    #strip { position: relative; }
+    body.horizontal #strip { height: var(--icon-size); }
+    body.vertical #strip { width: var(--icon-size); }
     .item {
       position: absolute; left: 0; top: 0;
       width: var(--icon-size); height: var(--icon-size);
@@ -66,7 +72,17 @@
       background: rgba(255, 255, 255, 0.16);
       box-shadow: 0 3px 12px rgba(0, 0, 0, .28);
     }
-    .item img { width: 38px; height: 38px; pointer-events: none; }
+    .item img {
+      width: 38px; height: 38px; pointer-events: none;
+      filter: none;                     /* 图标永远全亮度，不做压暗处理 */
+    }
+    /* 快捷方式倒影：跟随转盘实时镜像，远离图标方向渐隐 */
+    body.horizontal .item {
+      -webkit-box-reflect: below 1px linear-gradient(to bottom, transparent 34%, rgba(0, 0, 0, .30));
+    }
+    body.vertical .item {
+      -webkit-box-reflect: right 1px linear-gradient(to right, transparent 34%, rgba(0, 0, 0, .30));
+    }
     .item .fallback {
       width: 38px; height: 38px; border-radius: 9px;
       display: flex; align-items: center; justify-content: center;
@@ -74,6 +90,12 @@
       background: linear-gradient(135deg, #7c5cff, #4f8cff);
       pointer-events: none;
     }
+    /* 系统特殊项图标（回收站/控制面板/网络/此电脑） */
+    .item .sys-ico {
+      width: 38px; height: 38px; pointer-events: none;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .item .sys-ico svg { width: 34px; height: 34px; filter: drop-shadow(0 2px 4px rgba(0,0,0,.35)); }
     /* 移除模式角标 */
     .item .x {
       position: absolute; top: -6px; right: -6px;
@@ -104,27 +126,71 @@
       font-size: 12.5px; letter-spacing: .5px; white-space: nowrap;
       padding: 0 8px;
     }
+    body.vertical #empty-hint { writing-mode: vertical-rl; padding: 8px 0; }
 
-    /* 拖动条（转盘轮换）——极简点阵 */
+    /* 拖动条（转盘轮换）——短横杠 + 发光圆钮 */
     #dragbar {
+      position: relative;
       align-self: center;
-      margin-top: 7px;
-      width: 56%; height: 13px;
-      border-radius: 7px;
-      background:
-        radial-gradient(circle, rgba(255,255,255,.34) 1px, transparent 1.1px) 4px 50% / 9px 3px repeat-x,
-        rgba(255, 255, 255, 0.05);
-      display: flex; align-items: center; justify-content: center; gap: 8px;
+      margin-top: 26px;                 /* 图标倒影的渐隐区 */
+      width: 64px; height: 14px;
+      display: flex; align-items: center; justify-content: center;
       cursor: grab;
-      transition: background-color .15s;
     }
-    #dragbar:active { cursor: grabbing; background-color: rgba(124, 92, 255, 0.20); }
+    body.vertical #dragbar {
+      width: 14px; height: 64px;
+      margin-top: 2px;
+    }
+    #dragbar::before {
+      content: ''; position: absolute;
+      left: 6px; right: 6px; top: 50%; height: 4px; margin-top: -2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg,
+        rgba(255, 255, 255, .08), rgba(255, 255, 255, .40) 30%,
+        rgba(255, 255, 255, .40) 70%, rgba(255, 255, 255, .08));
+      box-shadow: 0 1px 4px rgba(0, 0, 0, .35);
+      transition: background .15s;
+    }
+    body.vertical #dragbar::before {
+      left: 50%; right: auto; top: 6px; bottom: 6px;
+      width: 4px; height: auto; margin: 0 0 0 -2px;
+      background: linear-gradient(180deg,
+        rgba(255, 255, 255, .08), rgba(255, 255, 255, .40) 30%,
+        rgba(255, 255, 255, .40) 70%, rgba(255, 255, 255, .08));
+    }
+    #dragbar::after {
+      content: ''; position: absolute; left: 50%; top: 50%;
+      width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%;
+      background: rgba(255, 255, 255, .88);
+      box-shadow: 0 0 8px rgba(124, 92, 255, .65), 0 1px 3px rgba(0, 0, 0, .4);
+      transition: transform .15s, background .15s, box-shadow .15s;
+    }
+    #dragbar:hover::after {
+      transform: scale(1.3); background: #fff;
+      box-shadow: 0 0 10px rgba(124, 92, 255, .95), 0 1px 3px rgba(0, 0, 0, .4);
+    }
+    #dragbar:active { cursor: grabbing; }
+    #dragbar:active::before {
+      background: linear-gradient(90deg,
+        rgba(124, 92, 255, .30), rgba(124, 92, 255, .70) 30%,
+        rgba(124, 92, 255, .70) 70%, rgba(124, 92, 255, .30));
+    }
+    body.vertical #dragbar:active::before {
+      background: linear-gradient(180deg,
+        rgba(124, 92, 255, .30), rgba(124, 92, 255, .70) 30%,
+        rgba(124, 92, 255, .70) 70%, rgba(124, 92, 255, .30));
+    }
     #dragbar .bar-hint {
-      font-size: 10px; color: rgba(255, 255, 255, 0.5);
-      letter-spacing: 2px; pointer-events: none;
-      background: rgba(12,14,20,.82); padding: 0 8px; border-radius: 6px;
-      line-height: 12px;
+      position: absolute; bottom: calc(100% + 5px); left: 50%; transform: translateX(-50%);
+      font-size: 10px; color: rgba(255, 255, 255, 0.85);
+      letter-spacing: 2px; pointer-events: none; white-space: nowrap;
+      background: rgba(12, 14, 20, .82); padding: 1px 8px; border-radius: 6px;
+      line-height: 14px;
       opacity: 0; transition: opacity .2s;
+    }
+    body.vertical #dragbar .bar-hint {
+      bottom: auto; left: calc(100% + 5px); top: 50%; transform: translateY(-50%);
+      writing-mode: vertical-rl; padding: 8px 1px;
     }
     #dragbar:hover .bar-hint { opacity: 1; }
 
@@ -134,7 +200,7 @@
       display: flex; align-items: center; gap: 8px;
       padding: 7px 11px;
       border-radius: 16px;
-      background: rgba(12, 14, 20, 0.32);
+      background: rgba(12, 14, 20, var(--bg-op));
       backdrop-filter: blur(10px) saturate(1.25);
       -webkit-backdrop-filter: blur(10px) saturate(1.25);
       box-shadow: 0 3px 14px rgba(0, 0, 0, .18);
@@ -145,12 +211,6 @@
       pointer-events: none;
     }
     body.collapsed #pill { opacity: 1; transform: scale(1); pointer-events: auto; }
-    #pill .pill-grip {
-      width: 12px; height: 24px;
-      background-image: radial-gradient(circle, rgba(255,255,255,.5) 1px, transparent 1.1px);
-      background-size: 5px 8px; background-position: center;
-      opacity: .4; cursor: move;
-    }
     #pill .pill-ico { font-size: 15px; line-height: 1; opacity: .9; }
     #pill .pill-count {
       font-size: 11px; font-weight: 600;
@@ -180,19 +240,17 @@
     #ctx-menu .check { font-size: 11px; color: #7c5cff; }
   </style>
 </head>
-<body>
+<body class="horizontal">
   <div id="widget">
     <div id="expanded">
       <div id="row">
-        <div class="grip" id="grip" title="按住拖动 · 摆放转盘位置"></div>
         <div id="strip"></div>
         <span id="empty-hint" style="display:none">右键或点 ＋ 添加常用 App 快捷方式</span>
         <button id="add-btn" title="添加快捷方式">＋</button>
       </div>
-      <div id="dragbar" title="按住左右拖动 · 像转盘一样轮换图标"><span class="bar-hint">⟨ 拖动轮换 ⟩</span></div>
+      <div id="dragbar" title="按住拖动 · 像转盘一样轮换图标"><span class="bar-hint">⟨ 拖动轮换 ⟩</span></div>
     </div>
     <div id="pill" title="展开快捷方式转盘">
-      <div class="pill-grip" id="pill-grip" title="按住拖动 · 摆放位置"></div>
       <span class="pill-ico">⊞</span>
       <span class="pill-count" id="pill-count">0</span>
     </div>
@@ -208,19 +266,32 @@
     const emptyHint = document.getElementById('empty-hint');
     const addBtn = document.getElementById('add-btn');
     const ctxMenu = document.getElementById('ctx-menu');
+    const barHint = document.querySelector('#dragbar .bar-hint');
 
-    let cfg = { count: 8, autoCollapse: true, shortcuts: [] };
+    let cfg = { count: 8, autoCollapse: true, orientation: 'h', bgOpacity: 0.32, edgeFade: false, shortcuts: [] };
     let N = 0;                  // 快捷方式总数
-    let head = 0;               // 转盘旋转量：最左槽位对应的条目索引（浮点，连续）
+    let head = 0;               // 转盘旋转量：最左/最上槽位对应的条目索引（浮点，连续）
     let items = [];             // 图标元素（与 shortcuts 一一对应）
     let collapsed = false;
     let manageMode = false;
+    let adjusting = false;      // 调整模式：客户端按钮触发，整窗可拖动
     let collapseTimer = null;
     let animId = null;
     let wheelSnapT = null;
 
     const SLOT = 56;
-    const dpr = window.devicePixelRatio || 1;
+    const isVertical = () => (cfg.orientation === 'v');
+
+    // ---------- 系统特殊项内置图标（回收站/控制面板/网络/此电脑） ----------
+    function systemIconSvg(id) {
+      const icons = {
+        recycle: '<svg viewBox="0 0 24 24" fill="none"><path d="M6 8h12l-1.2 12.2a1.5 1.5 0 0 1-1.5 1.3H8.7a1.5 1.5 0 0 1-1.5-1.3L6 8z" fill="#5a8dee" stroke="#3c6cd0" stroke-width="1"/><path d="M4.5 8h15" stroke="#c3d4f5" stroke-width="1.4" stroke-linecap="round"/><path d="M9.5 11.5v7M14.5 11.5v7" stroke="#dfeafc" stroke-width="1.4" stroke-linecap="round"/></svg>',
+        control: '<svg viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="17" height="17" rx="3" fill="#4f8cff"/><g stroke="#dbe7ff" stroke-width="1.3"><circle cx="8.5" cy="8.5" r="1.6"/><circle cx="15.5" cy="8.5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="8.5" cy="15.5" r="1.6"/><circle cx="15.5" cy="15.5" r="1.6"/></g></svg>',
+        network: '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="7.5" fill="#34c3d9"/><circle cx="12" cy="12" r="4" fill="#eafbfe"/><circle cx="12" cy="12" r="1.4" fill="#34c3d9"/></svg>',
+        thispc: '<svg viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="12.5" rx="2" fill="#7c5cff"/><rect x="6" y="6.8" width="12" height="8" rx="1" fill="#e9e3ff"/><path d="M9.5 20h5M12 17.5V20" stroke="#7c5cff" stroke-width="1.6" stroke-linecap="round"/></svg>',
+      };
+      return icons[id] || null;
+    }
 
     // ---------- 渲染 ----------
 
@@ -233,17 +304,38 @@
       addBtn.style.display = N ? '' : 'none';
       if (!N) {
         strip.style.width = '150px';
+        strip.style.height = '';
         requestAnimationFrame(reportMetrics);
         return;
       }
       const count = visibleCount();
-      strip.style.width = (count * SLOT - (SLOT - 46)) + 'px';
+      if (isVertical()) {
+        strip.style.width = '';
+        strip.style.height = (count * SLOT - (SLOT - 46)) + 'px';
+      } else {
+        strip.style.width = (count * SLOT - (SLOT - 46)) + 'px';
+        strip.style.height = '';
+      }
       cfg.shortcuts.forEach((s, i) => {
         const el = document.createElement('div');
         el.className = 'item';
         el.dataset.i = String(i);
         el.title = s.name;
-        if (s.icon) {
+        if (s.type === 'system') {
+          // 系统特殊项（回收站/控制面板/网络/此电脑）：内置 SVG 图标
+          const svg = systemIconSvg(s.sysId);
+          if (svg) {
+            const span = document.createElement('span');
+            span.className = 'sys-ico';
+            span.innerHTML = svg;
+            el.appendChild(span);
+          } else {
+            const fb = document.createElement('div');
+            fb.className = 'fallback';
+            fb.textContent = (s.name || '?').slice(0, 1).toUpperCase();
+            el.appendChild(fb);
+          }
+        } else if (s.icon) {
           const img = document.createElement('img');
           img.src = s.icon;
           img.draggable = false;
@@ -270,35 +362,43 @@
       return Math.max(1, Math.min(cfg.count || 8, 12));
     }
 
-    /** 按当前 head 布局所有图标（转盘效果：离中心越远越小越淡） */
+    /** 按当前 head 布局所有图标（转盘效果；edgeFade 开启时边缘才淡化） */
     function layout() {
       if (!N) return;
       const count = visibleCount();
       const c = (count - 1) / 2;
+      const vert = isVertical();
       for (const el of items) {
         const i = +el.dataset.i;
         const pos = (((i - head) % N) + N) % N;   // [0, N)
-        const enterRight = pos <= count - 1 + 0.45;
-        const enterLeft = pos >= N - 0.45;        // 回绕到左端进入
-        if (!enterRight && !enterLeft) { el.style.display = 'none'; continue; }
+        const enterEnd = pos <= count - 1 + 0.45;
+        const enterStart = pos >= N - 0.45;       // 回绕到起点进入
+        if (!enterEnd && !enterStart) { el.style.display = 'none'; continue; }
         el.style.display = '';
-        const slotPos = enterLeft ? pos - N : pos;
+        const slotPos = enterStart ? pos - N : pos;
         const d = slotPos - c;
         const dist = Math.abs(d);
-        el.style.transform = `translateX(${slotPos * SLOT}px) scale(${(1 - Math.min(0.30, dist * 0.08)).toFixed(3)})`;
-        el.style.opacity = Math.max(0, 1 - Math.min(0.62, dist * 0.17)).toFixed(3);
+        const t = `translate${vert ? 'Y' : 'X'}(${slotPos * SLOT}px) scale(${(1 - Math.min(0.30, dist * 0.08)).toFixed(3)})`;
+        el.style.transform = t;
+        // 默认全亮度显示（不压暗图标）；开启「边缘淡化」后才有远近透明度差
+        el.style.opacity = cfg.edgeFade
+          ? Math.max(0.25, 1 - Math.min(0.62, dist * 0.17)).toFixed(3)
+          : '1';
         el.style.zIndex = String(100 - Math.round(dist * 2));
       }
     }
 
-    // ---------- 转盘拖动轮换（带惯性 + 吸附） ----------
+    // ---------- 转盘拖动轮换（带惯性 + 吸附；横排用 X 轴、竖排用 Y 轴） ----------
 
     let rotating = false;
-    let rotStartX = 0;
+    let rotStart = 0;
     let rotMoved = 0;
     let rotPressedIdx = -1;
     let lastMove = null;
     let vel = 0;   // 槽位/秒
+    let interactingLock = false; // 轮换拖动期间保持窗口可点击（防止中途被置回穿透）
+
+    function axisVal(e) { return isVertical() ? e.clientY : e.clientX; }
 
     function stopAnim() { if (animId) { cancelAnimationFrame(animId); animId = null; } }
 
@@ -336,33 +436,39 @@
       el.addEventListener('pointerdown', (e) => {
         if (e.button !== 0) return;
         rotating = true;
-        rotStartX = e.clientX;
+        rotStart = axisVal(e);
         rotMoved = 0;
         vel = 0;
-        lastMove = { x: e.clientX, t: performance.now() };
+        lastMove = { v: axisVal(e), t: performance.now() };
         rotPressedIdx = e.target.closest('.item') ? +e.target.closest('.item').dataset.i : -1;
         stopAnim();
+        // ★ 交互锁：拖动/点击期间主进程保持窗口可点击，
+        //   光标短暂离开矩形也不再中断（修复"拖动旋转无反应"）
+        interactingLock = true;
+        H.setInteracting(true);
         el.setPointerCapture(e.pointerId);
         e.preventDefault();
       });
       el.addEventListener('pointermove', (e) => {
         if (!rotating) return;
-        const dx = e.clientX - rotStartX;
-        rotMoved = Math.max(rotMoved, Math.abs(dx));
+        const v = axisVal(e);
+        const dv = v - rotStart;
+        rotMoved = Math.max(rotMoved, Math.abs(dv));
         const now = performance.now();
         if (lastMove) {
           const dt = Math.max(1, now - lastMove.t);
-          const inst = -((e.clientX - lastMove.x) / SLOT) / (dt / 1000);
+          const inst = -((v - lastMove.v) / SLOT) / (dt / 1000);
           vel = 0.75 * vel + 0.25 * inst;
         }
-        lastMove = { x: e.clientX, t: now };
-        head -= (e.clientX - rotStartX) / SLOT;
-        rotStartX = e.clientX;
+        lastMove = { v, t: now };
+        head -= dv / SLOT;
+        rotStart = v;
         layout();
       });
       const up = (e) => {
         if (!rotating) return;
         rotating = false;
+        if (interactingLock) { interactingLock = false; H.setInteracting(false); }
         if (rotMoved < 6 && rotPressedIdx >= 0) {
           // 点击（非拖动）：启动 / 移除模式下移除
           if (manageMode) { H.remove(rotPressedIdx); }
@@ -380,16 +486,17 @@
     bindRotate(document.getElementById('dragbar'));
 
     function pulseLaunch() {
-      expandedEl.style.boxShadow = '0 0 0 3px rgba(124, 92, 255, .55)';
-      setTimeout(() => { expandedEl.style.boxShadow = ''; }, 260);
+      expandedEl.style.transform = 'scale(0.94)';
+      setTimeout(() => { expandedEl.style.transform = ''; }, 150);
     }
 
-    // 滚轮同样可轮换
+    // 滚轮同样可轮换（调整模式下禁用，避免与整窗拖动冲突）
     for (const el of [strip, document.getElementById('dragbar')]) {
       el.addEventListener('wheel', (e) => {
         e.preventDefault();
+        if (adjusting) return;
         stopAnim();
-        head += e.deltaY * 0.0022;
+        head += (isVertical() ? e.deltaY : e.deltaY) * 0.0022;
         layout();
         clearTimeout(wheelSnapT);
         wheelSnapT = setTimeout(snapToNearest, 160);
@@ -400,6 +507,7 @@
 
     function setCollapsed(v) {
       if (collapsed === v) return;
+      if (v && adjusting) return;   // 调整模式下强制保持展开（配置推送会重排收起定时器）
       collapsed = v;
       document.body.classList.toggle('collapsed', v);
       setTimeout(reportRects, v ? 60 : 300);  // 过渡结束后上报命中矩形
@@ -407,40 +515,41 @@
 
     function scheduleCollapse() {
       clearTimeout(collapseTimer);
+      if (adjusting) return;        // 同上：调整模式期间不自动收起
       if (cfg.autoCollapse && N) {
         collapseTimer = setTimeout(() => setCollapsed(true), 3200);
       }
     }
 
     pillEl.addEventListener('click', (e) => {
-      if (e.target.closest('#pill-grip')) return;
+      if (adjusting) return;
       setCollapsed(false);
     });
 
-    // ---------- 摆放位置（拖动移动窗口） ----------
+    // ---------- 调整模式拖动（客户端「调整位置」按钮触发） ----------
+    // capture 阶段拦截指针事件：调整中任何按下都拖动整个窗口，
+    // 阻止转盘轮换/图标点击/收起等桌面交互；主进程 dragEnd 保存位置并自动退出调整模式。
 
-    function bindWindowDrag(handle) {
-      let dragging = false;
-      handle.addEventListener('pointerdown', (e) => {
-        if (e.button !== 0) return;
-        dragging = true;
-        H.setInteracting(true);
-        H.dragStart();
-        handle.setPointerCapture(e.pointerId);
-        e.preventDefault();
-      });
-      handle.addEventListener('pointermove', () => { if (dragging) H.dragMove(); });
-      const end = () => {
-        if (!dragging) return;
-        dragging = false;
-        H.dragEnd();
-        H.setInteracting(false);
-      };
-      handle.addEventListener('pointerup', end);
-      handle.addEventListener('pointercancel', end);
+    window.addEventListener('pointerdown', (e) => {
+      if (!adjusting || e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
+      H.setInteracting(true);
+      H.dragStart();
+      window.addEventListener('pointermove', onAdjustMove, true);
+      window.addEventListener('pointerup', onAdjustUp, true);
+      window.addEventListener('pointercancel', onAdjustUp, true);
+    }, true);
+
+    function onAdjustMove() { H.dragMove(); }
+    function onAdjustUp() {
+      window.removeEventListener('pointermove', onAdjustMove, true);
+      window.removeEventListener('pointerup', onAdjustUp, true);
+      window.removeEventListener('pointercancel', onAdjustUp, true);
+      H.dragEnd();
+      H.setInteracting(false);
     }
-    bindWindowDrag(document.getElementById('grip'));
-    bindWindowDrag(document.getElementById('pill-grip'));
 
     // ---------- 右键菜单 ----------
 
@@ -491,6 +600,9 @@
       const el = collapsed ? pillEl : expandedEl;
       const r = el.getBoundingClientRect();
       if (r.width < 2) return;
+      // 每次实时取 dpr：跨不同缩放率显示器拖放窗口时旧值会导致命中区错位
+      // （"偶现鼠标靠近无法唤醒"的诱因之一）
+      const dpr = window.devicePixelRatio || 1;
       H.reportRects([{
         x: Math.round(r.left * dpr), y: Math.round(r.top * dpr),
         w: Math.round(r.width * dpr), h: Math.round(r.height * dpr),
@@ -501,13 +613,23 @@
 
     H.onConfig((c) => {
       const prevCount = cfg.count;
+      const prevOrient = cfg.orientation;
       cfg = c || {};
+      // 面板透明度 → CSS 变量；排列方向 → body 类
+      document.documentElement.style.setProperty(
+        '--bg-op', String(Math.min(0.85, Math.max(0.1, Number(cfg.bgOpacity ?? 0.32)))));
+      const orient = cfg.orientation === 'v' ? 'vertical' : 'horizontal';
+      document.body.classList.toggle('vertical', orient === 'vertical');
+      document.body.classList.toggle('horizontal', orient !== 'vertical');
       renderStrip();
       if (prevCount !== cfg.count) head = 0;
+      if (prevOrient !== cfg.orientation) { head = 0; setTimeout(reportMetrics, 60); }
       if (collapsed && !cfg.autoCollapse) setCollapsed(false);
       // 初始（尚未发生任何悬停切换）也要进入「空闲自动收起」节奏：
       // hover 事件只在状态切换时到达，若不主动排定收起，转盘会一直展开
       scheduleCollapse();
+      // 配置变化后强制上报一次命中矩形（位置/尺寸可能已变化）
+      setTimeout(reportRects, 120);
     });
 
     H.onHover((v) => {
@@ -519,10 +641,35 @@
       }
     });
 
+    // 调整模式：强制展开、停用自动收起、显示提示；退出后恢复原有节奏
+    H.onAdjust((v) => {
+      const on = !!(v && v.on);
+      if (adjusting === on) return;
+      adjusting = on;
+      document.body.classList.toggle('adjusting', on);
+      if (on) {
+        clearTimeout(collapseTimer);
+        manageMode = false;
+        document.body.classList.remove('manage');
+        if (collapsed) setCollapsed(false);
+        barHint.textContent = '拖动调整位置';
+        hideCtx();
+      } else {
+        barHint.textContent = '⟨ 拖动轮换 ⟩';
+        scheduleCollapse();
+      }
+      setTimeout(reportRects, 80);
+    });
+
     // ---------- 启动 ----------
 
     H.ready();
     window.addEventListener('resize', () => { reportMetrics(); });
+
+    // 周期性重报命中矩形：转盘收起/展开、位置拖动、多显示器 DPI 变化后，
+    // 若某次事件漏报，主进程轮询命中区会停在旧值 → "偶现鼠标靠近无法唤醒"。
+    // 每 800ms 兜底重报一次，保证命中区始终与实际布局一致。
+    setInterval(reportRects, 800);
   </script>
 </body>
 </html>

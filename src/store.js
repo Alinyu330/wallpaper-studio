@@ -39,44 +39,69 @@ const DEFAULT_CONFIG = {
       batteryPause: true,       // 性能：电池供电时自动暂停视频壁纸
       maximizedPause: false,    // 性能：其他窗口最大化时暂停视频壁纸（Wallpaper Engine 同款）
     },
+    audioViz: {                 // 音律动效（系统声音频谱可视化）
+      enabled: false,
+      style: 'bars',            // bars 频谱条 / wave 波浪 / circle 圆环
+      color: '#7c5cff',         // 主色
+      gradient: true,           // 渐变色（主色 → 辅色）
+      opacity: 0.85,            // 不透明度 0.2~1
+      size: 1,                  // 大小缩放 0.5~2
+      pos: 'bottom',            // 垂直预设 bottom / top（圆环忽略，居中）
+      posX: null,               // 手动拖动位置（0~1 屏幕比例；null = 用 pos 预设）
+      posY: null,
+      mirror: true,             // 频谱条垂直镜像倒影
+      sensitivity: 1.2,         // 灵敏度 0.5~3
+    },
   },
 };
 
 class Store {
   constructor() {
     this.file = path.join(app.getPath('userData'), 'config.json');
+    this.bakFile = this.file + '.bak';
     this.data = this._load();
   }
 
   _load() {
-    try {
-      if (fs.existsSync(this.file)) {
-        const raw = JSON.parse(fs.readFileSync(this.file, 'utf-8'));
-        // 合并默认值，防止旧配置缺字段
-        return {
-          ...DEFAULT_CONFIG,
-          ...raw,
-          settings: {
-            ...DEFAULT_CONFIG.settings,
-            ...(raw.settings || {}),
-            rotation: { ...DEFAULT_CONFIG.settings.rotation, ...((raw.settings || {}).rotation || {}) },
-            widgets: {
-              ...DEFAULT_CONFIG.settings.widgets,
-              ...((raw.settings || {}).widgets || {}),
-              items: { ...DEFAULT_CONFIG.settings.widgets.items, ...(((raw.settings || {}).widgets || {}).items || {}) },
-            },
-            launcher: {
-              ...DEFAULT_CONFIG.settings.launcher,
-              ...((raw.settings || {}).launcher || {}),
-              shortcuts: (((raw.settings || {}).launcher || {}).shortcuts) || [],
-              boxed: (((raw.settings || {}).launcher || {}).boxed) || [],
-            },
-            performance: { ...DEFAULT_CONFIG.settings.performance, ...((raw.settings || {}).performance || {}) },
-          },
-        };
+    // 优先读主配置；解析失败（异常关机/断电写坏文件）时回退备份，
+    // 避免壁纸库与"当前壁纸"记录被清空 —— 这是"重启后壁纸不恢复"的一大元凶
+    const tryParse = (file) => {
+      try {
+        if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf-8'));
+      } catch (e) {
+        console.warn(`[store] 配置读取失败(${path.basename(file)}):`, e.message);
       }
-    } catch (e) {
-      console.warn('[store] 配置读取失败，使用默认配置:', e.message);
+      return null;
+    };
+    let raw = tryParse(this.file);
+    if (!raw) {
+      raw = tryParse(this.bakFile);
+      if (raw) console.warn('[store] 主配置损坏，已从备份恢复（下次保存将重建主配置）');
+    }
+    if (raw) {
+      // 合并默认值，防止旧配置缺字段
+      return {
+        ...DEFAULT_CONFIG,
+        ...raw,
+        settings: {
+          ...DEFAULT_CONFIG.settings,
+          ...(raw.settings || {}),
+          rotation: { ...DEFAULT_CONFIG.settings.rotation, ...((raw.settings || {}).rotation || {}) },
+          widgets: {
+            ...DEFAULT_CONFIG.settings.widgets,
+            ...((raw.settings || {}).widgets || {}),
+            items: { ...DEFAULT_CONFIG.settings.widgets.items, ...(((raw.settings || {}).widgets || {}).items || {}) },
+          },
+          launcher: {
+            ...DEFAULT_CONFIG.settings.launcher,
+            ...((raw.settings || {}).launcher || {}),
+            shortcuts: (((raw.settings || {}).launcher || {}).shortcuts) || [],
+            boxed: (((raw.settings || {}).launcher || {}).boxed) || [],
+          },
+          performance: { ...DEFAULT_CONFIG.settings.performance, ...((raw.settings || {}).performance || {}) },
+          audioViz: { ...DEFAULT_CONFIG.settings.audioViz, ...((raw.settings || {}).audioViz || {}) },
+        },
+      };
     }
     return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
   }
@@ -84,7 +109,28 @@ class Store {
   save() {
     try {
       fs.mkdirSync(path.dirname(this.file), { recursive: true });
-      fs.writeFileSync(this.file, JSON.stringify(this.data, null, 2), 'utf-8');
+      const json = JSON.stringify(this.data, null, 2);
+      // 原子写入：先写临时文件再改名，断电/崩溃不会留下半截 JSON；
+      // 改名前把上一份完好配置转存为 .bak（双保险）
+      const tmp = this.file + '.tmp';
+      fs.writeFileSync(tmp, json, 'utf8');
+      try {
+        if (fs.existsSync(this.file)) fs.copyFileSync(this.file, this.bakFile);
+      } catch (_) {}
+      // rename 可能因目标被短暂锁定而失败（如应用被强杀后旧进程句柄未释放、
+      // 杀软扫描等）：带退避重试，避免配置写丢。
+      let renamed = false;
+      for (let i = 0; i < 5 && !renamed; i++) {
+        try { fs.renameSync(tmp, this.file); renamed = true; }
+        catch (_) {
+          if (i < 4) {
+            const wait = 50 * (i + 1);
+            const t0 = Date.now();
+            while (Date.now() - t0 < wait) { /* 忙等，避免引入异步 save 接口改动 */ }
+          }
+        }
+      }
+      if (!renamed) throw new Error('rename 重试后仍失败');
     } catch (e) {
       console.error('[store] 配置保存失败:', e.message);
     }
