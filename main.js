@@ -419,11 +419,14 @@ function sendToWallpaper(payload) {
 // 壁纸窗口每完成一次 image/web 渲染（图片解码完成/页面加载）发送 render:ready，
 // 主进程等到回执再把 mpv 淡出 —— 保证淡出露出的是已就绪的新静态画面而非黑底。
 let renderReadyCb = null;
-ipcMain.on('render:ready', () => {
-  const cb = renderReadyCb;
-  renderReadyCb = null;
-  if (cb) cb();
-});
+// 仅主实例注册（第二实例 gotLock=false 立即退出，不注册任何 IPC 监听）
+if (gotLock) {
+  ipcMain.on('render:ready', () => {
+    const cb = renderReadyCb;
+    renderReadyCb = null;
+    if (cb) cb();
+  });
+}
 function waitForRenderReady(ms = 2500) {
   return new Promise((resolve) => {
     let done = false;
@@ -1119,9 +1122,26 @@ function setupIpc() {
       const res = await updater.downloadLatestInstaller((p) => notifyMain('update:download-progress', p));
       notifyMain('update:install-state', { stage: 'launching' });
       updater.runInstaller(res.installerPath);
-      // 留一点时间让界面显示"即将安装"，随后退出（before-quit / will-quit 做完整清理，
-      // NSIS /S 静默安装也会自行等待/结束运行中的程序）
-      setTimeout(() => { isQuitting = true; app.quit(); }, 1200);
+      // 防覆盖安装并发（v1.8.3）：旧实例若仍占用 exe/resources，NSIS /S 覆盖写盘会
+      // 半装/混版（安装后首启 JS/DOM 不一致 → “窗口在但点击无响应”）。这里 spawn
+      // 后立即同步清理引擎/窗口释放文件锁，300ms 留渲染层画“即将安装”，随后退出；
+      // 3s 兜底强制退出，避免 quit 被窗口 close 拦截而残留旧实例。
+      // ★ 退出定时器必须在清理之前调度（清理包独立 try/catch）：即便某个
+      // stop/destroy 意外抛错，本实例也必然退出，绝不带着已 spawn 的 NSIS 残留。
+      isQuitting = true;
+      setTimeout(() => {
+        try { app.quit(); } catch (_) {}
+        setTimeout(() => process.exit(0), 3000).unref();
+      }, 300);
+      try {
+        videoEngine?.stopAll();
+        exeWallpaper?.stop();
+        launcherHost?.destroy();
+        fileboxHost?.destroy();
+        widgetsHost?.destroyAll();
+      } catch (cleanupErr) {
+        console.warn('[update] 退出前清理资源异常（不阻塞退出）:', cleanupErr && cleanupErr.message);
+      }
       return { ok: true };
     } catch (e) {
       updateInstalling = false;
@@ -1270,148 +1290,154 @@ function genId() {
 }
 
 // ---------- 应用生命周期 ----------
-app.whenReady().then(() => {
-  console.log(`[main] 壁纸工坊引擎启动 v${app.getVersion()} (electron ${process.versions.electron})`);
-  store = new Store();
-  initEngine();
-  launcherHost = new LauncherHost(store);
-  // 收纳/恢复/移除后通知主界面刷新快捷方式设置页（payload 为收纳结果时附带提示）
-  launcherHost.onChanged = (result) => notifyMain('launcher:changed', result || null);
-  // 文件收纳区（从转盘拆分的普通文件/文件夹收纳）
-  fileboxHost = new FileBoxHost(store);
-  fileboxHost.onChanged = (result) => notifyMain('filebox:changed', result || null);
-  // 桌面组件 + 音律动效宿主（每组件独立小窗口）
-  widgetsHost = new WidgetsHost(store, {
-    onAvStatus: (s) => notifyMain('audioViz:status', s),
-    onVolume: (v) => { if (currentWallpaper) updateParams({ volume: Math.min(100, Math.max(0, Math.round(v))) }); },
-    onToggleMute: () => { if (currentWallpaper) updateParams({ mute: !currentParams?.mute }); },
-    onConfigChanged: () => notifyMain('settings:sync', store.settings),
-    // 调整模式状态变化 → 主界面按钮复位（拖动落位自动退出时）
-    onAdjustState: (key, on) => notifyMain('widgets:adjust-state', { key, on }),
-  });
-  // 转盘调整模式状态变化 → 主界面按钮复位
-  launcherHost.onAdjustState = (on) => notifyMain('launcher:adjust-state', { on });
-  // 文件收纳区调整模式状态变化 → 主界面按钮复位
-  fileboxHost.onAdjustState = (on) => notifyMain('filebox:adjust-state', { on });
-  // 覆盖层创建任务路由到桌面带重置：晚于壁纸挂载创建的覆盖层需随带重建合成
-  widgetsHost.hooks.createJob = (job) => resetWallpaperBand(job);
-  launcherHost.onCreateJob = (job) => resetWallpaperBand(job);
-  fileboxHost.onCreateJob = (job) => resetWallpaperBand(job);
-  createWallpaperWindow();
-  createMainWindow();
-  setupIpc();
-  createTray();
+// 单实例锁防护（v1.8.3）：仅主实例注册 whenReady 初始化与生命周期事件。
+// 未获锁（第二实例）已在上面 app.quit() —— 若这里仍注册 whenReady，
+// 第二实例会重复建窗/建引擎/抢 7851 调试端口（EADDRINUSE uncaught），
+// 与更新安装器自动拉起的新实例并发时即“安装后卡死/点击无响应”。
+if (gotLock) {
+  app.whenReady().then(() => {
+    console.log(`[main] 壁纸工坊引擎启动 v${app.getVersion()} (electron ${process.versions.electron})`);
+    store = new Store();
+    initEngine();
+    launcherHost = new LauncherHost(store);
+    // 收纳/恢复/移除后通知主界面刷新快捷方式设置页（payload 为收纳结果时附带提示）
+    launcherHost.onChanged = (result) => notifyMain('launcher:changed', result || null);
+    // 文件收纳区（从转盘拆分的普通文件/文件夹收纳）
+    fileboxHost = new FileBoxHost(store);
+    fileboxHost.onChanged = (result) => notifyMain('filebox:changed', result || null);
+    // 桌面组件 + 音律动效宿主（每组件独立小窗口）
+    widgetsHost = new WidgetsHost(store, {
+      onAvStatus: (s) => notifyMain('audioViz:status', s),
+      onVolume: (v) => { if (currentWallpaper) updateParams({ volume: Math.min(100, Math.max(0, Math.round(v))) }); },
+      onToggleMute: () => { if (currentWallpaper) updateParams({ mute: !currentParams?.mute }); },
+      onConfigChanged: () => notifyMain('settings:sync', store.settings),
+      // 调整模式状态变化 → 主界面按钮复位（拖动落位自动退出时）
+      onAdjustState: (key, on) => notifyMain('widgets:adjust-state', { key, on }),
+    });
+    // 转盘调整模式状态变化 → 主界面按钮复位
+    launcherHost.onAdjustState = (on) => notifyMain('launcher:adjust-state', { on });
+    // 文件收纳区调整模式状态变化 → 主界面按钮复位
+    fileboxHost.onAdjustState = (on) => notifyMain('filebox:adjust-state', { on });
+    // 覆盖层创建任务路由到桌面带重置：晚于壁纸挂载创建的覆盖层需随带重建合成
+    widgetsHost.hooks.createJob = (job) => resetWallpaperBand(job);
+    launcherHost.onCreateJob = (job) => resetWallpaperBand(job);
+    fileboxHost.onCreateJob = (job) => resetWallpaperBand(job);
+    createWallpaperWindow();
+    createMainWindow();
+    setupIpc();
+    createTray();
 
-  // 开机自启自愈：设置已开启但登录项缺失/损坏（旧版本注册的坏项）时重写一次
-  if (store.settings.autoStart) applyAutoStartSetting(true);
+    // 开机自启自愈：设置已开启但登录项缺失/损坏（旧版本注册的坏项）时重写一次
+    if (store.settings.autoStart) applyAutoStartSetting(true);
 
-  // ---------- 音律动效：系统声音环回捕获授权 ----------
-  // 组件覆盖层通过 getDisplayMedia({audio:true}) 捕获 Windows 系统混音（WASAPI
-  // loopback）：这里程序化授权（仅允许 widgets.html 发起），视频轨由页面停用，
-  // 音频轨送 WebAudio Analyser 做频谱分析 —— 播放任何音乐/视频都会驱动动效。
-  try {
-    session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
-      const url = request.frame?.url || '';
-      if (!url.includes('widgets.html')) return callback({}); // v1.8.2: 音律动效在 widgets.html 内发起
-      desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
-        callback({ video: sources[0], audio: 'loopback' });
-      }).catch(() => callback({}));
-    }, { enableLocalEcho: false });
-    console.log('[audioViz] 系统音频环回捕获已就绪（loopback）');
-  } catch (e) {
-    console.warn('[audioViz] 环回捕获初始化失败:', e.message);
-  }
+    // ---------- 音律动效：系统声音环回捕获授权 ----------
+    // 组件覆盖层通过 getDisplayMedia({audio:true}) 捕获 Windows 系统混音（WASAPI
+    // loopback）：这里程序化授权（仅允许 widgets.html 发起），视频轨由页面停用，
+    // 音频轨送 WebAudio Analyser 做频谱分析 —— 播放任何音乐/视频都会驱动动效。
+    try {
+      session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+        const url = request.frame?.url || '';
+        if (!url.includes('widgets.html')) return callback({}); // v1.8.2: 音律动效在 widgets.html 内发起
+        desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
+          callback({ video: sources[0], audio: 'loopback' });
+        }).catch(() => callback({}));
+      }, { enableLocalEcho: false });
+      console.log('[audioViz] 系统音频环回捕获已就绪（loopback）');
+    } catch (e) {
+      console.warn('[audioViz] 环回捕获初始化失败:', e.message);
+    }
 
-  // 暂停是运行态，不跨启动保留：旧版本曾把它持久化进配置，导致
-  // “暂停过一次 → 之后每次启动壁纸都是冻结画面”，这里强制恢复播放，
-  // 并把历史配置残留的 true 清理回 false（客户端初始 UI 以配置为准）
-  globalPaused = false;
-  if (store.settings.wallpaperPaused) store.updateSettings({ wallpaperPaused: false });
+    // 暂停是运行态，不跨启动保留：旧版本曾把它持久化进配置，导致
+    // “暂停过一次 → 之后每次启动壁纸都是冻结画面”，这里强制恢复播放，
+    // 并把历史配置残留的 true 清理回 false（客户端初始 UI 以配置为准）
+    globalPaused = false;
+    if (store.settings.wallpaperPaused) store.updateSettings({ wallpaperPaused: false });
 
-  setupRotation();
-  setupPerformanceWatch();
-  setupWallpaperWatch();
-  setupOverlayRepaintWatch();
-  applyHotkeySetting();
+    setupRotation();
+    setupPerformanceWatch();
+    setupWallpaperWatch();
+    setupOverlayRepaintWatch();
+    applyHotkeySetting();
 
-  // 电池状态初始同步（笔记本拔电使用时立即生效）
-  updatePerfFlags();
+    // 电池状态初始同步（笔记本拔电使用时立即生效）
+    updatePerfFlags();
 
-  // 恢复桌面 DIY 组件（配置了则创建组件窗口）
-  applyWidgetsConfig();
+    // 恢复桌面 DIY 组件（配置了则创建组件窗口）
+    applyWidgetsConfig();
 
-  // 恢复桌面快捷方式转盘（配置了则创建转盘窗口）
-  if (store.settings.launcher?.enabled) launcherHost.create();
+    // 恢复桌面快捷方式转盘（配置了则创建转盘窗口）
+    if (store.settings.launcher?.enabled) launcherHost.create();
 
-  // 恢复桌面文件收纳区（配置了则创建收纳区窗口）
-  if (store.settings.filebox?.enabled) fileboxHost.create();
+    // 恢复桌面文件收纳区（配置了则创建收纳区窗口）
+    if (store.settings.filebox?.enabled) fileboxHost.create();
 
-  // 启动屏障：壁纸挂载（桌面带建立）前，等全部组件/转盘/收纳区呈现真实内容帧
-  // （含 painted 等待，见 widgets-host/launcher/filebox whenSettled）
-  overlayBootBarrier = Promise.all([
-    widgetsHost.whenSettled(5000),
-    launcherHost.whenSettled(5000),
-    fileboxHost.whenSettled(5000),
-  ]).then(() => { bootPhase = false; });
+    // 启动屏障：壁纸挂载（桌面带建立）前，等全部组件/转盘/收纳区呈现真实内容帧
+    // （含 painted 等待，见 widgets-host/launcher/filebox whenSettled）
+    overlayBootBarrier = Promise.all([
+      widgetsHost.whenSettled(5000),
+      launcherHost.whenSettled(5000),
+      fileboxHost.whenSettled(5000),
+    ]).then(() => { bootPhase = false; });
 
-  // 监听屏幕分辨率变化，重新铺满（只注册一次）
-  screen.on('display-metrics-changed', () => {
-    if (wallpaperHwnd && !bandSuspended) desktop.ensureAttached(wallpaperHwnd);
-    if (widgetsHost) widgetsHost.onDisplayChange();
-    if (exeWallpaper && exeWallpaper.isRunning && exeWallpaper.hwnd) desktop.fillDesktop(exeWallpaper.hwnd);
-    launcherHost?.onDisplayChange();
-    fileboxHost?.onDisplayChange();
-  });
+    // 监听屏幕分辨率变化，重新铺满（只注册一次）
+    screen.on('display-metrics-changed', () => {
+      if (wallpaperHwnd && !bandSuspended) desktop.ensureAttached(wallpaperHwnd);
+      if (widgetsHost) widgetsHost.onDisplayChange();
+      if (exeWallpaper && exeWallpaper.isRunning && exeWallpaper.hwnd) desktop.fillDesktop(exeWallpaper.hwnd);
+      launcherHost?.onDisplayChange();
+      fileboxHost?.onDisplayChange();
+    });
 
-  // 首次启动：自动导入示例壁纸，开箱即用
-  if (store.wallpapers.length === 0) {
-    const examplesDir = path.join(__dirname, 'examples');
-    if (fs.existsSync(examplesDir)) {
-      const files = fs.readdirSync(examplesDir).map(f => path.join(examplesDir, f));
-      const added = addFiles(files);
-      if (added.length) {
-        const first = added.find(w => w.type === 'image') || added[0];
-        if (first) store.setCurrent(first.id, first.params);
-        console.log(`[engine] 首次启动已导入 ${added.length} 个示例壁纸`);
+    // 首次启动：自动导入示例壁纸，开箱即用
+    if (store.wallpapers.length === 0) {
+      const examplesDir = path.join(__dirname, 'examples');
+      if (fs.existsSync(examplesDir)) {
+        const files = fs.readdirSync(examplesDir).map(f => path.join(examplesDir, f));
+        const added = addFiles(files);
+        if (added.length) {
+          const first = added.find(w => w.type === 'image') || added[0];
+          if (first) store.setCurrent(first.id, first.params);
+          console.log(`[engine] 首次启动已导入 ${added.length} 个示例壁纸`);
+        }
       }
     }
-  }
 
-  // 恢复上次的壁纸：等壁纸窗口页面加载完成，避免渲染指令丢失
-  const restore = () => {
-    const cur = store.current;
-    if (cur) {
-      const wp = store.wallpapers.find(w => w.id === cur.id);
-      if (wp) applyWallpaper(wp, cur.params);
+    // 恢复上次的壁纸：等壁纸窗口页面加载完成，避免渲染指令丢失
+    const restore = () => {
+      const cur = store.current;
+      if (cur) {
+        const wp = store.wallpapers.find(w => w.id === cur.id);
+        if (wp) applyWallpaper(wp, cur.params);
+      }
+    };
+    if (wallpaperWindow.webContents.isLoading()) {
+      wallpaperWindow.webContents.once('did-finish-load', restore);
+    } else {
+      restore();
     }
-  };
-  if (wallpaperWindow.webContents.isLoading()) {
-    wallpaperWindow.webContents.once('did-finish-load', restore);
-  } else {
-    restore();
-  }
-});
+  });
 
-app.on('before-quit', () => {
-  isQuitting = true;
-});
+  app.on('before-quit', () => {
+    isQuitting = true;
+  });
 
-app.on('will-quit', () => {
-  // 清理所有子进程、热键、防挂起与定时器
-  videoEngine?.stopAll();
-  exeWallpaper?.stop();
-  launcherHost?.destroy();
-  fileboxHost?.destroy();
-  widgetsHost?.destroyAll();
-  jobGuardDispose(); // 关闭孤儿守卫 Job（子进程已在上方清理，此步是兜底）
-  if (powerSaveId !== null) {
-    try { powerSaveBlocker.stop(powerSaveId); } catch (_) {}
-    powerSaveId = null;
-  }
-  try { globalShortcut.unregisterAll(); } catch (_) {}
-  stopStatsCollector();
-});
+  app.on('will-quit', () => {
+    // 清理所有子进程、热键、防挂起与定时器
+    videoEngine?.stopAll();
+    exeWallpaper?.stop();
+    launcherHost?.destroy();
+    fileboxHost?.destroy();
+    widgetsHost?.destroyAll();
+    jobGuardDispose(); // 关闭孤儿守卫 Job（子进程已在上方清理，此步是兜底）
+    if (powerSaveId !== null) {
+      try { powerSaveBlocker.stop(powerSaveId); } catch (_) {}
+      powerSaveId = null;
+    }
+    try { globalShortcut.unregisterAll(); } catch (_) {}
+    stopStatsCollector();
+  });
 
-app.on('window-all-closed', () => {
-  // 常驻托盘，不退出
-});
+  app.on('window-all-closed', () => {
+    // 常驻托盘，不退出
+  });
+} // if (gotLock) —— 单实例锁失败的第二实例不注册任何初始化/生命周期事件

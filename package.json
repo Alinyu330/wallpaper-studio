@@ -65,7 +65,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "壁纸工坊",
-      "artifactName": "WallpaperStudio-Setup-${version}.${ext}"
+      "artifactName": "WallpaperStudio-Setup-${version}.${ext}",
+      "include": "build/installer.nsh"
     }
   }
 }
