@@ -51,3 +51,6 @@ ww-*.png
 workerw-*.png
 testA-*.png
 testB-*.png
+
+# ZCode 会话产物（仅技能目录入库）
+.zcode/plans/
