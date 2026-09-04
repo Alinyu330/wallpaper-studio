@@ -275,18 +275,18 @@ footer {
 
 <header>
   <div class="wrap hero-inner">
-    <div class="ver-badge"><i></i>v1.8.2 · 应用内一键更新 · 文件收纳区 · 快捷方式转盘 · 桌面组件</div>
+    <div class="ver-badge"><i></i>v1.8.3 · 应用内一键更新 · 文件收纳区 · 快捷方式转盘 · 桌面组件</div>
     <h1>让桌面<span class="grad">动起来</span></h1>
     <p class="tagline">壁纸工坊是一款免费开源的 Windows 桌面壁纸软件 — 视频、图片、网页、EXE 程序皆可设为壁纸，点选/框选收纳桌面快捷方式为转盘、文件与文件夹收进独立收纳区，时钟/CPU/GPU/音量/音律动效组件融入桌面，参数精确可调，性能深度优化。</p>
     <div class="cta-row">
-      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.2/WallpaperStudio-Setup-1.8.2.exe" onclick="trackDownload(this)">
+      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.3/WallpaperStudio-Setup-1.8.3.exe" onclick="trackDownload(this)">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        国内高速下载 v1.8.2
+        国内高速下载 v1.8.3
       </a>
-      <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.2/WallpaperStudio-Setup-1.8.2.exe" onclick="trackDownload(this)">GitHub 直连下载</a>
+      <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.3/WallpaperStudio-Setup-1.8.3.exe" onclick="trackDownload(this)">GitHub 直连下载</a>
       <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio" target="_blank" rel="noopener">查看源码</a>
     </div>
-    <p class="cta-note"><span>Windows 10 / 11 · x64</span><span>v1.8.2 · 约 200 MB（内置全格式解码器）</span><span>MIT 开源协议</span><span>下载慢？试试 <a href="https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.2/WallpaperStudio-Setup-1.8.2.exe" style="color:var(--accent2)">备用加速节点</a></span><span>国内镜像：<a href="https://wallpaper-studio.pages.dev/" style="color:var(--accent2)">wallpaper-studio.pages.dev</a></span></p>
+    <p class="cta-note"><span>Windows 10 / 11 · x64</span><span>v1.8.3 · 约 200 MB（内置全格式解码器）</span><span>MIT 开源协议</span><span>下载慢？试试 <a href="https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.3/WallpaperStudio-Setup-1.8.3.exe" style="color:var(--accent2)">备用加速节点</a></span><span>国内镜像：<a href="https://wallpaper-studio.pages.dev/" style="color:var(--accent2)">wallpaper-studio.pages.dev</a></span></p>
     <div class="shot-wrap">
       <img src="app-screenshot.png" alt="壁纸工坊主界面 — 壁纸库、实时预览与参数调节面板" loading="eager">
     </div>
@@ -464,13 +464,25 @@ footer {
   <div class="wrap reveal">
     <div class="sec-tag">版本信息</div>
     <h2>更新日志与历史版本</h2>
-    <p class="sec-sub">当前版本 <b style="color: var(--text)">v1.8.2</b> · 持续迭代中 · 每个版本均可下载安装包</p>
+    <p class="sec-sub">当前版本 <b style="color: var(--text)">v1.8.3</b> · 持续迭代中 · 每个版本均可下载安装包</p>
     <div class="ver-block">
-      <h3>v1.8.2 <span class="tag">最新</span></h3>
+      <h3>v1.8.3 <span class="tag">最新</span></h3>
+      <ul>
+        <li><b>修复</b> 安装后卡死 / 点击无响应 — 覆盖安装或应用内更新时，若旧实例未完全退出，静默安装与运行实例并发写盘会造成半装/混版，界面窗口可见但所有点击无响应；现在更新流程先清理资源再退出（含 3 秒兜底强退），且第二实例零副作用退出，杜绝并发初始化</li>
+        <li><b>修复</b> 运行时卸载不干净 — 卸载器结束客户端后引擎子进程（mpv）清场存在延迟导致安装目录残留、数据目录与开机自启项无人清理；现在卸载器在删除前等待子进程清场、删除后清理自启注册并彻底删除数据目录</li>
+        <li><b>增强</b> 卸载数据保护 — 卸载时把收纳的桌面文件（普通文件 / 快捷方式）自动移回桌面，避免卸载误删用户文件</li>
+        <li><b>加固</b> 单实例锁短路 + 引擎子进程 Job Object 懒加载（FFI 失败自动停用不阻断启动）</li>
+      </ul>
+      <div class="ver-dl">
+        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.3/WallpaperStudio-Setup-1.8.3.exe" onclick="trackDownload(this)">国内加速下载 v1.8.3</a>
+        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.3/WallpaperStudio-Setup-1.8.3.exe" onclick="trackDownload(this)">GitHub 直连</a>
+      </div>
+    </div>
+    <div class="ver-block" style="border-left-color: var(--border);">
+      <h3>v1.8.2</h3>
       <ul>
         <li><b>修复</b> 卸载客户端时文件删不掉的问题 — 卸载器结束客户端进程后，壁纸引擎子进程（mpv 播放器 / EXE 壁纸程序）若残留运行会持续锁住安装目录文件（assets/mpv 等），导致卸载删不干净；现在引擎子进程由系统级 Job Object 守护，主进程无论正常退出还是被卸载器 / 任务管理器强杀，子进程都会被系统自动清场，文件锁立即释放，卸载可完整删除</li>
         <li><b>增强</b> 引擎子进程防孤儿 — 后台不再残留失控的 mpv 播放进程，避免壁纸引擎占用资源无法回收</li>
-        <li><b>说明</b> 本次为稳定性修复，功能与 v1.8.1 一致；装上本版后即可体验「检查更新 → 新功能介绍弹窗 → 应用内一键更新」的完整升级闭环</li>
       </ul>
       <div class="ver-dl">
         <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.2/WallpaperStudio-Setup-1.8.2.exe" onclick="trackDownload(this)">国内加速下载 v1.8.2</a>
@@ -650,9 +662,9 @@ footer {
     <h2>把桌面交给想象力</h2>
     <p>免费、开源、开箱即用。</p>
     <div class="cta-row" style="justify-content: center;">
-      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.2/WallpaperStudio-Setup-1.8.2.exe" onclick="trackDownload(this)">
+      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.3/WallpaperStudio-Setup-1.8.3.exe" onclick="trackDownload(this)">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        国内高速下载 v1.8.2
+        国内高速下载 v1.8.3
       </a>
       <a class="btn btn-ghost" href="#changelog">历史版本下载</a>
       <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases" target="_blank" rel="noopener">全部版本</a>
@@ -662,7 +674,7 @@ footer {
 
 <footer>
   <div class="wrap foot-inner">
-    <div>壁纸工坊 Wallpaper Studio · v1.8.2 · MIT License</div>
+    <div>壁纸工坊 Wallpaper Studio · v1.8.3 · MIT License</div>
     <div class="foot-links">
       <a href="https://wallpaper-studio.pages.dev/" title="官网主站（Cloudflare CDN）">官网</a>
       <a href="https://alinyu330.github.io/wallpaper-studio/" target="_blank" rel="noopener">GitHub Pages</a>
