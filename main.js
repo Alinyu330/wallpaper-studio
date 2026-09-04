@@ -1097,17 +1097,47 @@ function setupIpc() {
   });
 
   // ---------- 检查更新 ----------
-  // 手动检查（设置页按钮）：强制发起并返回结果（渲染层只做文字提示）
+  // 手动检查（设置页按钮）：强制发起并返回结果（渲染层弹功能介绍窗口）
   ipcMain.handle('update:check-now', async () => {
     const result = await updater.autoCheck(true);
     pushUpdateStatus(result);
     return result;
   });
-  // 前往下载（是否更新由用户决定，打开发布页手动下载安装）
+  // 前往发布页（兜底入口：应用内无法下载时使用）
   ipcMain.handle('update:open-download', (_e, url) => {
     updater.openDownloadPage(url);
     return { ok: true };
   });
+  // 一键更新：应用内下载最新安装包（带进度）→ 静默安装 → 自动退出
+  let updateInstalling = false;
+  ipcMain.handle('update:install', async () => {
+    if (updateInstalling) return { ok: false, error: '正在下载更新，请稍候' };
+    updateInstalling = true;
+    notifyMain('update:install-state', { stage: 'downloading' });
+    try {
+      const res = await updater.downloadLatestInstaller((p) => notifyMain('update:download-progress', p));
+      notifyMain('update:install-state', { stage: 'launching' });
+      updater.runInstaller(res.installerPath);
+      // 留一点时间让界面显示"即将安装"，随后退出（before-quit / will-quit 做完整清理，
+      // NSIS /S 静默安装也会自行等待/结束运行中的程序）
+      setTimeout(() => { isQuitting = true; app.quit(); }, 1200);
+      return { ok: true };
+    } catch (e) {
+      updateInstalling = false;
+      const cancelled = e && (e.message === '已取消' || (e.message || '').includes('cancel'));
+      const msg = cancelled ? '已取消下载' : (e.message || '下载失败');
+      notifyMain('update:install-state', { stage: 'error', error: msg });
+      return { ok: false, error: msg };
+    }
+  });
+  // 取消下载
+  ipcMain.handle('update:install-cancel', () => {
+    updater.cancelDownload();
+    updateInstalling = false;
+    return { ok: true };
+  });
+  // 客户端版本号（关于页动态显示，避免硬编码过期）
+  ipcMain.handle('app:get-version', () => app.getVersion());
 
   // 显示器信息（预览比例用）
   ipcMain.handle('system:get-displays', () => {

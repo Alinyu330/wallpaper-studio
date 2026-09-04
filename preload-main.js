@@ -55,9 +55,14 @@ contextBridge.exposeInMainWorld('api', {
   setAvizAdjust: (on) => ipcRenderer.invoke('audioviz:set-adjust', on),
   setLauncherAdjust: (on) => ipcRenderer.invoke('launcher:set-adjust', on),
   setFileboxAdjust: (on) => ipcRenderer.invoke('filebox:set-adjust', on),
-  // 检查更新（静默，无弹窗；结果通过 update:status 事件与返回值提供）
+  // 检查更新（结果通过 update:status 事件与返回值提供；手动检查发现新版弹功能介绍窗口）
   checkUpdateNow: () => ipcRenderer.invoke('update:check-now'),
   openDownloadPage: (url) => ipcRenderer.invoke('update:open-download', url),
+  // 一键更新：应用内下载安装包并静默安装（进度与状态通过事件推送）
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  cancelUpdateInstall: () => ipcRenderer.invoke('update:install-cancel'),
+  // 客户端版本号（关于页动态显示）
+  getAppVersion: () => ipcRenderer.invoke('app:get-version'),
   // 窗口控制
   minimize: () => ipcRenderer.send('win:minimize'),
   maximize: () => ipcRenderer.send('win:maximize'),

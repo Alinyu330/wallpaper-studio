@@ -1,12 +1,14 @@
-// updater.js — 静默更新检查（GitHub Releases）
+// updater.js — 更新检查与应用内直接安装（GitHub Releases）
 //
 // 设计原则（对齐用户需求）：
 // - 只在「客户端主窗口打开时」触发自动检查（含从托盘重新显示），后台驻留不检查；
-// - 检查全程无弹窗：结果只通过 update:status 事件推给主界面做文字/亮点提示；
-// - 没有新版本 → 设置页文字提示"已是最新版本"；
-// - 有新版本 → 标题栏版本号旁的呼吸小圆点 + 设置页"前往下载"按钮，
-//   是否更新完全由用户决定（打开发布页手动下载安装）。
+// - 自动检查全程无弹窗：结果只通过 update:status 事件推给主界面做文字/亮点提示；
+// - 手动「检查更新」发现新版本 → 弹出新版本功能介绍窗口（Release Notes）；
+// - 选择更新 → 应用内直接下载 NSIS 安装包（带进度）→ 静默安装 → 退出，不跳网页。
 const { app, net, shell } = require('electron');
+const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 const RELEASES_LATEST_URL = 'https://api.github.com/repos/Alinyu330/wallpaper-studio/releases/latest';
 const RELEASES_PAGE_URL = 'https://github.com/Alinyu330/wallpaper-studio/releases/latest';
@@ -14,6 +16,7 @@ const CHECK_TIMEOUT_MS = 10000;
 const AUTO_CHECK_MIN_INTERVAL = 10 * 60 * 1000; // 自动检查最小间隔（防频繁打扰）
 
 let lastCheckAt = 0;
+let activeDownload = null; // { req, cancelled } 单例：同一时间只允许一个下载任务
 
 /** 解析 semver（容错 v 前缀与后缀），失败返回 null */
 function parseVersion(str) {
@@ -61,10 +64,21 @@ function fetchJson(url, timeoutMs) {
   });
 }
 
+/** 从 Release 资产中找出 NSIS 安装包（WallpaperStudio-Setup-x.y.z.exe） */
+function findInstallerAsset(rel) {
+  const assets = Array.isArray(rel?.assets) ? rel.assets : [];
+  if (!assets.length) return null;
+  return assets.find(a => /^WallpaperStudio-Setup-.+\.exe$/i.test(a.name || ''))
+      || assets.find(a => /setup.+\.exe$/i.test(a.name || ''))
+      || null;
+}
+
 /**
  * 检查一次更新
  * @returns {Promise<{hasUpdate:boolean, current:string, latest:string,
- *                    releaseUrl:string, notes?:string, error?:string}>}
+ *                    releaseUrl:string, notes?:string, publishedAt?:string,
+ *                    installerUrl?:string, installerName?:string, installerSize?:number,
+ *                    error?:string}>}
  */
 async function checkForUpdate() {
   const current = app.getVersion();
@@ -76,7 +90,14 @@ async function checkForUpdate() {
     if (!latest) throw new Error('无法解析版本号');
     result.latest = latest.join('.');
     result.releaseUrl = rel.html_url || RELEASES_PAGE_URL;
-    result.notes = typeof rel.body === 'string' ? rel.body.slice(0, 600) : undefined;
+    result.publishedAt = typeof rel.published_at === 'string' ? rel.published_at : undefined;
+    result.notes = typeof rel.body === 'string' ? rel.body.slice(0, 4000) : undefined;
+    const asset = findInstallerAsset(rel);
+    if (asset && asset.browser_download_url) {
+      result.installerUrl = asset.browser_download_url;
+      result.installerName = asset.name;
+      result.installerSize = Number(asset.size) || 0;
+    }
     if (!cur || versionGt(latest, cur)) result.hasUpdate = true;
   } catch (e) {
     result.error = e.message || '网络请求失败';
@@ -101,9 +122,115 @@ async function autoCheck(force = false) {
   return result;
 }
 
-/** 打开下载页（发布页含 NSIS 安装包） */
+/** 打开发布页（兜底入口：发布页含 NSIS 安装包） */
 function openDownloadPage(url) {
   shell.openExternal(url || RELEASES_PAGE_URL);
 }
 
-module.exports = { checkForUpdate, autoCheck, openDownloadPage };
+/**
+ * 下载最新版 NSIS 安装包到临时目录（流式写入，带进度回调）
+ * 每次调用都会重新请求 latest Release，确保拿到的是当前最新安装包
+ * @param {(p:{percent:number, receivedBytes:number, totalBytes:number})=>void} onProgress
+ * @returns {Promise<{installerPath:string, totalBytes:number}>}
+ */
+async function downloadLatestInstaller(onProgress) {
+  const rel = await fetchJson(RELEASES_LATEST_URL, CHECK_TIMEOUT_MS);
+  const asset = findInstallerAsset(rel);
+  if (!asset || !asset.browser_download_url) throw new Error('发布页未找到可用的安装包');
+  const url = asset.browser_download_url;
+  const knownSize = Number(asset.size) || 0;
+
+  const dir = path.join(app.getPath('temp'), 'wallpaper-studio-update');
+  await fs.promises.mkdir(dir, { recursive: true });
+  const installerPath = path.join(dir, asset.name || 'WallpaperStudio-Setup.exe');
+  // 清理同名残留（上次未完成/未清理的）
+  try { await fs.promises.rm(installerPath, { force: true }); } catch (_) {}
+
+  return await new Promise((resolve, reject) => {
+    let req;
+    try {
+      req = net.request(url);
+    } catch (e) {
+      return reject(e);
+    }
+    req.setHeader('User-Agent', 'wallpaper-studio-updater');
+    const stream = fs.createWriteStream(installerPath);
+    let received = 0;
+    let lastEmit = 0;
+    let settled = false;
+
+    const cleanup = () => {
+      try { stream.destroy(); } catch (_) {}
+      fs.promises.rm(installerPath, { force: true }).catch(() => {});
+    };
+    const fail = (err) => {
+      if (settled) return;
+      settled = true;
+      activeDownload = null;
+      cleanup();
+      reject(err);
+    };
+
+    activeDownload = { req, cancelled: false };
+
+    req.on('response', (res) => {
+      if (res.statusCode !== 200) {
+        return fail(new Error(`下载失败（HTTP ${res.statusCode}）`));
+      }
+      const totalBytes = Number(res.headers['content-length']) || knownSize;
+      res.on('data', (chunk) => {
+        received += chunk.length;
+        if (!stream.write(chunk)) {
+          stream.once('drain', () => { try { res.resume(); } catch (_) {} });
+          res.pause();
+        }
+        const now = Date.now();
+        if (now - lastEmit > 150 || (totalBytes && received >= totalBytes)) {
+          lastEmit = now;
+          try {
+            onProgress && onProgress({
+              percent: totalBytes ? Math.min(100, (received / totalBytes) * 100) : 0,
+              receivedBytes: received,
+              totalBytes,
+            });
+          } catch (_) {}
+        }
+      });
+      res.on('end', () => {
+        stream.end(() => {
+          if (settled) return;
+          settled = true;
+          activeDownload = null;
+          try {
+            onProgress && onProgress({ percent: 100, receivedBytes: received, totalBytes: totalBytes || received });
+          } catch (_) {}
+          resolve({ installerPath, totalBytes: totalBytes || received });
+        });
+      });
+      res.on('error', fail);
+    });
+    req.on('error', fail);
+    req.end();
+  });
+}
+
+/** 取消当前下载（删除半成品文件） */
+function cancelDownload() {
+  const dl = activeDownload;
+  if (!dl) return false;
+  dl.cancelled = true;
+  activeDownload = null;
+  try { dl.req.destroy(new Error('已取消')); } catch (_) {
+    try { dl.req.abort(); } catch (_) {}
+  }
+  return true;
+}
+
+/** 运行 NSIS 安装包（/S 静默模式），拉起后立即返回 */
+function runInstaller(installerPath) {
+  const child = spawn(installerPath, ['/S'], { detached: true, stdio: 'ignore', windowsHide: true });
+  child.unref();
+  return true;
+}
+
+module.exports = { checkForUpdate, autoCheck, openDownloadPage, downloadLatestInstaller, cancelDownload, runInstaller };

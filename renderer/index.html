@@ -595,17 +595,18 @@
           <div class="switch-row">
             <div>
               <div class="row-title">关于</div>
-              <div class="row-sub">壁纸工坊 v1.7.0 — 静态 / 动态 / 网页 / EXE 壁纸 · 平滑轮换过渡 · 音律动效 · 桌面组件 · 快捷方式收纳转盘 · 桌面与锁屏</div>
+              <div class="row-sub" id="about-version">壁纸工坊 v1.8.0 — 静态 / 动态 / 网页 / EXE 壁纸 · 平滑轮换过渡 · 音律动效 · 桌面组件 · 快捷方式收纳转盘 · 桌面与锁屏</div>
             </div>
           </div>
           <div class="switch-row">
             <div>
               <div class="row-title">版本与更新</div>
-              <div class="row-sub" id="update-status">打开客户端时自动检查更新（后台不检查，绝不弹窗打扰）</div>
+              <div class="row-sub" id="update-status">打开客户端时自动检查更新（后台不检查）；发现新版本会弹出功能介绍，可在应用内直接下载安装</div>
             </div>
             <div class="btn-col">
               <button class="btn ghost small" id="btn-check-update">检查更新</button>
-              <button class="btn primary small hidden" id="btn-open-download">前往下载新版本</button>
+              <button class="btn primary small hidden" id="btn-install-update">立即更新</button>
+              <button class="btn ghost small hidden" id="btn-open-download">前往发布页</button>
             </div>
           </div>
         </div>
@@ -732,6 +733,23 @@
       <div class="modal-actions">
         <button class="btn ghost" id="web-cancel">取消</button>
         <button class="btn primary" id="web-confirm">添加并应用</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新版本功能介绍弹窗 -->
+  <div id="modal-update" class="modal hidden">
+    <div class="modal-box upd-modal">
+      <h3 id="upd-modal-title">发现新版本</h3>
+      <p class="modal-sub" id="upd-modal-sub"></p>
+      <div class="upd-notes" id="upd-modal-notes"></div>
+      <div class="upd-dl hidden" id="upd-dl">
+        <div class="upd-dl-bar"><div class="upd-dl-fill" id="upd-dl-fill"></div></div>
+        <div class="upd-dl-text" id="upd-dl-text">准备下载…</div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="upd-cancel">稍后再说</button>
+        <button class="btn primary" id="upd-install">立即更新</button>
       </div>
     </div>
   </div>

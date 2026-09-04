@@ -648,6 +648,58 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
 .modal-box input[type="text"]:focus { border-color: var(--accent); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 
+/* ---------- 新版本功能介绍弹窗 ---------- */
+.upd-modal { width: 500px; max-width: calc(100vw - 48px); }
+.upd-notes {
+  max-height: 250px; overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 12.5px; line-height: 1.75;
+}
+.upd-notes p { margin: 2px 0; }
+.upd-notes .upd-note-h {
+  font-weight: 700; color: var(--accent);
+  font-size: 13px;
+  margin: 10px 0 4px;
+}
+.upd-notes .upd-note-h:first-child { margin-top: 0; }
+.upd-notes ul { margin: 2px 0 6px; padding-left: 18px; }
+.upd-notes li { margin: 3px 0; }
+.upd-notes b { color: #ffb15c; }
+.upd-notes a { color: var(--accent); text-decoration: none; }
+.upd-notes code {
+  background: rgba(255,255,255,.07);
+  border-radius: 4px; padding: 1px 5px;
+  font-size: 11.5px;
+}
+.upd-note-empty { color: var(--text-dim); }
+.upd-link {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* 下载进度 */
+.upd-dl { margin-top: 14px; }
+.upd-dl-bar {
+  height: 8px; border-radius: 99px; overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+.upd-dl-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--accent), #ffb15c);
+  border-radius: 99px;
+  transition: width .2s ease;
+}
+.upd-dl-text {
+  margin-top: 8px;
+  font-size: 12px; color: var(--text-dim);
+  text-align: center;
+}
+
 /* ---------- Toast ---------- */
 .toast {
   position: fixed;

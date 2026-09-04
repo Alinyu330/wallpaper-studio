@@ -11,7 +11,7 @@ const state = {
   search: '',
   display: null,       // 主显示器信息（预览比例用）
   pausedAll: false,    // 全局暂停（视频冻结 + 轮换停止）
-  update: null,        // {hasUpdate, current, latest, releaseUrl, error?}
+  update: null,        // {hasUpdate, current, latest, releaseUrl, notes?, installerUrl?, error?}
 };
 
 const TYPE_LABEL = { image: '图片', video: '视频', exe: '程序', web: '网页' };
@@ -59,6 +59,7 @@ async function init() {
   bindModal();
   bindWindowControls();
   bindUpdateCheck();
+  renderAboutVersion();
 
   // 全局暂停状态恢复
   state.pausedAll = !!state.settings.wallpaperPaused;
@@ -1964,32 +1965,159 @@ async function checkMpv() {
   }
 }
 
-// ---------- 检查更新（静默：无弹窗，只有文字与亮点提示） ----------
+// ---------- 检查更新（自动检查静默；手动检查发现新版本 → 功能介绍弹窗 → 应用内直接安装） ----------
+/** 字节数 → 可读文本 */
+function fmtBytes(n) {
+  if (!Number.isFinite(n) || n <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let i = 0, v = n;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
+}
+
+/** 轻量 Markdown 渲染（标题/列表/加粗/行内代码/链接，全部先转义防注入） */
+function renderUpdateNotes(md) {
+  if (!md || !md.trim()) return '<p class="upd-note-empty">本次更新以修复与优化为主。</p>';
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const inline = (s) => s
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="#" data-ext-url="$2">$1</a>');
+  let html = '';
+  let inList = false;
+  const closeList = () => { if (inList) { html += '</ul>'; inList = false; } };
+  for (const raw of esc(md).split(/\r?\n/)) {
+    const line = raw.trimEnd();
+    if (/^\s*$/.test(line)) { closeList(); continue; }
+    const h = line.match(/^#{1,4}\s+(.*)$/);
+    if (h) { closeList(); html += `<div class="upd-note-h">${inline(h[1])}</div>`; continue; }
+    const li = line.match(/^\s*[-*+]\s+(.*)$/) || line.match(/^\s*\d+[.、]\s+(.*)$/);
+    if (li) { if (!inList) { html += '<ul>'; inList = true; } html += `<li>${inline(li[1])}</li>`; continue; }
+    closeList();
+    html += `<p>${inline(line)}</p>`;
+  }
+  closeList();
+  return html;
+}
+
 function renderUpdateStatus() {
   const dot = $('#update-dot');
   const status = $('#update-status');
+  const installBtn = $('#btn-install-update');
   const dlBtn = $('#btn-open-download');
   if (!dot || !status) return;
   const u = state.update;
   if (!u) {
     dot.classList.add('hidden');
+    installBtn?.classList.add('hidden');
     dlBtn?.classList.add('hidden');
     return;
   }
   if (u.hasUpdate) {
-    // 有新版本：标题栏呼吸亮点 + 设置页高亮与下载入口（是否更新用户自己决定）
+    // 有新版本：标题栏呼吸亮点 + "立即更新"按钮（应用内直接安装）+ 可点击查看更新内容
     dot.classList.remove('hidden');
     dot.title = `发现新版本 v${u.latest}（当前 v${u.current}），点击查看`;
-    status.innerHTML = `<b class="upd-hint">发现新版本 v${u.latest}</b>（当前 v${u.current}）· 是否更新由你决定`;
-    if (dlBtn) dlBtn.classList.remove('hidden');
+    status.innerHTML = `<b class="upd-hint">发现新版本 v${u.latest}</b>（当前 v${u.current}）· <span class="upd-link" id="upd-view-notes">查看更新内容</span>`;
+    $('#upd-view-notes')?.addEventListener('click', showUpdateModal);
+    if (u.installerUrl) {
+      // 发布页有 NSIS 安装包：应用内直接下载安装
+      installBtn?.classList.remove('hidden');
+      dlBtn?.classList.add('hidden');
+    } else {
+      // 找不到安装包资产：兜底保留发布页入口
+      installBtn?.classList.add('hidden');
+      dlBtn?.classList.remove('hidden');
+    }
   } else if (u.error) {
     dot.classList.add('hidden');
+    installBtn?.classList.add('hidden');
     dlBtn?.classList.add('hidden');
     status.textContent = `检查更新失败：${u.error}（可在网络恢复后手动重试）`;
   } else {
     dot.classList.add('hidden');
+    installBtn?.classList.add('hidden');
     dlBtn?.classList.add('hidden');
     status.textContent = `已是最新版本 v${u.current}`;
+  }
+}
+
+// ---------- 新版本功能介绍弹窗 + 应用内直接安装 ----------
+let updInstalling = false;
+
+function resetUpdateModalUi() {
+  $('#upd-dl')?.classList.add('hidden');
+  $('#upd-dl-fill').style.width = '0%';
+  $('#upd-dl-text').textContent = '准备下载…';
+  const installBtn = $('#upd-install');
+  const cancelBtn = $('#upd-cancel');
+  if (installBtn) installBtn.disabled = false;
+  if (cancelBtn) cancelBtn.textContent = '稍后再说';
+}
+
+function showUpdateModal() {
+  const u = state.update;
+  if (!u || !u.hasUpdate) return;
+  $('#upd-modal-title').textContent = `发现新版本 v${u.latest}`;
+  const dateStr = u.publishedAt ? ` · ${new Date(u.publishedAt).toLocaleDateString('zh-CN')} 发布` : '';
+  $('#upd-modal-sub').textContent = `当前版本 v${u.current}${dateStr} · 更新将自动完成，无需跳转网页`;
+  $('#upd-modal-notes').innerHTML = renderUpdateNotes(u.notes);
+  resetUpdateModalUi();
+  $('#modal-update').classList.remove('hidden');
+}
+
+function closeUpdateModal() {
+  if (updInstalling) {
+    // 下载中关闭弹窗 = 取消下载（半成品文件由主进程清理）
+    window.api.cancelUpdateInstall();
+    updInstalling = false;
+  }
+  $('#modal-update').classList.add('hidden');
+}
+
+async function startUpdateInstall() {
+  if (updInstalling) return;
+  updInstalling = true;
+  const box = $('#upd-dl');
+  const fill = $('#upd-dl-fill');
+  const text = $('#upd-dl-text');
+  const installBtn = $('#upd-install');
+  const cancelBtn = $('#upd-cancel');
+  box.classList.remove('hidden');
+  fill.style.width = '2%';
+  text.textContent = '正在连接下载源…';
+  installBtn.disabled = true;
+  cancelBtn.textContent = '取消下载';
+
+  const offProg = window.api.on('update:download-progress', (p) => {
+    if (!p) return;
+    fill.style.width = `${Math.max(2, Math.min(100, p.percent || 0)).toFixed(1)}%`;
+    text.textContent = `正在下载更新包… ${(p.percent || 0).toFixed(0)}%（${fmtBytes(p.receivedBytes)} / ${fmtBytes(p.totalBytes)}）`;
+  });
+  const offState = window.api.on('update:install-state', (s) => {
+    if (!s) return;
+    if (s.stage === 'launching') {
+      fill.style.width = '100%';
+      text.textContent = '下载完成，正在启动安装程序… 客户端即将退出';
+      cancelBtn.textContent = '关闭';
+      updInstalling = false;
+      offProg(); offState();
+    } else if (s.stage === 'error') {
+      failInstall(s.error || '下载失败');
+    }
+  });
+  const failInstall = (msg) => {
+    text.textContent = msg;
+    box.classList.add('hidden');
+    installBtn.disabled = false;
+    cancelBtn.textContent = '稍后再说';
+    updInstalling = false;
+    offProg(); offState();
+  };
+  try {
+    const res = await window.api.installUpdate();
+    if (!res?.ok) failInstall(res?.error || '下载失败');
+  } catch (e) {
+    failInstall(e?.message || '下载失败');
   }
 }
 
@@ -2014,10 +2142,37 @@ function bindUpdateCheck() {
     state.update = result;
     renderUpdateStatus();
     btn.disabled = false;
+    // 手动检查发现新版本：弹出新版本功能介绍窗口
+    if (result && result.hasUpdate) showUpdateModal();
   });
-  $('#btn-open-download').addEventListener('click', () => {
-    window.api.openDownloadPage(state.update?.releaseUrl);
+  // 设置页"立即更新"：打开功能介绍弹窗
+  $('#btn-install-update').addEventListener('click', showUpdateModal);
+  // 弹窗按钮
+  $('#upd-install').addEventListener('click', startUpdateInstall);
+  $('#upd-cancel').addEventListener('click', closeUpdateModal);
+  // 点击遮罩关闭（下载中同样视为取消）
+  $('#modal-update').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeUpdateModal();
   });
+  // 更新内容中的链接：默认浏览器打开
+  $('#upd-modal-notes').addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-ext-url]');
+    if (a) {
+      e.preventDefault();
+      window.api.openExternal(a.dataset.extUrl);
+    }
+  });
+}
+
+// 关于页版本号动态显示（避免硬编码过期）
+async function renderAboutVersion() {
+  try {
+    const v = await window.api.getAppVersion();
+    const el = $('#about-version');
+    if (el && v) {
+      el.innerHTML = `壁纸工坊 <b>v${v}</b> — 静态 / 动态 / 网页 / EXE 壁纸 · 平滑轮换过渡 · 音律动效 · 桌面组件 · 快捷方式收纳转盘 · 桌面与锁屏`;
+    }
+  } catch (_) { /* 静态兜底文本已在 HTML 中 */ }
 }
 
 // ---------- 网页壁纸弹窗 ----------
