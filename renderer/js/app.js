@@ -85,7 +85,8 @@ async function init() {
   });
   window.api.on('wallpaper:current-changed', (d) => {
     state.current = d || null;
-    renderGrid();
+    // 该事件在过渡动画进行中就会到达，此时只更新标记，绝不重建网格
+    syncGridSelection();
     renderParamsPanel();
     updateStopButton();
     renderRotationQueue(); // 队列中"当前"标记跟随切换
@@ -181,7 +182,7 @@ function updateStopButton() {
 async function stopUsingWallpaper() {
   await window.api.stopWallpaper();
   state.current = null;
-  renderGrid();
+  syncGridSelection();
   renderParamsPanel();
   updateStopButton();
   toast('已停止使用壁纸，桌面恢复系统默认');
@@ -276,6 +277,8 @@ function renderGrid() {
   if (state.filter === 'favorite') list = list.filter(w => w.favorite);
   else if (state.filter !== 'all') list = list.filter(w => w.type === state.filter);
 
+  // 旧卡片即将整体销毁，先释放观察器对其中 video 元素的引用
+  releaseLazyThumbs(grid);
   grid.innerHTML = '';
   empty.classList.toggle('hidden', list.length > 0);
   if (!list.length) {
@@ -296,17 +299,50 @@ function renderGrid() {
   }
 }
 
+// 视频缩略图懒加载：进入视口附近才解码首帧。
+// 一次性给整页卡片都挂上 <video src> 会同时开几十路硬件解码，
+// 与桌面壁纸的 mpv 抢解码器/GPU，是操作时卡顿乃至整窗变黑的主要来源之一。
+let thumbObserver = null;
+function getThumbObserver() {
+  if (!thumbObserver) {
+    thumbObserver = new IntersectionObserver((entries) => {
+      for (const en of entries) {
+        if (!en.isIntersecting) continue;
+        const v = en.target;
+        thumbObserver.unobserve(v);
+        const src = v.dataset.src;
+        delete v.dataset.src;
+        if (src) v.src = src;
+      }
+    }, { rootMargin: '300px' });
+  }
+  return thumbObserver;
+}
+
+/**
+ * 容器即将整体清空时，释放观察器对其中待加载 video 的引用。
+ * 观察器被主网格 / 轮换队列 / 自定义选择网格共用，故不能 disconnect()，
+ * 否则会连带取消其他容器里尚未进入视口的缩略图加载。
+ */
+function releaseLazyThumbs(root) {
+  if (!thumbObserver || !root) return;
+  root.querySelectorAll('video[data-src]').forEach((v) => thumbObserver.unobserve(v));
+}
+
 function createCard(wp) {
   const isCurrent = !!(state.current && state.current.wallpaper.id === wp.id);
   const isSelected = !!(state.selected && state.selected.wallpaper.id === wp.id);
   const card = document.createElement('div');
   card.className = 'wallpaper-card' + (isCurrent ? ' current' : '') + (isSelected ? ' selected' : '');
+  card.dataset.id = wp.id; // syncGridSelection 靠它定位卡片，避免整网格重建
 
   // 缩略图
   const thumb = document.createElement('div');
   thumb.className = `thumb ${wp.type}`;
   if (wp.type === 'image') {
     const img = document.createElement('img');
+    img.loading = 'lazy';
+    img.decoding = 'async';
     img.src = 'file:///' + wp.path.replace(/\\/g, '/');
     img.onerror = () => img.remove();
     thumb.appendChild(img);
@@ -315,9 +351,10 @@ function createCard(wp) {
     const v = document.createElement('video');
     v.preload = 'metadata';
     v.muted = true;
-    v.src = 'file:///' + wp.path.replace(/\\/g, '/') + '#t=0.5';
+    v.dataset.src = 'file:///' + wp.path.replace(/\\/g, '/') + '#t=0.5';
     v.onerror = () => v.remove();
     thumb.appendChild(v);
+    getThumbObserver().observe(v);
     const ic = document.createElement('div');
     ic.className = 'type-icon';
     ic.innerHTML = ICONS.video;
@@ -403,6 +440,40 @@ function createCard(wp) {
 }
 
 // ---------- 选中与预览 ----------
+/**
+ * 只同步网格上的「选中 / 使用中」状态，不重建卡片。
+ * renderGrid() 会为每张视频壁纸重新创建一个缩略图解码器，而单击预览、应用壁纸、
+ * 当前壁纸变更都会触发它 —— 大量解码器同时销毁重建会把 GPU 进程打满，
+ * 表现为界面卡顿甚至整窗变黑。
+ */
+function syncGridSelection() {
+  const curId = state.current ? state.current.wallpaper.id : null;
+  const selId = state.selected ? state.selected.wallpaper.id : null;
+  for (const card of $$('#grid .wallpaper-card')) {
+    const isCurrent = card.dataset.id === curId;
+    card.classList.toggle('current', isCurrent);
+    card.classList.toggle('selected', card.dataset.id === selId);
+    const thumb = card.querySelector('.thumb');
+    if (!thumb) continue;
+    const overlay = thumb.querySelector('.apply-overlay');
+    let using = thumb.querySelector('.using-badge');
+    if (isCurrent && !using) {
+      using = document.createElement('span');
+      using.className = 'using-badge';
+      using.textContent = '使用中';
+      // 保持与 createCard 一致的层叠顺序（徽标在悬浮提示之下）
+      if (overlay) thumb.insertBefore(using, overlay);
+      else thumb.appendChild(using);
+    } else if (!isCurrent && using) {
+      using.remove();
+    }
+    if (overlay) {
+      const text = isCurrent ? '双击重新应用' : '单击预览 · 双击设为壁纸';
+      if (overlay.textContent !== text) overlay.textContent = text;
+    }
+  }
+}
+
 /** 向预览弹出窗口推送完整预览数据（选中变化/弹窗打开时） */
 function syncPreviewFull() {
   const sel = state.selected;
@@ -415,7 +486,7 @@ function selectWallpaper(wp, params) {
     wallpaper: wp,
     params: { ...DEFAULT_PARAMS, ...(wp.params || {}), ...(params || {}) },
   };
-  renderGrid();
+  syncGridSelection();
   renderParamsPanel();
   renderPreview();
   syncPreviewFull();
@@ -425,12 +496,12 @@ function selectWallpaper(wp, params) {
 async function applySelected() {
   const sel = state.selected;
   if (!sel) return;
-  const res = await window.api.apply(sel.wallpaper.id);
+  // 参数随 apply 一次送达：再补一次 updateParams 会因分辨率/质量差异触发 mpv 重启，
+  // 正好打断淡入过渡，用户看到的就是切换瞬间卡一下
+  const res = await window.api.apply(sel.wallpaper.id, sel.params);
   if (!res.ok) { toast(res.error, 'error'); return; }
-  // 把预览期间调好的参数同步应用
-  await window.api.updateParams(sel.params);
   state.current = { wallpaper: sel.wallpaper, params: { ...sel.params } };
-  renderGrid();
+  syncGridSelection();
   renderParamsPanel();
   updateStopButton();
   syncPreviewFull();
@@ -446,17 +517,28 @@ function buildFilter(p) {
 }
 
 /** 构建预览媒体元素（选择变化时） */
+let previewKey = null; // 当前预览元素对应的壁纸，避免反复销毁重建全分辨率解码器
 function renderPreview() {
   const stage = $('#preview-stage');
   const ph = $('#preview-placeholder');
-  stage.querySelectorAll('img,video,iframe').forEach(el => el.remove());
   const sel = state.selected;
   if (!sel) {
+    previewKey = null;
+    stage.querySelectorAll('img,video,iframe').forEach(el => el.remove());
     ph.classList.remove('hidden');
     ph.textContent = '预览区';
     return;
   }
   const wp = sel.wallpaper;
+  // 同一张壁纸（重复点击、参数刷新）不重建元素：视频预览是全分辨率硬解，
+  // 反复销毁重建会与桌面 mpv 抢解码器，是操作时卡顿的一大来源
+  const key = `${wp.type}:${wp.id}`;
+  if (key === previewKey && (wp.type === 'exe' || stage.querySelector('img,video,iframe'))) {
+    applyPreviewParams();
+    return;
+  }
+  previewKey = key;
+  stage.querySelectorAll('img,video,iframe').forEach(el => el.remove());
   if (wp.type === 'image') {
     ph.classList.add('hidden');
     const img = document.createElement('img');
@@ -500,6 +582,15 @@ function applyPreviewParams() {
     else media.play().catch(() => {});
   }
 }
+
+// 主窗口隐藏到托盘时暂停预览视频：否则它在后台持续占用一路硬件解码，
+// 与桌面壁纸的 mpv 抢资源，用户看不到界面却仍在付出代价
+document.addEventListener('visibilitychange', () => {
+  const v = $('#preview-stage') && $('#preview-stage').querySelector('video');
+  if (!v) return;
+  if (document.hidden) v.pause();
+  else if (!(state.selected && state.selected.params && state.selected.params.paused)) v.play().catch(() => {});
+});
 
 /** 获取主显示器信息，设置预览区比例与分辨率标注 */
 async function loadDisplayInfo() {
@@ -615,25 +706,28 @@ function renderParamsPanel() {
 
 // 参数更新：本地选中参数 + 预览即时反映；若选中即当前壁纸则实时下发主进程
 let pendingParams = null;
+let pendingPreview = null;
 let rafId = null;
 function pushParams(patch) {
   if (state.selected) Object.assign(state.selected.params, patch);
   applyPreviewParams();
 
-  // 预览弹出窗口跟随参数变化（patch 模式）
-  window.api.syncPreview({ patch });
+  // 预览弹出窗口跟随参数变化（patch 模式）。拖动滑块时 input 事件可达每秒上百次，
+  // 与 updateParams 共用同一帧节流，避免每条事件都产生一次 IPC 往返
+  pendingPreview = { ...(pendingPreview || {}), ...patch };
 
   const live = state.current && state.selected &&
     state.selected.wallpaper.id === state.current.wallpaper.id;
-  if (!live) return;
-
-  pendingParams = { ...(pendingParams || {}), ...patch };
+  if (live) pendingParams = { ...(pendingParams || {}), ...patch };
   if (rafId) return;
   rafId = requestAnimationFrame(() => {
     rafId = null;
+    const pv = pendingPreview;
+    pendingPreview = null;
+    if (pv) window.api.syncPreview({ patch: pv });
     const data = pendingParams;
     pendingParams = null;
-    window.api.updateParams(data);
+    if (data) window.api.updateParams(data);
   });
 }
 
@@ -814,6 +908,7 @@ function renderRotationPickGrid() {
   if (rot.scope !== 'custom') return;
   const list = rot.list || [];
   $('#rot-custom-count').textContent = `已选 ${list.length} 张`;
+  releaseLazyThumbs(grid);
   grid.innerHTML = '';
   for (const wp of state.wallpapers) {
     const picked = list.includes(wp.id);
@@ -888,6 +983,8 @@ function getRotationListClient() {
 function makeThumbMedia(wp, { playing = false } = {}) {
   if (wp.type === 'image') {
     const img = document.createElement('img');
+    img.loading = 'lazy';
+    img.decoding = 'async';
     img.src = 'file:///' + wp.path.replace(/\\/g, '/');
     img.onerror = () => img.remove();
     return img;
@@ -897,15 +994,49 @@ function makeThumbMedia(wp, { playing = false } = {}) {
     v.preload = 'metadata';
     v.muted = true;
     v.playsInline = true;
-    if (playing) { v.autoplay = true; v.loop = true; }
-    v.src = 'file:///' + wp.path.replace(/\\/g, '/') + (playing ? '' : '#t=0.5');
     v.onerror = () => v.remove();
+    if (playing) {
+      v.autoplay = true;
+      v.loop = true;
+      v.src = 'file:///' + wp.path.replace(/\\/g, '/');
+    } else {
+      // 静态首帧缩略图：进视口才解码。轮换队列每次切换壁纸都会重建，
+      // 若立即赋 src 就等于把所有视频壁纸的解码器再建一遍（哪怕设置页是隐藏的）
+      v.dataset.src = 'file:///' + wp.path.replace(/\\/g, '/') + '#t=0.5';
+      getThumbObserver().observe(v);
+    }
     return v;
   }
   const ic = document.createElement('div');
   ic.className = 'pick-icon';
   ic.innerHTML = ICONS[wp.type] || ICONS.web;
   return ic;
+}
+
+// 队列成员签名：成员与轮换范围都没变时只更新「当前」标记，不重建整条胶片
+let rotQueueSig = null;
+
+/** 只更新轮换队列里的「当前显示」标记（切换壁纸时调用，避免整条重建） */
+function syncRotationQueueCurrent() {
+  const queue = $('#rot-queue');
+  if (!queue) return;
+  const curId = state.current?.wallpaper?.id || null;
+  for (const tile of queue.querySelectorAll('.rot-tile')) {
+    const isCur = tile.dataset.id === curId;
+    tile.classList.toggle('current', isCur);
+    tile.title = (tile.dataset.name || '') + (isCur ? '（当前显示）' : '（点击立即切换）');
+    const thumb = tile.querySelector('.rot-thumb');
+    if (!thumb) continue;
+    const badge = thumb.querySelector('.using-badge');
+    if (isCur && !badge) {
+      const cur = document.createElement('span');
+      cur.className = 'using-badge';
+      cur.textContent = '当前';
+      thumb.appendChild(cur);
+    } else if (!isCur && badge) {
+      badge.remove();
+    }
+  }
 }
 
 /**
@@ -920,13 +1051,22 @@ function renderRotationQueue() {
   if (!queue || !empty || !count) return;
   const list = getRotationListClient();
   count.textContent = list.length ? `共 ${list.length} 张` : '';
+  const rot = state.settings.rotation || {};
+  const sig = `${rot.scope}:${list.map(w => w.id).join('|')}`;
+  if (sig === rotQueueSig && queue.childElementCount === list.length) {
+    syncRotationQueueCurrent();
+    return;
+  }
+  rotQueueSig = sig;
+  releaseLazyThumbs(queue);
   queue.innerHTML = '';
   empty.style.display = list.length ? 'none' : '';
-  const rot = state.settings.rotation || {};
   const curId = state.current?.wallpaper?.id;
   for (const wp of list) {
     const tile = document.createElement('div');
     tile.className = 'rot-tile' + (wp.id === curId ? ' current' : '');
+    tile.dataset.id = wp.id;
+    tile.dataset.name = wp.name;
     tile.title = wp.name + (wp.id === curId ? '（当前显示）' : '（点击立即切换）');
     const thumb = document.createElement('div');
     thumb.className = 'rot-thumb';
@@ -1978,6 +2118,21 @@ function fmtBytes(n) {
   return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
 }
 
+/** 下载速度 → 可读文本（慢速时保留 1 位小数，避免长期显示 0 KB/s） */
+function fmtSpeed(bytesPerSec) {
+  if (!Number.isFinite(bytesPerSec) || bytesPerSec <= 0) return '—';
+  return `${fmtBytes(bytesPerSec)}/s`;
+}
+
+/** 剩余秒数 → 可读文本 */
+function fmtEta(sec) {
+  if (!Number.isFinite(sec) || sec <= 0) return '计算中…';
+  if (sec < 60) return `约 ${Math.ceil(sec)} 秒`;
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return s ? `约 ${m} 分 ${s} 秒` : `约 ${m} 分钟`;
+}
+
 /** 轻量 Markdown 渲染（标题/列表/加粗/行内代码/链接，全部先转义防注入） */
 function renderUpdateNotes(md) {
   if (!md || !md.trim()) return '<p class="upd-note-empty">本次更新以修复与优化为主。</p>';
@@ -2049,6 +2204,7 @@ let updInstalling = false;
 
 function resetUpdateModalUi() {
   $('#upd-dl')?.classList.add('hidden');
+  $('#upd-dl-fill')?.classList.remove('err');
   $('#upd-dl-fill').style.width = '0%';
   $('#upd-dl-text').textContent = '准备下载…';
   const installBtn = $('#upd-install');
@@ -2086,15 +2242,25 @@ async function startUpdateInstall() {
   const installBtn = $('#upd-install');
   const cancelBtn = $('#upd-cancel');
   box.classList.remove('hidden');
-  fill.style.width = '2%';
-  text.textContent = '正在连接下载源…';
+  fill.classList.remove('err');
+  fill.style.width = '0%';
+  text.textContent = '正在准备更新…';
   installBtn.disabled = true;
   cancelBtn.textContent = '取消下载';
 
   const offProg = window.api.on('update:download-progress', (p) => {
     if (!p) return;
-    fill.style.width = `${Math.max(2, Math.min(100, p.percent || 0)).toFixed(1)}%`;
-    text.textContent = `正在下载更新包… ${(p.percent || 0).toFixed(0)}%（${fmtBytes(p.receivedBytes)} / ${fmtBytes(p.totalBytes)}）`;
+    const pct = Math.max(0, Math.min(100, Number(p.percent) || 0));
+    // 慢速网络下百分比会长时间停在 0.x%：用 1 位小数展示，并保留最小可见宽度，
+    // 让用户能看出「在动」，而不是像旧版那样被四舍五入钉死在 0%。
+    fill.style.width = `${Math.max(1.5, pct).toFixed(2)}%`;
+    const detail = [
+      p.note || (p.source ? `下载源：${p.source}` : ''),
+      p.note ? '' : fmtSpeed(p.speed),
+      p.note ? '' : (p.eta ? `剩余 ${fmtEta(p.eta)}` : ''),
+    ].filter(Boolean).join(' · ');
+    text.innerHTML = `正在下载更新包… <b>${pct.toFixed(1)}%</b>（${fmtBytes(p.receivedBytes)} / ${fmtBytes(p.totalBytes)}）`
+      + (detail ? `<span class="upd-dl-sub">${detail}</span>` : '');
   });
   const offState = window.api.on('update:install-state', (s) => {
     if (!s) return;
@@ -2109,8 +2275,19 @@ async function startUpdateInstall() {
     }
   });
   const failInstall = (msg) => {
-    text.textContent = msg;
-    box.classList.add('hidden');
+    // 旧实现把承载提示的进度框一并隐藏了 → 失败原因用户完全看不到，
+    // 只会觉得「进度停在 0 然后什么都没发生」。这里改为保留可见的错误提示。
+    fill.classList.add('err');
+    fill.style.width = '100%';
+    text.textContent = '';
+    const err = document.createElement('span');
+    err.className = 'upd-dl-err';
+    err.textContent = msg || '下载失败';
+    const sub = document.createElement('span');
+    sub.className = 'upd-dl-sub';
+    sub.textContent = '可点击「立即更新」重试，或前往发布页手动下载';
+    text.appendChild(err);
+    text.appendChild(sub);
     installBtn.disabled = false;
     cancelBtn.textContent = '稍后再说';
     updInstalling = false;

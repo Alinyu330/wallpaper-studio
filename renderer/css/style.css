@@ -699,6 +699,20 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
   font-size: 12px; color: var(--text-dim);
   text-align: center;
 }
+/* 下载副行：下载源 / 实时速度 / 预计剩余 */
+.upd-dl-sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  opacity: .7;
+}
+/* 下载失败：进度条转红 + 错误文案（保留可见，旧版会随进度框一起隐藏） */
+.upd-dl-fill.err {
+  background: #ff7b7b;
+}
+.upd-dl-err {
+  color: #ff9d9d;
+}
 
 /* ---------- Toast ---------- */
 .toast {

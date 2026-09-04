@@ -3,6 +3,9 @@ const { app } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
+// 落盘防抖：滑杆拖动/窗口移动会高频触发 save()，合并到一次异步写，避免主线程被磁盘 IO 卡住
+const SAVE_DEBOUNCE_MS = 250;
+
 const DEFAULT_CONFIG = {
   wallpapers: [],      // 壁纸库 [{id,name,path,type,addedAt,favorite,params}]
   current: null,       // 当前壁纸 {id, params}
@@ -72,6 +75,9 @@ class Store {
     this.file = path.join(app.getPath('userData'), 'config.json');
     this.bakFile = this.file + '.bak';
     this.data = this._load();
+    this._dirty = false;    // 有待落盘的改动
+    this._saving = false;   // 异步写进行中
+    this._saveTimer = null; // 防抖定时器
   }
 
   _load() {
@@ -123,33 +129,80 @@ class Store {
     return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
   }
 
+  /**
+   * 保存配置（合并 + 异步落盘）
+   *
+   * 调用频率极高：拖动滑块每一帧、主窗口每次 resize/move、每次切换壁纸都会触发。
+   * 旧实现是同步写盘（writeFileSync + copyFileSync + renameSync），且 rename 被杀软/
+   * 索引服务短暂占用时会「忙等」最长 500ms —— 主进程事件循环被彻底卡住，
+   * 表现为整个客户端卡顿、窗口失去合成内容而变黑一段时间。
+   * 现改为：250ms 合并一次 + 全程异步 + 定时器退避重试（不再忙等）。
+   * 进程退出前由 flushSync() 兜底落盘。
+   */
   save() {
+    this._dirty = true;
+    this._scheduleSave();
+  }
+
+  _scheduleSave() {
+    if (this._saving || this._saveTimer) return;
+    this._saveTimer = setTimeout(() => {
+      this._saveTimer = null;
+      this._flushAsync();
+    }, SAVE_DEBOUNCE_MS);
+  }
+
+  async _flushAsync() {
+    if (this._saving) return;
+    this._saving = true;
+    // 取快照：写入期间数据再变化会置 _dirty，写完重新排期，不会丢改动
+    const json = JSON.stringify(this.data, null, 2);
+    this._dirty = false;
     try {
-      fs.mkdirSync(path.dirname(this.file), { recursive: true });
-      const json = JSON.stringify(this.data, null, 2);
-      // 原子写入：先写临时文件再改名，断电/崩溃不会留下半截 JSON；
-      // 改名前把上一份完好配置转存为 .bak（双保险）
-      const tmp = this.file + '.tmp';
-      fs.writeFileSync(tmp, json, 'utf8');
-      try {
-        if (fs.existsSync(this.file)) fs.copyFileSync(this.file, this.bakFile);
-      } catch (_) {}
-      // rename 可能因目标被短暂锁定而失败（如应用被强杀后旧进程句柄未释放、
-      // 杀软扫描等）：带退避重试，避免配置写丢。
-      let renamed = false;
-      for (let i = 0; i < 5 && !renamed; i++) {
-        try { fs.renameSync(tmp, this.file); renamed = true; }
-        catch (_) {
-          if (i < 4) {
-            const wait = 50 * (i + 1);
-            const t0 = Date.now();
-            while (Date.now() - t0 < wait) { /* 忙等，避免引入异步 save 接口改动 */ }
-          }
-        }
-      }
-      if (!renamed) throw new Error('rename 重试后仍失败');
+      await this._writeAtomic(json);
     } catch (e) {
       console.error('[store] 配置保存失败:', e.message);
+    } finally {
+      this._saving = false;
+      if (this._dirty) this._scheduleSave();
+    }
+  }
+
+  /** 原子写入：临时文件 → 转存 .bak → 改名覆盖（断电/崩溃不会留下半截 JSON） */
+  async _writeAtomic(json) {
+    await fs.promises.mkdir(path.dirname(this.file), { recursive: true });
+    const tmp = this.file + '.tmp';
+    await fs.promises.writeFile(tmp, json, 'utf8');
+    try { await fs.promises.copyFile(this.file, this.bakFile); } catch (_) {}
+    // rename 可能因目标被短暂锁定而失败（应用被强杀后句柄未释放、杀软扫描等）：
+    // 定时器退避重试，绝不忙等
+    let lastErr = null;
+    for (let i = 0; i < 5; i++) {
+      try {
+        await fs.promises.rename(tmp, this.file);
+        return;
+      } catch (e) {
+        lastErr = e;
+        await new Promise((r) => setTimeout(r, 50 * (i + 1)));
+      }
+    }
+    throw lastErr || new Error('rename 重试后仍失败');
+  }
+
+  /** 退出前同步落盘：异步写在进程退出时可能来不及完成 */
+  flushSync() {
+    if (this._saveTimer) { clearTimeout(this._saveTimer); this._saveTimer = null; }
+    if (!this._dirty && !this._saving) return;
+    try {
+      const json = JSON.stringify(this.data, null, 2);
+      const tmp = this.file + '.tmp';
+      fs.mkdirSync(path.dirname(this.file), { recursive: true });
+      fs.writeFileSync(tmp, json, 'utf8');
+      try { if (fs.existsSync(this.file)) fs.copyFileSync(this.file, this.bakFile); } catch (_) {}
+      fs.renameSync(tmp, this.file);
+      this._dirty = false;
+    } catch (e) {
+      console.error('[store] 退出前配置保存失败:', e.message);
     }
   }
 

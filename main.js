@@ -841,6 +841,16 @@ function createMainWindow() {
   mainWindow.on('resize', saveBounds);
   mainWindow.on('move', saveBounds);
 
+  // 卡顿/黑屏观测：渲染进程崩溃会留下全黑或白屏，主线程卡死会触发 unresponsive
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    console.error(`[crash] 主窗口渲染进程退出: reason=${details.reason} exitCode=${details.exitCode}`);
+    if (!isQuitting && !mainWindow.isDestroyed()) {
+      try { mainWindow.webContents.reload(); } catch (_) {}
+    }
+  });
+  mainWindow.on('unresponsive', () => console.error('[crash] 主窗口无响应（主线程卡死）'));
+  mainWindow.on('responsive', () => console.log('[crash] 主窗口恢复响应'));
+
   if (process.argv.includes('--dev')) {
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
@@ -947,8 +957,9 @@ function setupIpc() {
     return wp;
   });
 
-  // 应用壁纸
-  ipcMain.handle('wallpaper:apply', (_e, id) => {
+  // 应用壁纸（params 可选：渲染层带着当前面板参数一次到位，避免紧跟一次 update-params
+  // 触发 mpv 重启打断过渡动画）
+  ipcMain.handle('wallpaper:apply', (_e, id, params) => {
     const wp = store.wallpapers.find(w => w.id === id);
     if (!wp) return { ok: false, error: '壁纸不存在' };
     if (wp.type === 'video') {
@@ -957,7 +968,7 @@ function setupIpc() {
         return { ok: false, error: '未找到 mpv 播放器，请在设置中配置 mpv 路径或将其加入 PATH' };
       }
     }
-    applyWallpaper(wp, wp.params, { transition: true });
+    applyWallpaper(wp, params || wp.params, { transition: true });
     return { ok: true };
   });
 
@@ -1419,6 +1430,13 @@ if (gotLock) {
 
   app.on('before-quit', () => {
     isQuitting = true;
+    store.flushSync(); // 配置改为防抖异步落盘，退出前必须同步兜底一次
+  });
+
+  // 子进程崩溃观测：GPU 进程挂掉会让所有窗口先变全黑再恢复，
+  // 这正是「切换壁纸/操作时全黑一段时间」最可能的机制，必须有日志可查
+  app.on('child-process-gone', (_e, details) => {
+    console.error(`[crash] 子进程退出: type=${details.type} reason=${details.reason} exitCode=${details.exitCode}`);
   });
 
   app.on('will-quit', () => {
