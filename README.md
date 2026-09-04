@@ -4,15 +4,15 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Version](https://img.shields.io/badge/version-1.8.3-7c5cff)
+![Version](https://img.shields.io/badge/version-1.8.4-7c5cff)
 
 > **官网介绍页**：<https://wallpaper-studio.pages.dev/> （GitHub Pages：<https://alinyu330.github.io/wallpaper-studio/> ）
 >
-> **安装包下载**（v1.8.3，Windows x64）：
+> **安装包下载**（v1.8.4，Windows x64）：
 >
-> - 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.3/WallpaperStudio-Setup-1.8.3.exe)
+> - 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.4/WallpaperStudio-Setup-1.8.4.exe)
 >
-> - 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.3/WallpaperStudio-Setup-1.8.3.exe)
+> - 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.4/WallpaperStudio-Setup-1.8.4.exe)
 >
 > - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
@@ -27,6 +27,8 @@
 - **桌面文件收纳区**（v1.8.0 新增）：桌面上的普通文件（办公文档 / 媒体 / 归档）与文件夹收进独立浮层，与快捷方式转盘职责分离 — 文件夹 / 文件自动分组排列（支持按名称 / 修改时间 / 手动排序），网格列数与面板透明度可调；鼠标靠近正常显示、离开自动转半透明毛玻璃，与壁纸协调不打扰观感；收纳的文件移动隐藏（可一键恢复），文件夹仅登记引用不移动内容、点开即进入文件夹；支持自由拖动与九宫格快捷定位
 
 - **应用内一键更新**（v1.8.1 新增）：检查更新发现新版本即弹出新版功能介绍窗口（更新日志直读发布页 Release Notes）；点「立即更新」在客户端内直接下载安装包（实时进度、可随时取消），下载完成自动静默安装并退出 — 全程无需跳转网页手动下载
+
+- **主界面卡死修复**（v1.8.4）：修复安装后「窗口可见但全区域点击无响应」的问题（v1.7.1~v1.8.3 受影响，每次启动必现）—— 界面初始化脚本中途崩溃导致所有事件未绑定，升级本版即恢复正常；另含 v1.8.3 的更新防半装与运行时彻底卸载增强
 
 - **点选 / 框选收纳**（v1.6.0，v1.7.0 增强）：全屏选择器直接点选或拖框选择桌面快捷方式，一键收纳进转盘 — 原桌面图标随之隐藏（实际移动文件到应用数据目录保管）；支持回收站、此电脑等系统项收纳与过滤无效文件；从转盘移除、一键"全部恢复"或关闭功能时，自动移回桌面原位置（恢复显示）
 
