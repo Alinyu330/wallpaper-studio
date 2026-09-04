@@ -1075,6 +1075,9 @@ function renderWidgetsSettings() {
   wrap.innerHTML = '';
   for (const [key, meta] of Object.entries(WIDGET_META)) {
     const item = w.items?.[key] || { on: false, pos: 'tl', size: 'm' };
+    // 自由摆放状态（v1.8.4 修复：此前 freePos 未声明直接引用，
+    // renderWidgetsSettings 抛 ReferenceError 中断 init → 全界面点击无响应）
+    const freePos = isWidgetFree(item);
     const card = document.createElement('div');
     card.className = 'settings-card wg-card';
 
