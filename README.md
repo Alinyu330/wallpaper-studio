@@ -4,15 +4,15 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Version](https://img.shields.io/badge/version-1.7.1-7c5cff)
+![Version](https://img.shields.io/badge/version-1.8.0-7c5cff)
 
 > **官网介绍页**：<https://wallpaper-studio.pages.dev/> （GitHub Pages：<https://alinyu330.github.io/wallpaper-studio/> ）
 >
-> **安装包下载**（v1.7.1，Windows x64）：
+> **安装包下载**（v1.8.0，Windows x64）：
 >
-> - 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.7.1/WallpaperStudio-Setup-1.7.1.exe)
+> - 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.0/WallpaperStudio-Setup-1.8.0.exe)
 >
-> - 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.7.1/WallpaperStudio-Setup-1.7.1.exe)
+> - 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.0/WallpaperStudio-Setup-1.8.0.exe)
 >
 > - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
@@ -22,7 +22,9 @@
 
 - **mpv 播放引擎**：全格式硬解直读，无需转码，内置完整解码器
 
-- **桌面快捷方式转盘**（v1.5.0，v1.7.0 增强）：常用 App 以转盘形式收纳在桌面 — 点击图标一键启动；按住图标条或拖动条左右拖动即可像转盘一样轮换（带惯性甩动）；拖动 ⋮ 手柄自由摆放位置；同屏数量 4\~12 可调；真彩图标解析（EXE / LNK / 系统项图标高清提取）、图标垂直倒影、去面板边框更沉浸；空闲自动收起为小药丸，悬停药丸展开，不遮挡窗口、不影响壁纸观感
+- **桌面快捷方式转盘**（v1.5.0，v1.7.0/v1.8.0 增强）：快捷方式（.lnk/.url）与程序文件（.exe/.bat/.cmd）以转盘形式收纳在桌面（系统项：控制面板 / 回收站 / 网络 / 此电脑 亦可收纳）— 点击图标即可启动对应 App；按住图标条或拖动条左右拖动即可像转盘一样轮换（带惯性甩动）；拖动 ⋮ 手柄自由摆放位置；同屏数量 4\~12 可调；图标取系统真实图标（无空白占位）、垂直倒影、去面板边框更沉浸；空闲自动收起为小药丸，悬停药丸展开，不遮挡窗口、不影响壁纸观感
+
+- **桌面文件收纳区**（v1.8.0 新增）：桌面上的普通文件（办公文档 / 媒体 / 归档）与文件夹收进独立浮层，与快捷方式转盘职责分离 — 文件夹 / 文件自动分组排列（支持按名称 / 修改时间 / 手动排序），网格列数与面板透明度可调；鼠标靠近正常显示、离开自动转半透明毛玻璃，与壁纸协调不打扰观感；收纳的文件移动隐藏（可一键恢复），文件夹仅登记引用不移动内容、点开即进入文件夹；支持自由拖动与九宫格快捷定位
 
 - **点选 / 框选收纳**（v1.6.0，v1.7.0 增强）：全屏选择器直接点选或拖框选择桌面快捷方式，一键收纳进转盘 — 原桌面图标随之隐藏（实际移动文件到应用数据目录保管）；支持回收站、此电脑等系统项收纳与过滤无效文件；从转盘移除、一键"全部恢复"或关闭功能时，自动移回桌面原位置（恢复显示）
 
