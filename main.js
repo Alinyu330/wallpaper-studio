@@ -15,6 +15,7 @@ const desktop = require('./src/desktop');
 const { detectType, DIALOG_FILTERS } = require('./src/file-types');
 const lockscreen = require('./src/lockscreen');
 const updater = require('./src/updater');
+const { dispose: jobGuardDispose } = require('./src/job-guard');
 
 // ---------- 渲染策略 ----------
 // 组件覆盖层/转盘窗口常驻桌面且从不获得焦点：Chromium 自动播放策略会把
@@ -1402,6 +1403,7 @@ app.on('will-quit', () => {
   launcherHost?.destroy();
   fileboxHost?.destroy();
   widgetsHost?.destroyAll();
+  jobGuardDispose(); // 关闭孤儿守卫 Job（子进程已在上方清理，此步是兜底）
   if (powerSaveId !== null) {
     try { powerSaveBlocker.stop(powerSaveId); } catch (_) {}
     powerSaveId = null;

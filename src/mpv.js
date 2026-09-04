@@ -5,6 +5,7 @@ const { spawn } = require('child_process');
 const net = require('net');
 const path = require('path');
 const fs = require('fs');
+const { guardChild } = require('./job-guard');
 
 class MpvController {
   static _seq = 0; // 全局实例序号：保证 IPC 管道名唯一，避免同名多实例跨连
@@ -108,6 +109,9 @@ class MpvController {
     args.push('--', file);
 
     this.process = spawn(exe, args, { windowsHide: true });
+    // 纳入孤儿守卫：主进程被强杀（如卸载器结束进程）时，系统自动终止 mpv，
+    // 防止其残留锁定安装目录文件导致卸载删不掉
+    try { guardChild(this.process); } catch (_) {}
     const proc = this.process;
     this.process.on('error', (err) => {
       if (this.process !== proc) return; // 旧进程的滞后事件，忽略

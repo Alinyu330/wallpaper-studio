@@ -3,6 +3,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const desktop = require('./desktop');
+const { guardChild } = require('./job-guard');
 
 class ExeWallpaper {
   constructor() {
@@ -32,6 +33,8 @@ class ExeWallpaper {
         cwd: path.dirname(exePath),
         windowsHide: false, // 需要其窗口正常显示
       });
+      // 纳入孤儿守卫：主进程被强杀时系统自动结束该 EXE 壁纸进程
+      try { guardChild(this.child); } catch (_) {}
     } catch (err) {
       console.error('[exe-wallpaper] 启动失败:', err.message);
       return false;
