@@ -275,18 +275,18 @@ footer {
 
 <header>
   <div class="wrap hero-inner">
-    <div class="ver-badge"><i></i>v1.8.4 · 应用内一键更新 · 文件收纳区 · 快捷方式转盘 · 桌面组件</div>
+    <div class="ver-badge"><i></i>v1.8.5 · 应用内一键更新 · 文件收纳区 · 快捷方式转盘 · 桌面组件</div>
     <h1>让桌面<span class="grad">动起来</span></h1>
     <p class="tagline">壁纸工坊是一款免费开源的 Windows 桌面壁纸软件 — 视频、图片、网页、EXE 程序皆可设为壁纸，点选/框选收纳桌面快捷方式为转盘、文件与文件夹收进独立收纳区，时钟/CPU/GPU/音量/音律动效组件融入桌面，参数精确可调，性能深度优化。</p>
     <div class="cta-row">
-      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.4/WallpaperStudio-Setup-1.8.4.exe" onclick="trackDownload(this)">
+      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.5/WallpaperStudio-Setup-1.8.5.exe" onclick="trackDownload(this)">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        国内高速下载 v1.8.4
+        国内高速下载 v1.8.5
       </a>
-      <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.4/WallpaperStudio-Setup-1.8.4.exe" onclick="trackDownload(this)">GitHub 直连下载</a>
+      <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.5/WallpaperStudio-Setup-1.8.5.exe" onclick="trackDownload(this)">GitHub 直连下载</a>
       <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio" target="_blank" rel="noopener">查看源码</a>
     </div>
-    <p class="cta-note"><span>Windows 10 / 11 · x64</span><span>v1.8.4 · 约 200 MB（内置全格式解码器）</span><span>MIT 开源协议</span><span>下载慢？试试 <a href="https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.4/WallpaperStudio-Setup-1.8.4.exe" style="color:var(--accent2)">备用加速节点</a></span><span>国内镜像：<a href="https://wallpaper-studio.pages.dev/" style="color:var(--accent2)">wallpaper-studio.pages.dev</a></span></p>
+    <p class="cta-note"><span>Windows 10 / 11 · x64</span><span>v1.8.5 · 约 200 MB（内置全格式解码器）</span><span>MIT 开源协议</span><span>下载慢？试试 <a href="https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.5/WallpaperStudio-Setup-1.8.5.exe" style="color:var(--accent2)">备用加速节点</a></span><span>国内镜像：<a href="https://wallpaper-studio.pages.dev/" style="color:var(--accent2)">wallpaper-studio.pages.dev</a></span></p>
     <div class="shot-wrap">
       <img src="app-screenshot.png" alt="壁纸工坊主界面 — 壁纸库、实时预览与参数调节面板" loading="eager">
     </div>
@@ -464,9 +464,19 @@ footer {
   <div class="wrap reveal">
     <div class="sec-tag">版本信息</div>
     <h2>更新日志与历史版本</h2>
-    <p class="sec-sub">当前版本 <b style="color: var(--text)">v1.8.4</b> · 持续迭代中 · 每个版本均可下载安装包</p>
+    <p class="sec-sub">当前版本 <b style="color: var(--text)">v1.8.5</b> · 持续迭代中 · 每个版本均可下载安装包</p>
     <div class="ver-block">
-      <h3>v1.8.4 <span class="tag">最新</span></h3>
+      <h3>v1.8.5 <span class="tag">最新</span></h3>
+      <ul>
+        <li><b>修复</b> 快捷方式转盘九宫格定位异常 — 转盘空闲收起后点击九宫格（或修改转盘配置），窗口会被错误地缩小成一条贴在任务栏上沿的细缝，转盘被裁剪到几乎不可见、无法点击，形同被任务栏遮挡；根因是收起状态的尺寸上报把缩放动画的视觉尺寸当成了实际尺寸（缩小为约 1/8），已改用不受缩放影响的布局尺寸，九宫格全部槽位恢复正常落位（左下/中下/右下等底行槽位与任务栏保持安全间距）</li>
+      </ul>
+      <div class="ver-dl">
+        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.5/WallpaperStudio-Setup-1.8.5.exe" onclick="trackDownload(this)">国内加速下载 v1.8.5</a>
+        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.5/WallpaperStudio-Setup-1.8.5.exe" onclick="trackDownload(this)">GitHub 直连</a>
+      </div>
+    </div>
+    <div class="ver-block" style="border-left-color: var(--border);">
+      <h3>v1.8.4</h3>
       <ul>
         <li><b>修复</b> 主界面全区域点击无响应（每次启动必现）— 桌面组件设置页渲染时引用了一个未声明的变量，界面初始化脚本中途崩溃：窗口可见，但导航、按钮、开关全部点击无反应；该问题自 v1.7.1 起存在、与安装方式无关，安装 v1.7.1~v1.8.3 后「窗口能打开但点不动」的用户升级本版即可解决</li>
         <li><b>提示</b> 一键更新 / 覆盖安装到本版后，若曾受卡死困扰，无需卸载重装，直接启动即可恢复正常</li>
@@ -673,9 +683,9 @@ footer {
     <h2>把桌面交给想象力</h2>
     <p>免费、开源、开箱即用。</p>
     <div class="cta-row" style="justify-content: center;">
-      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.4/WallpaperStudio-Setup-1.8.4.exe" onclick="trackDownload(this)">
+      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.5/WallpaperStudio-Setup-1.8.5.exe" onclick="trackDownload(this)">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        国内高速下载 v1.8.4
+        国内高速下载 v1.8.5
       </a>
       <a class="btn btn-ghost" href="#changelog">历史版本下载</a>
       <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases" target="_blank" rel="noopener">全部版本</a>
@@ -685,7 +695,7 @@ footer {
 
 <footer>
   <div class="wrap foot-inner">
-    <div>壁纸工坊 Wallpaper Studio · v1.8.4 · MIT License</div>
+    <div>壁纸工坊 Wallpaper Studio · v1.8.5 · MIT License</div>
     <div class="foot-links">
       <a href="https://wallpaper-studio.pages.dev/" title="官网主站（Cloudflare CDN）">官网</a>
       <a href="https://alinyu330.github.io/wallpaper-studio/" target="_blank" rel="noopener">GitHub Pages</a>
