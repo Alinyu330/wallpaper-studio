@@ -43,10 +43,18 @@ contextBridge.exposeInMainWorld('api', {
   boxPublicDesktopShortcuts: () => ipcRenderer.invoke('launcher:box-public'),
   removeLauncherAt: (idx) => ipcRenderer.invoke('launcher:remove-at', idx),
   restoreAllLauncher: () => ipcRenderer.invoke('launcher:restore-all'),
+  // 桌面文件收纳区（从转盘拆分的普通文件/文件夹收纳）
+  getFileboxConfig: () => ipcRenderer.invoke('filebox:get'),
+  addFileboxItems: () => ipcRenderer.invoke('filebox:add'),
+  updateFileboxConfig: (patch) => ipcRenderer.invoke('settings:update', { filebox: patch }),
+  boxAllDesktopFiles: () => ipcRenderer.invoke('filebox:box-all'),
+  removeFileboxAt: (idx) => ipcRenderer.invoke('filebox:remove-at', idx),
+  restoreAllFilebox: () => ipcRenderer.invoke('filebox:restore-all'),
   // 位置调整模式（客户端按钮进入 → 桌面按住拖动 → 松手自动保存）
   setWidgetsAdjust: (key, on) => ipcRenderer.invoke('widgets:set-adjust', key, on),
   setAvizAdjust: (on) => ipcRenderer.invoke('audioviz:set-adjust', on),
   setLauncherAdjust: (on) => ipcRenderer.invoke('launcher:set-adjust', on),
+  setFileboxAdjust: (on) => ipcRenderer.invoke('filebox:set-adjust', on),
   // 检查更新（静默，无弹窗；结果通过 update:status 事件与返回值提供）
   checkUpdateNow: () => ipcRenderer.invoke('update:check-now'),
   openDownloadPage: (url) => ipcRenderer.invoke('update:open-download', url),

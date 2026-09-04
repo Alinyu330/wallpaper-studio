@@ -45,6 +45,7 @@ async function init() {
   renderSites();
   renderSettingsPage();
   renderLauncherSettings();
+  renderFileboxSettings();
   renderAudioVizSettings();
   checkMpv();
   loadDisplayInfo();
@@ -138,6 +139,18 @@ async function init() {
     lcAdjusting = !!on;
     setAdjustBtnUi('#btn-lc-adjust', '#lc-adjust-hint', lcAdjusting, '转盘');
     if (!on) renderLauncherSettings();
+  });
+  // 文件收纳区变化（收纳结果/移除/恢复）→ 刷新设置页
+  window.api.on('filebox:changed', (result) => {
+    renderFileboxSettings();
+    if (result && typeof result.picked === 'number' && result.picked > 0) {
+      toast(`已收纳 ${result.picked} 个文件/文件夹到文件收纳区`);
+    }
+  });
+  window.api.on('filebox:adjust-state', ({ on }) => {
+    fbAdjusting = !!on;
+    setAdjustBtnUi('#btn-fb-adjust', '#fb-adjust-hint', fbAdjusting, '收纳区');
+    if (!on) renderFileboxSettings();
   });
 }
 
@@ -1000,6 +1013,7 @@ function isWidgetFree(item) {
 let wgAdjustingKey = null;   // 当前处于调整模式的组件 key（null = 无）
 let avAdjusting = false;     // 音律动效调整模式
 let lcAdjusting = false;     // 快捷方式转盘调整模式
+let fbAdjusting = false;     // 文件收纳区调整模式
 
 /** 高亮与当前值一致的固定调整点 */
 function highlightPresetRow(row, v) {
@@ -1685,6 +1699,160 @@ function bindLauncherSettings() {
   });
 }
 
+// ---------- 桌面文件收纳区 ----------
+let fileboxCfg = null;
+
+async function renderFileboxSettings() {
+  try {
+    fileboxCfg = await window.api.getFileboxConfig();
+  } catch (_) {
+    fileboxCfg = { enabled: false, gridCols: 5, groupBy: 'kind', bgOpacity: 0.32, idleOpacity: 0.28, autoIdle: true, items: [] };
+  }
+  const fb = fileboxCfg;
+  $('#fb-enabled').checked = !!fb.enabled;
+  $$('#fb-cols button').forEach(b => b.classList.toggle('active', +b.dataset.cols === (fb.gridCols || 5)));
+  const fbColsNum = $('#fb-cols-num');
+  if (document.activeElement !== fbColsNum) fbColsNum.value = fb.gridCols || 5;
+  $$('#fb-groupby button').forEach(b => b.classList.toggle('active', b.dataset.groupby === (fb.groupBy || 'kind')));
+  $$('#fb-bgop button').forEach(b => b.classList.toggle('active', Math.abs(+b.dataset.op - (fb.bgOpacity ?? 0.32)) < 0.01));
+  $('#fb-autoidle').checked = fb.autoIdle !== false;
+  syncFbGrid();
+
+  const list = $('#fb-list');
+  list.innerHTML = '';
+  $('#fb-item-count').textContent = (fb.items || []).length ? `已收纳 ${fb.items.length} 个` : '';
+  if (!(fb.items || []).length) {
+    const empty = document.createElement('p');
+    empty.className = 'hint';
+    empty.textContent = '还没有收纳文件或文件夹，点击下方按钮添加。';
+    list.appendChild(empty);
+    return;
+  }
+  fb.items.forEach((it, i) => {
+    const item = document.createElement('div');
+    item.className = 'lc-item';
+    const ico = document.createElement('div');
+    ico.className = 'lc-ico';
+    if (it.type === 'folder') {
+      ico.textContent = '📁';
+    } else if (it.icon) {
+      const img = document.createElement('img');
+      img.src = it.icon;
+      ico.appendChild(img);
+    } else {
+      ico.textContent = (it.name || '?').slice(0, 1).toUpperCase();
+    }
+    const name = document.createElement('span');
+    name.className = 'lc-name';
+    name.textContent = it.name;
+    name.title = it.path;
+    if (it.type === 'folder') {
+      const tag = document.createElement('span');
+      tag.className = 'lc-boxed-tag';
+      tag.textContent = '文件夹';
+      tag.title = '文件夹仅登记收纳，点开进入文件夹，不移动内容';
+      name.appendChild(tag);
+    }
+    const del = document.createElement('button');
+    del.className = 'icon-btn';
+    del.title = '从收纳区移除' + (it.type === 'file' && it.boxPath ? '并恢复到桌面原位置' : '');
+    del.innerHTML = ICONS.trash;
+    del.addEventListener('click', async () => {
+      await window.api.removeFileboxAt(i);
+    });
+    item.append(ico, name, del);
+    list.appendChild(item);
+  });
+}
+
+function syncFbGrid() {
+  $$('#fb-pos9 .pos-cell').forEach(b =>
+    b.classList.toggle('active', !!fileboxCfg && fileboxCfg.grid === b.dataset.cell));
+}
+
+function bindFileboxSettings() {
+  $('#fb-enabled').addEventListener('change', async (e) => {
+    await window.api.updateFileboxConfig({ enabled: e.target.checked });
+    toast(e.target.checked ? '文件收纳区已开启，回到桌面查看效果' : '文件收纳区已关闭，收纳的文件已恢复到桌面');
+  });
+  const applyFbCols = async (v) => {
+    v = Math.min(12, Math.max(3, Math.round(v) || 5));
+    $('#fb-cols-num').value = v;
+    fileboxCfg.gridCols = v;
+    $$('#fb-cols button').forEach(x => x.classList.toggle('active', +x.dataset.cols === v));
+    await window.api.updateFileboxConfig({ gridCols: v });
+  };
+  $$('#fb-cols button').forEach(b => {
+    b.addEventListener('click', () => applyFbCols(+b.dataset.cols));
+  });
+  const fbColsNum = $('#fb-cols-num');
+  fbColsNum.addEventListener('change', () => applyFbCols(parseFloat(fbColsNum.value)));
+  fbColsNum.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { applyFbCols(parseFloat(fbColsNum.value)); fbColsNum.blur(); }
+  });
+  $$('#fb-groupby button').forEach(b => {
+    b.addEventListener('click', async () => {
+      $$('#fb-groupby button').forEach(x => x.classList.toggle('active', x === b));
+      fileboxCfg.groupBy = b.dataset.groupby;
+      await window.api.updateFileboxConfig({ groupBy: b.dataset.groupby });
+    });
+  });
+  $$('#fb-bgop button').forEach(b => {
+    b.addEventListener('click', async () => {
+      $$('#fb-bgop button').forEach(x => x.classList.toggle('active', x === b));
+      fileboxCfg.bgOpacity = +b.dataset.op;
+      await window.api.updateFileboxConfig({ bgOpacity: +b.dataset.op });
+    });
+  });
+  $('#fb-autoidle').addEventListener('change', (e) => {
+    fileboxCfg.autoIdle = e.target.checked;
+    window.api.updateFileboxConfig({ autoIdle: e.target.checked });
+  });
+  $('#btn-fb-adjust').addEventListener('click', async () => {
+    const res = await window.api.setFileboxAdjust(!fbAdjusting);
+    if (!res && !fbAdjusting) toast('文件收纳区未启用，无法调整位置', 'error');
+  });
+  const fbGrid = $('#fb-pos9');
+  if (fbGrid && !fbGrid.children.length) {
+    for (const cell of Object.keys(POS_LABELS)) {
+      const b = document.createElement('button');
+      b.className = 'pos-cell';
+      b.dataset.cell = cell;
+      b.title = POS_LABELS[cell];
+      b.addEventListener('click', async () => {
+        await window.api.updateFileboxConfig({ grid: cell });
+        if (fileboxCfg) fileboxCfg.grid = cell;
+        syncFbGrid();
+      });
+      fbGrid.appendChild(b);
+    }
+  }
+  $('#fb-pos-reset').addEventListener('click', async () => {
+    await window.api.updateFileboxConfig({ grid: null });
+    if (fileboxCfg) fileboxCfg.grid = null;
+    syncFbGrid();
+  });
+  $('#btn-fb-add').addEventListener('click', async () => {
+    const res = await window.api.addFileboxItems();
+    if (res?.added) toast(`已添加 ${res.added} 个文件/文件夹`);
+    renderFileboxSettings();
+  });
+  $('#btn-fb-box-all').addEventListener('click', async () => {
+    const res = await window.api.boxAllDesktopFiles();
+    if (res.boxed > 0) {
+      toast(`已收纳 ${res.boxed} 个文件/文件夹（文件 ${res.files} / 文件夹 ${res.folders}）`);
+    } else {
+      toast('桌面上没有可收纳的普通文件或文件夹', 'error');
+    }
+    renderFileboxSettings();
+  });
+  $('#btn-fb-restore-all').addEventListener('click', async () => {
+    const res = await window.api.restoreAllFilebox();
+    toast(`已恢复 ${res.restored} 个文件到桌面原位置${res.failed ? `（${res.failed} 个失败）` : ''}`);
+    renderFileboxSettings();
+  });
+}
+
 // ---------- 壁纸站点 ----------
 const SITES = [
   { name: '4K Desk', url: 'https://www.4kdesk.com/', desc: '4K 超高清壁纸站，风景 / 动漫 / 游戏分类齐全', tags: ['4K', '超高清'] },
@@ -1894,5 +2062,6 @@ document.addEventListener('DOMContentLoaded', () => {
   bindSettings();
   bindWidgetsSettings(); // ★ v1.6.0 遗漏：组件设置页开关从未绑定 → 点总开关无任何效果
   bindLauncherSettings();
+  bindFileboxSettings();
   bindAudioVizSettings();
 });

@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>FileBox</title>
+  <style>
+    :root {
+      --icon-size: 52px;
+      --gap: 12px;
+      --bg-op: 0.32;
+      --idle-op: 0.28;       /* 空闲（鼠标离开）整体不透明度 */
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: rgba(255, 255, 255, 0.004);
+      font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      user-select: none; -webkit-user-select: none;
+      cursor: default;
+    }
+
+    #widget { position: absolute; left: 0; top: 0; }
+
+    /* ---------- 收纳区面板（毛玻璃） ---------- */
+    #panel {
+      display: flex; flex-direction: column; gap: 8px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: rgba(14, 16, 24, var(--bg-op));
+      backdrop-filter: blur(16px) saturate(1.25);
+      -webkit-backdrop-filter: blur(16px) saturate(1.25);
+      box-shadow: 0 6px 24px rgba(0, 0, 0, .22);
+      transition: opacity .45s ease, transform .45s cubic-bezier(.2,.8,.3,1);
+    }
+    /* 空闲态：整体半透明毛玻璃（不打扰壁纸观看） */
+    body.idle #panel { opacity: var(--idle-op); }
+
+    /* 分类标题行 */
+    .group-head {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 11px; color: rgba(255, 255, 255, 0.55);
+      letter-spacing: .5px; padding: 0 2px;
+    }
+    .group-head .line { flex: 1; height: 1px; background: rgba(255,255,255,.10); }
+
+    /* 网格 */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(var(--cols, 5), var(--icon-size));
+      gap: var(--gap);
+    }
+
+    .item {
+      position: relative;
+      width: var(--icon-size); height: var(--icon-size);
+      border-radius: 13px;
+      background: transparent;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: background .15s, box-shadow .15s;
+    }
+    .item:hover {
+      background: rgba(255, 255, 255, 0.16);
+      box-shadow: 0 3px 12px rgba(0, 0, 0, .28);
+    }
+    .item img {
+      width: 40px; height: 40px; pointer-events: none;
+      filter: none;
+    }
+    .item .fallback {
+      width: 40px; height: 40px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 600; color: #fff;
+      background: linear-gradient(135deg, #4f8cff, #34c3d9);
+      pointer-events: none;
+    }
+    .item .name {
+      position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+      font-size: 10.5px; color: rgba(255, 255, 255, 0.92);
+      white-space: nowrap; max-width: 88px; overflow: hidden; text-overflow: ellipsis;
+      margin-top: 3px; pointer-events: none;
+      text-shadow: 0 1px 3px rgba(0,0,0,.6);
+    }
+    .item .x {
+      position: absolute; top: -6px; right: -6px;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #ff5c6c; color: #fff; font-size: 12px; line-height: 18px;
+      text-align: center; display: none;
+      box-shadow: 0 1px 6px rgba(0, 0, 0, .4);
+    }
+    body.manage .item .x { display: block; }
+    body.manage .item { background: rgba(255, 92, 108, .18); }
+
+    /* 添加按钮 */
+    #add-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: var(--icon-size); height: var(--icon-size);
+      border-radius: 13px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1.5px dashed rgba(255, 255, 255, 0.22);
+      color: rgba(255, 255, 255, 0.65);
+      font-size: 21px; line-height: 1;
+      cursor: pointer;
+      transition: background .15s, border-color .15s, color .15s;
+    }
+    #add-btn:hover { background: rgba(76, 140, 255, 0.25); border-color: #4f8cff; color: #fff; }
+
+    /* 空状态 */
+    #empty-hint {
+      color: rgba(255, 255, 255, 0.55);
+      font-size: 12.5px; letter-spacing: .5px; white-space: nowrap;
+      padding: 6px 4px;
+    }
+
+    /* 调整模式 */
+    body.adjusting #panel {
+      outline: 2px dashed rgba(124, 92, 255, .9);
+      outline-offset: 5px;
+      cursor: move;
+    }
+
+    /* 右键菜单 */
+    #ctx-menu {
+      position: fixed; z-index: 999;
+      min-width: 150px; padding: 5px;
+      border-radius: 12px;
+      background: rgba(20, 22, 32, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      backdrop-filter: blur(20px);
+      box-shadow: 0 10px 34px rgba(0, 0, 0, .45);
+      font-size: 12.5px; color: #e8eaf2;
+    }
+    #ctx-menu button {
+      display: flex; width: 100%; align-items: center; justify-content: space-between;
+      gap: 14px; padding: 7px 11px;
+      background: none; border: none; border-radius: 8px;
+      color: inherit; font: inherit; text-align: left; cursor: pointer;
+    }
+    #ctx-menu button:hover { background: rgba(255, 255, 255, 0.10); }
+    #ctx-menu button.danger { color: #ff8a94; }
+    #ctx-menu .check { font-size: 11px; color: #7c5cff; }
+  </style>
+</head>
+<body>
+  <div id="widget">
+    <div id="panel">
+      <div id="content"></div>
+    </div>
+  </div>
+
+  <div id="ctx-menu" style="display:none"></div>
+
+  <script>
+    const H = window.fileboxHost;
+    const content = document.getElementById('content');
+    const panel = document.getElementById('panel');
+    const ctxMenu = document.getElementById('ctx-menu');
+
+    let cfg = { gridCols: 5, groupBy: 'kind', bgOpacity: 0.32, idleOpacity: 0.28, autoIdle: true, items: [] };
+    let manageMode = false;
+    let adjusting = false;
+    let idle = false;
+    let idleTimer = null;
+
+    // 排序依据分组
+    const FOLDER_KINDS = ['folder'];
+    function kindOf(it) { return it.type === 'folder' ? 'folder' : 'file'; }
+
+    function sortItems(items, groupBy) {
+      const arr = [...items];
+      if (groupBy === 'name') {
+        arr.sort((a, b) => String(a.name).localeCompare(String(b.name), 'zh'));
+      } else if (groupBy === 'mtime') {
+        arr.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+      } else if (groupBy === 'manual') {
+        // manual：保持 items 原始顺序（主进程已按用户自定义顺序存）
+      } else { // kind：文件夹在前，文件在后；同类按名称
+        arr.sort((a, b) => {
+          const ka = kindOf(a) === 'folder' ? 0 : 1;
+          const kb = kindOf(b) === 'folder' ? 0 : 1;
+          if (ka !== kb) return ka - kb;
+          return String(a.name).localeCompare(String(b.name), 'zh');
+        });
+      }
+      return arr;
+    }
+
+    function render() {
+      const items = cfg.items || [];
+      document.documentElement.style.setProperty('--cols', String(Math.min(12, Math.max(3, cfg.gridCols || 5))));
+      document.documentElement.style.setProperty(
+        '--bg-op', String(Math.min(0.85, Math.max(0.1, Number(cfg.bgOpacity ?? 0.32)))));
+      document.documentElement.style.setProperty(
+        '--idle-op', String(Math.min(0.6, Math.max(0.1, Number(cfg.idleOpacity ?? 0.28)))));
+      content.innerHTML = '';
+
+      if (!items.length) {
+        const empty = document.createElement('p');
+        empty.id = 'empty-hint';
+        empty.textContent = '还没有收纳文件，右键或点 ＋ 添加';
+        content.appendChild(empty);
+        requestAnimationFrame(reportMetrics);
+        return;
+      }
+
+      const sorted = sortItems(items, cfg.groupBy || 'kind');
+
+      // 分类排列：kind 分组时按「文件夹 / 文件」分两段；其余按单一网格
+      if ((cfg.groupBy || 'kind') === 'kind') {
+        const folders = sorted.filter((it) => it.type === 'folder');
+        const files = sorted.filter((it) => it.type !== 'folder');
+        if (folders.length) appendGroup('文件夹', folders);
+        if (files.length) appendGroup('文件', files);
+      } else {
+        appendGroup(null, sorted);
+      }
+
+      requestAnimationFrame(reportMetrics);
+    }
+
+    function appendGroup(label, groupItems) {
+      if (label) {
+        const head = document.createElement('div');
+        head.className = 'group-head';
+        const t = document.createElement('span');
+        t.textContent = label;
+        const line = document.createElement('span');
+        line.className = 'line';
+        head.append(t, line);
+        content.appendChild(head);
+      }
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+      groupItems.forEach((it, gi) => {
+        const el = document.createElement('div');
+        el.className = 'item';
+        el.title = it.name;
+        if (it.icon) {
+          const img = document.createElement('img');
+          img.src = it.icon;
+          img.draggable = false;
+          el.appendChild(img);
+        } else {
+          const fb = document.createElement('div');
+          fb.className = 'fallback';
+          fb.textContent = (it.name || '?').slice(0, 1).toUpperCase();
+          el.appendChild(fb);
+        }
+        const nm = document.createElement('span');
+        nm.className = 'name';
+        nm.textContent = it.name;
+        el.appendChild(nm);
+        const x = document.createElement('span');
+        x.className = 'x';
+        x.textContent = '✕';
+        el.appendChild(x);
+        // 记录在原始 items 中的索引（点击/移除按全局索引）
+        const globalIdx = (cfg.items || []).indexOf(it);
+        el.dataset.i = String(globalIdx);
+        el.addEventListener('pointerdown', (e) => {
+          if (e.button !== 0) return;
+          if (adjusting) return; // 调整模式下由窗口层拦截拖动
+          if (manageMode) { H.remove(globalIdx); return; }
+          H.launch(globalIdx);
+        });
+        grid.appendChild(el);
+      });
+      // 添加按钮放在网格末尾
+      const add = document.createElement('div');
+      add.id = 'add-btn';
+      add.title = '添加文件或文件夹';
+      add.textContent = '＋';
+      add.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0 || adjusting) return;
+        H.addItems();
+      });
+      grid.appendChild(add);
+      content.appendChild(grid);
+    }
+
+    function reportMetrics() {
+      const r = panel.getBoundingClientRect();
+      if (r.width > 10 && r.height > 10) {
+        H.reportMetrics({ w: Math.ceil(r.width), h: Math.ceil(r.height) });
+      }
+      reportRects();
+    }
+
+    function reportRects() {
+      const r = panel.getBoundingClientRect();
+      if (r.width < 2) return;
+      const dpr = window.devicePixelRatio || 1;
+      H.reportRects([{
+        x: Math.round(r.left * dpr), y: Math.round(r.top * dpr),
+        w: Math.round(r.width * dpr), h: Math.round(r.height * dpr),
+      }]);
+    }
+
+    // ---------- 空闲毛玻璃 ----------
+    function setIdle(v) {
+      if (idle === v) return;
+      idle = v;
+      document.body.classList.toggle('idle', v);
+      if (!v) reportRects(); // 展开后命中矩形可能变化
+    }
+    function scheduleIdle() {
+      clearTimeout(idleTimer);
+      if (adjusting) return;
+      if (cfg.autoIdle !== false && (cfg.items || []).length) {
+        idleTimer = setTimeout(() => setIdle(true), 2600);
+      }
+    }
+    function wake() {
+      clearTimeout(idleTimer);
+      setIdle(false);
+    }
+
+    // ---------- 调整模式拖动 ----------
+    window.addEventListener('pointerdown', (e) => {
+      if (!adjusting || e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
+      H.setInteracting(true);
+      H.dragStart();
+      window.addEventListener('pointermove', onAdjustMove, true);
+      window.addEventListener('pointerup', onAdjustUp, true);
+      window.addEventListener('pointercancel', onAdjustUp, true);
+    }, true);
+    function onAdjustMove() { H.dragMove(); }
+    function onAdjustUp() {
+      window.removeEventListener('pointermove', onAdjustMove, true);
+      window.removeEventListener('pointerup', onAdjustUp, true);
+      window.removeEventListener('pointercancel', onAdjustUp, true);
+      H.dragEnd();
+      H.setInteracting(false);
+    }
+
+    // ---------- 右键菜单 ----------
+    document.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      showCtx(e.clientX, e.clientY);
+    });
+    function showCtx(x, y) {
+      ctxMenu.innerHTML = '';
+      const mk = (label, fn, opts = {}) => {
+        const b = document.createElement('button');
+        if (opts.danger) b.className = 'danger';
+        b.innerHTML = `<span>${label}</span>${opts.checked ? '<span class="check">✓</span>' : ''}`;
+        b.addEventListener('click', () => { hideCtx(); fn(); });
+        ctxMenu.appendChild(b);
+      };
+      mk('添加文件 / 文件夹', () => H.addItems());
+      mk(manageMode ? '退出移除模式' : '移除文件 / 文件夹', () => {
+        manageMode = !manageMode;
+        document.body.classList.toggle('manage', manageMode);
+      }, { checked: manageMode, danger: manageMode });
+      ctxMenu.style.display = 'block';
+      const rect = ctxMenu.getBoundingClientRect();
+      const w = window.innerWidth, h = window.innerHeight;
+      ctxMenu.style.left = Math.min(x, w - rect.width - 6) + 'px';
+      ctxMenu.style.top = Math.min(y, h - rect.height - 6) + 'px';
+    }
+    function hideCtx() { ctxMenu.style.display = 'none'; }
+    document.addEventListener('pointerdown', (e) => {
+      if (!e.target.closest('#ctx-menu')) hideCtx();
+    });
+
+    // ---------- 主进程事件 ----------
+    H.onConfig((c) => {
+      cfg = c || {};
+      render();
+      scheduleIdle();
+      setTimeout(reportRects, 120);
+    });
+
+    H.onHover((v) => {
+      if (v) wake();
+      else scheduleIdle();
+    });
+
+    H.onAdjust((v) => {
+      const on = !!(v && v.on);
+      if (adjusting === on) return;
+      adjusting = on;
+      document.body.classList.toggle('adjusting', on);
+      if (on) {
+        clearTimeout(idleTimer);
+        setIdle(false);
+        manageMode = false;
+        document.body.classList.remove('manage');
+        hideCtx();
+      } else {
+        scheduleIdle();
+      }
+      setTimeout(reportRects, 80);
+    });
+
+    // ---------- 启动 ----------
+    H.ready();
+    window.addEventListener('resize', () => { reportMetrics(); });
+    setInterval(reportRects, 800);
+  </script>
+</body>
+</html>

@@ -52,6 +52,10 @@
           <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="14" y="3" width="7.5" height="7.5" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="14" width="7.5" height="7.5" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M17.75 14.5v7M14.25 18h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
           <span>快捷方式</span>
         </button>
+        <button class="nav-item" data-page="filebox">
+          <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 9h18" stroke="currentColor" stroke-width="1.4"/></svg>
+          <span>文件收纳</span>
+        </button>
         <button class="nav-item" data-page="sites">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 12h17M12 3.5c2.5 2.3 3.8 5.3 3.8 8.5S14.5 18.2 12 20.5c-2.5-2.3-3.8-5.3-3.8-8.5S9.5 5.8 12 3.5z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
           <span>壁纸站点</span>
@@ -406,8 +410,94 @@
             <button class="btn ghost small" id="btn-lc-add">＋ 从文件添加</button>
             <button class="btn ghost small" id="btn-lc-restore-all">全部恢复到桌面</button>
           </div>
-          <p class="hint" id="lc-leftover-hint">「一键收纳全部」会收走桌面上所有快捷方式（.lnk / .url，含文件名与显示名不一致的）。系统图标（此电脑 / 回收站等）不是文件、桌面文件夹是用户数据，均不移动；「公共桌面」（所有用户可见）的快捷方式需要管理员权限，收纳后可点上方按钮一次授权批量收进。</p>
+          <p class="hint" id="lc-leftover-hint">「一键收纳全部」会收走桌面上所有快捷方式（.lnk / .url，含文件名与显示名不一致的）与程序文件（.exe / .bat / .cmd）。系统图标（此电脑 / 回收站等）不是文件、桌面文件夹与办公文档是用户数据，均不移动（可到「文件收纳」页单独收纳）；「公共桌面」（所有用户可见）的快捷方式需要管理员权限，收纳后可点上方按钮一次授权批量收进。</p>
           <p class="hint">「点选/框选收纳」打开全屏选择器，手动勾选要收纳的桌面快捷方式；收纳后从转盘点击图标照常启动对应 App；从列表移除或「全部恢复到桌面」即还原到原位置；关闭快捷方式转盘功能也会自动全部还原。</p>
+        </div>
+      </section>
+
+      <!-- 桌面文件收纳区 -->
+      <section id="page-filebox" class="page">
+        <div class="page-head"><h2>桌面文件收纳</h2></div>
+        <div class="settings-card">
+          <label class="switch-row">
+            <div>
+              <div class="row-title">启用文件收纳区</div>
+              <div class="row-sub">桌面上的办公文档与文件夹以独立浮层收纳（图标层之上、不遮挡窗口）：点开即打开对应文件/文件夹，不影响壁纸观感</div>
+            </div>
+            <span class="switch"><input type="checkbox" id="fb-enabled"><i></i></span>
+          </label>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">网格列数</div>
+              <div class="row-sub"><input type="number" id="fb-cols-num" min="3" max="12" step="1" style="width:64px"> 列（3~12，可直接输入），图标按网格平铺排列</div>
+            </div>
+            <div class="seg" id="fb-cols">
+              <button data-cols="4">4</button>
+              <button data-cols="5">5</button>
+              <button data-cols="6">6</button>
+              <button data-cols="8">8</button>
+              <button data-cols="10">10</button>
+            </div>
+          </div>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">分类排列</div>
+              <div class="row-sub">文件夹与文件各自归类；也可按名称/修改时间排序，或手动自定义顺序</div>
+            </div>
+            <div class="seg" id="fb-groupby">
+              <button data-groupby="kind">类型分类</button>
+              <button data-groupby="name">按名称</button>
+              <button data-groupby="mtime">按时间</button>
+              <button data-groupby="manual">手动</button>
+            </div>
+          </div>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">面板透明度</div>
+              <div class="row-sub">收纳区面板底色不透明度（鼠标悬停展开时的清晰度）</div>
+            </div>
+            <div class="seg" id="fb-bgop">
+              <button data-op="0.20">20%</button>
+              <button data-op="0.32">32%</button>
+              <button data-op="0.45">45%</button>
+              <button data-op="0.60">60%</button>
+            </div>
+          </div>
+          <label class="switch-row">
+            <div>
+              <div class="row-title">空闲毛玻璃</div>
+              <div class="row-sub">鼠标离开数秒后整体转为半透明毛玻璃（不打扰壁纸观看，与壁纸协调）</div>
+            </div>
+            <span class="switch"><input type="checkbox" id="fb-autoidle"><i></i></span>
+          </label>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">调整位置</div>
+              <div class="row-sub" id="fb-adjust-hint">点「开始调整」后在桌面上按住收纳区拖动，松开即保存位置并自动退出</div>
+            </div>
+            <button class="btn small" id="btn-fb-adjust">开始调整</button>
+          </div>
+          <div class="switch-row" id="fb-pos9-row">
+            <div>
+              <div class="row-title">九宫格定位</div>
+              <div class="row-sub">点击快速摆放到常用位置；「默认」恢复任务栏上方居中，拖动调整仍可用</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="pos-grid" id="fb-pos9" title="点击快速设置位置"></div>
+              <button class="btn ghost small" id="fb-pos-reset">默认</button>
+            </div>
+          </div>
+          <p class="hint">收纳区用法：鼠标靠近显示完整图标，离开后自动转半透明毛玻璃；点图标打开对应文件或文件夹；右键可添加/移除。</p>
+        </div>
+        <div class="settings-card">
+          <div class="card-title">已收纳的文件 / 文件夹 <span class="title-hint" id="fb-item-count"></span></div>
+          <div id="fb-list" class="lc-list"></div>
+          <div class="btn-row" style="margin-top:12px">
+            <button class="btn primary small" id="btn-fb-box-all">📦 一键收纳桌面文件与文件夹</button>
+            <button class="btn ghost small" id="btn-fb-add">＋ 从文件添加</button>
+            <button class="btn ghost small" id="btn-fb-restore-all">全部恢复到桌面</button>
+          </div>
+          <p class="hint">「一键收纳」会收走桌面上所有普通文件（办公文档 / 媒体 / 归档等）与文件夹；快捷方式与程序文件仍归「快捷方式」转盘收纳。文件夹仅登记收纳（不移动内容），点开进入文件夹；普通文件会移动到应用数据目录保管，移除或「全部恢复」即还原到原位置。</p>
         </div>
       </section>
 

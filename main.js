@@ -9,6 +9,7 @@ const { VideoEngine } = require('./src/video-engine');
 const { ExeWallpaper } = require('./src/exe-wallpaper');
 const { StatsCollector } = require('./src/widgets-stats');
 const { LauncherHost } = require('./src/launcher');
+const { FileBoxHost } = require('./src/filebox');
 const { WidgetsHost } = require('./src/widgets-host');
 const desktop = require('./src/desktop');
 const { detectType, DIALOG_FILTERS } = require('./src/file-types');
@@ -82,6 +83,7 @@ let store = null;
 let videoEngine = null;
 let exeWallpaper = null;
 let launcherHost = null;
+let fileboxHost = null;
 let rotationTimer = null;
 let isQuitting = false;
 
@@ -240,6 +242,8 @@ function setupWallpaperWatch() {
     if (widgetsHost) widgetsHost.watchdog();
     // 快捷方式转盘保活（图标层之上，位置不变）
     if (launcherHost) launcherHost.watchdog();
+    // 文件收纳区保活（图标层之上，位置不变）
+    if (fileboxHost) fileboxHost.watchdog();
     if (!wallpaperWindow || wallpaperWindow.isDestroyed()) {
       if (currentWallpaper) scheduleWallpaperRecovery();
       return;
@@ -282,6 +286,9 @@ function setupOverlayRepaintWatch() {
     if (widgetsHost) widgetsHost.repaintAll();
     if (launcherHost && launcherHost.win && !launcherHost.win.isDestroyed()) {
       launcherHost.repaint();
+    }
+    if (fileboxHost && fileboxHost.win && !fileboxHost.win.isDestroyed()) {
+      fileboxHost.repaint();
     }
   }, 1000);
 }
@@ -326,6 +333,17 @@ function applySettingsUpdate(patch) {
       launcher: { ...old, ...patch.launcher },
     };
   }
+  // filebox 深合并（同 launcher：只调 gridCols/groupBy/idleOpacity 等参数时，
+  // 不能整体替换，否则丢失 enabled/items）。
+  let fileboxPatch = null;
+  if (patch && patch.filebox) {
+    const old = store.settings.filebox || {};
+    fileboxPatch = patch.filebox;
+    patch = {
+      ...patch,
+      filebox: { ...old, ...patch.filebox },
+    };
+  }
   store.updateSettings(patch);
   if (patch.autoStart !== undefined) {
     applyAutoStartSetting(!!patch.autoStart);
@@ -334,6 +352,7 @@ function applySettingsUpdate(patch) {
   if (patch.widgets !== undefined) applyWidgetsConfig();
   if (patch.audioViz !== undefined) applyWidgetsConfig(); // 音律动效与组件共用覆盖层
   if (launcherPatch && launcherHost) launcherHost.applyPatch(launcherPatch);
+  if (fileboxPatch && fileboxHost) fileboxHost.applyPatch(fileboxPatch);
   if (patch.wallpaperPaused !== undefined) setWallpaperPaused(patch.wallpaperPaused);
   if (patch.hotkeyPause !== undefined) applyHotkeySetting();
   if (patch.smoothLoop !== undefined && videoEngine) videoEngine.setSmoothLoop(patch.smoothLoop);
@@ -978,6 +997,7 @@ function setupIpc() {
   });
   ipcMain.handle('audioviz:set-adjust', (_e, on) => (widgetsHost ? widgetsHost.setAdjust('aviz', !!on) : false));
   ipcMain.handle('launcher:set-adjust', (_e, on) => (launcherHost ? launcherHost.setAdjust(!!on) : false));
+  ipcMain.handle('filebox:set-adjust', (_e, on) => (fileboxHost ? fileboxHost.setAdjust(!!on) : false));
 
   // v1.8.2 调试端点：对桌面窗口调用 capturePage 并保存到 userData/.workbuddy/，
   // 用于精确诊断组件是否真的渲染到合成层（不依赖 desktopCapturer 外部截图）。
@@ -1007,11 +1027,14 @@ function setupIpc() {
         const job = async () => {
           widgetsHost.destroyAll();
           if (launcherHost && launcherHost.win) launcherHost.destroy();
+          if (fileboxHost && fileboxHost.win) fileboxHost.destroy();
           await new Promise((r) => setTimeout(r, 250));
           for (const key of widgetsHost._wantParts()) widgetsHost._createPart(key);
           if (launcherHost && launcherHost.cfg.enabled && !launcherHost.win) launcherHost.create();
+          if (fileboxHost && fileboxHost.cfg.enabled && !fileboxHost.win) fileboxHost.create();
           await Promise.all([...widgetsHost._wantParts()].map((k) => widgetsHost._whenPartShown(k, 6000)));
           await launcherHost.whenSettled(6000);
+          await fileboxHost.whenSettled(6000);
         };
         resetWallpaperBand(job)
           .then(() => res.end('{"ok":true}'))
@@ -1023,6 +1046,7 @@ function setupIpc() {
         const on = u.searchParams.get('on') === '1';
         let ok = false;
         if (key === 'launcher') ok = launcherHost ? launcherHost.setAdjust(on) : false;
+        else if (key === 'filebox') ok = fileboxHost ? fileboxHost.setAdjust(on) : false;
         else if (/^[a-z]+$/.test(key)) ok = widgetsHost ? widgetsHost.setAdjust(key, on) : false;
         res.end(JSON.stringify({ ok }));
       } else {
@@ -1037,7 +1061,7 @@ function setupIpc() {
     try { fs.mkdirSync(dir, { recursive: true }); } catch (_) {}
     const result = {};
     const parts = widgetsHost ? widgetsHost.captureList() : [];
-    for (const [name, win] of [['wallpaper', wallpaperWindow], ...parts, ['launcher', launcherHost?.win]]) {
+    for (const [name, win] of [['wallpaper', wallpaperWindow], ...parts, ['launcher', launcherHost?.win], ['filebox', fileboxHost?.win]]) {
       if (!win || win.isDestroyed()) { result[name] = 'no-window'; continue; }
       try {
         const img = await win.webContents.capturePage();
@@ -1222,6 +1246,9 @@ app.whenReady().then(() => {
   launcherHost = new LauncherHost(store);
   // 收纳/恢复/移除后通知主界面刷新快捷方式设置页（payload 为收纳结果时附带提示）
   launcherHost.onChanged = (result) => notifyMain('launcher:changed', result || null);
+  // 文件收纳区（从转盘拆分的普通文件/文件夹收纳）
+  fileboxHost = new FileBoxHost(store);
+  fileboxHost.onChanged = (result) => notifyMain('filebox:changed', result || null);
   // 桌面组件 + 音律动效宿主（每组件独立小窗口）
   widgetsHost = new WidgetsHost(store, {
     onAvStatus: (s) => notifyMain('audioViz:status', s),
@@ -1233,9 +1260,12 @@ app.whenReady().then(() => {
   });
   // 转盘调整模式状态变化 → 主界面按钮复位
   launcherHost.onAdjustState = (on) => notifyMain('launcher:adjust-state', { on });
+  // 文件收纳区调整模式状态变化 → 主界面按钮复位
+  fileboxHost.onAdjustState = (on) => notifyMain('filebox:adjust-state', { on });
   // 覆盖层创建任务路由到桌面带重置：晚于壁纸挂载创建的覆盖层需随带重建合成
   widgetsHost.hooks.createJob = (job) => resetWallpaperBand(job);
   launcherHost.onCreateJob = (job) => resetWallpaperBand(job);
+  fileboxHost.onCreateJob = (job) => resetWallpaperBand(job);
   createWallpaperWindow();
   createMainWindow();
   setupIpc();
@@ -1282,11 +1312,15 @@ app.whenReady().then(() => {
   // 恢复桌面快捷方式转盘（配置了则创建转盘窗口）
   if (store.settings.launcher?.enabled) launcherHost.create();
 
-  // 启动屏障：壁纸挂载（桌面带建立）前，等全部组件/转盘呈现真实内容帧
-  // （含 painted 等待，见 widgets-host/launcher whenSettled）
+  // 恢复桌面文件收纳区（配置了则创建收纳区窗口）
+  if (store.settings.filebox?.enabled) fileboxHost.create();
+
+  // 启动屏障：壁纸挂载（桌面带建立）前，等全部组件/转盘/收纳区呈现真实内容帧
+  // （含 painted 等待，见 widgets-host/launcher/filebox whenSettled）
   overlayBootBarrier = Promise.all([
     widgetsHost.whenSettled(5000),
     launcherHost.whenSettled(5000),
+    fileboxHost.whenSettled(5000),
   ]).then(() => { bootPhase = false; });
 
   // 监听屏幕分辨率变化，重新铺满（只注册一次）
@@ -1295,6 +1329,7 @@ app.whenReady().then(() => {
     if (widgetsHost) widgetsHost.onDisplayChange();
     if (exeWallpaper && exeWallpaper.isRunning && exeWallpaper.hwnd) desktop.fillDesktop(exeWallpaper.hwnd);
     launcherHost?.onDisplayChange();
+    fileboxHost?.onDisplayChange();
   });
 
   // 首次启动：自动导入示例壁纸，开箱即用
@@ -1335,6 +1370,7 @@ app.on('will-quit', () => {
   videoEngine?.stopAll();
   exeWallpaper?.stop();
   launcherHost?.destroy();
+  fileboxHost?.destroy();
   widgetsHost?.destroyAll();
   if (powerSaveId !== null) {
     try { powerSaveBlocker.stop(powerSaveId); } catch (_) {}

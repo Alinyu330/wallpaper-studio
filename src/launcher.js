@@ -13,6 +13,10 @@
 //   文件移动到应用数据目录保管 —— 桌面原位置隐藏；从转盘移除或关闭
 //   功能时自动移回原位置（恢复显示）。
 //
+// ★ v1.10.0：收纳范围收敛为「桌面快捷方式(.lnk/.url) + 程序文件(.exe/.bat/.cmd)
+//   + 系统特殊项（回收站/控制面板/网络/此电脑）」。办公文档与文件夹收纳已拆分
+//   到 filebox.js（文件收纳区），转盘不再收纳办公文档。
+//
 // 尺寸约定：窗口物理尺寸由渲染页实测上报（launcher:metrics），
 // 主进程用物理像素 MoveWindow 调整 —— 避免两端各维护一套布局算法。
 const { app, BrowserWindow, dialog, ipcMain, screen, shell } = require('electron');
@@ -32,9 +36,8 @@ const ORIENTATIONS = ['h', 'v'];
 const CLAMP_KEEP_W = 56;  // 拖动出屏时至少保留的可视宽度（物理像素）
 const CLAMP_KEEP_H = 28;
 const SC_EXTS = ['.lnk', '.url']; // 可收纳的快捷方式扩展名
-// 可收纳的办公文档扩展名（收纳后仍能点开，用关联程序打开）
-const DOC_EXTS = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.pdf', '.txt', '.md', '.csv'];
 // 可收纳的程序文件扩展名（.exe 直接启动；.bat/.cmd 经 cmd 运行）
+// 多数快捷方式打开后对应的是 .exe，故程序文件保留在转盘收纳
 const APP_EXTS = ['.exe', '.bat', '.cmd'];
 // 桌面「系统特殊项」清单（无实体文件，收纳后通过 shell: 协议 / CLSID 打开）
 const SYSTEM_ITEMS = [
@@ -43,8 +46,8 @@ const SYSTEM_ITEMS = [
   { id: 'network',   name: '网络',     launch: 'shell:NetworkPlacesFolder', clsid: '{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}', aliases: ['网络', 'Network'] },
   { id: 'thispc',    name: '此电脑',   launch: 'shell:MyComputerFolder',    clsid: '{20D04FE0-3AEA-1069-A2D8-08002B30309D}', aliases: ['此电脑', '这台电脑', '计算机', '我的电脑', 'This PC'] },
 ];
-// 所有「可收纳」的扩展名（枚举桌面文件用）
-const ALL_BOX_EXTS = [...SC_EXTS, ...DOC_EXTS, ...APP_EXTS].map(e => e.toLowerCase());
+// 所有「可收纳」的扩展名（枚举桌面文件用：快捷方式 + 程序文件）
+const ALL_BOX_EXTS = [...SC_EXTS, ...APP_EXTS].map(e => e.toLowerCase());
 
 class LauncherHost {
   /** @param {import('./store').Store} store */
@@ -593,11 +596,10 @@ class LauncherHost {
 
   async _addShortcuts() {
     const res = await dialog.showOpenDialog(this.win && !this.win.isDestroyed() ? this.win : undefined, {
-      title: '选择要收纳的程序 / 快捷方式 / 办公文件',
+      title: '选择要收纳的程序 / 快捷方式',
       properties: ['openFile', 'multiSelections'],
       filters: [
         { name: '程序与快捷方式', extensions: ['lnk', 'exe', 'url', 'bat', 'cmd'] },
-        { name: '办公文档', extensions: ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf', 'txt', 'md', 'csv'] },
         { name: '所有文件', extensions: ['*'] },
       ],
     });
@@ -605,12 +607,10 @@ class LauncherHost {
     const cfg = this.cfg;
     const exist = new Set((cfg.shortcuts || []).map(s => s.path));
     const added = res.filePaths
-      .filter(p => !exist.has(p))
+      .filter(p => !exist.has(p) && (SC_EXTS.includes(path.extname(p).toLowerCase()) || APP_EXTS.includes(path.extname(p).toLowerCase())))
       .map(p => {
         const ext = path.extname(p).toLowerCase();
-        const type = APP_EXTS.includes(ext) ? 'app'
-          : DOC_EXTS.includes(ext) ? 'doc'
-          : 'shortcut';
+        const type = APP_EXTS.includes(ext) ? 'app' : 'shortcut';
         return { name: path.basename(p, ext), path: p, type };
       });
     if (added.length) this.applyPatch({ shortcuts: [...(cfg.shortcuts || []), ...added] });
@@ -871,9 +871,7 @@ class LauncherHost {
       if (!this._moveFile(origin, boxPath)) return false;
       const name = path.basename(origin, path.extname(origin));
       const ext = path.extname(origin).toLowerCase();
-      const type = APP_EXTS.includes(ext) ? 'app'
-        : DOC_EXTS.includes(ext) ? 'doc'
-        : 'shortcut'; // .lnk / .url
+      const type = APP_EXTS.includes(ext) ? 'app' : 'shortcut'; // .lnk / .url
       if (!existPaths.has(boxPath)) {
         shortcuts.push({ name, path: boxPath, type });
         existPaths.add(boxPath);
@@ -920,7 +918,8 @@ class LauncherHost {
     return { ok: true, boxed: done, publicLeft, ...summary };
   }
 
-  /** 枚举目录中可收纳的文件（.lnk/.url 快捷方式 + 办公文档 + 程序 .exe/.bat/.cmd）。
+  /** 枚举目录中可收纳的文件（.lnk/.url 快捷方式 + 程序 .exe/.bat/.cmd）。
+   *  办公文档与文件夹已拆分到 filebox.js（文件收纳区）。
    *  过滤垃圾：._* （macOS 资源 fork，如 ._cache_geek.exe）、~$*（Office 锁文件） */
   _collectShortcuts(dir) {
     try {

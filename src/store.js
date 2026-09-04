@@ -36,6 +36,16 @@ const DEFAULT_CONFIG = {
       shortcuts: [],           // [{name, path}]（图标运行时解析，不入库）
       boxed: [],               // [{name, originPath, boxPath}] 从桌面收纳的快捷方式（可恢复）
     },
+    filebox: {                  // 桌面文件收纳区（从转盘拆分的普通文件/文件夹收纳）
+      enabled: false,
+      x: null, y: null, grid: null, // 收纳区窗口位置；grid 九宫格槽位
+      gridCols: 5,             // 网格列数（3~12）
+      groupBy: 'kind',         // 分类排列：kind 类型分类 / name 名称 / mtime 时间 / manual 手动
+      bgOpacity: 0.32,         // 面板底色不透明度（鼠标悬停展开时）
+      idleOpacity: 0.28,       // 空闲（鼠标离开）时整体不透明度（毛玻璃态）
+      autoIdle: true,          // 空闲自动转半透明毛玻璃
+      items: [],               // [{name, path, type:'file'|'folder', originPath?, boxPath?}]
+    },
     performance: {
       fullscreenPause: true,    // 性能：全屏应用时自动暂停视频壁纸
       batteryPause: true,       // 性能：电池供电时自动暂停视频壁纸
@@ -99,6 +109,11 @@ class Store {
             ...((raw.settings || {}).launcher || {}),
             shortcuts: (((raw.settings || {}).launcher || {}).shortcuts) || [],
             boxed: (((raw.settings || {}).launcher || {}).boxed) || [],
+          },
+          filebox: {
+            ...DEFAULT_CONFIG.settings.filebox,
+            ...((raw.settings || {}).filebox || {}),
+            items: (((raw.settings || {}).filebox || {}).items) || [],
           },
           performance: { ...DEFAULT_CONFIG.settings.performance, ...((raw.settings || {}).performance || {}) },
           audioViz: { ...DEFAULT_CONFIG.settings.audioViz, ...((raw.settings || {}).audioViz || {}) },

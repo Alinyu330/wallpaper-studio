@@ -41,6 +41,7 @@
       "preload-widgets.js",
       "preload-launcher.js",
       "preload-picker.js",
+      "preload-filebox.js",
       "src/**/*",
       "renderer/**/*",
       "assets/icon.png",
