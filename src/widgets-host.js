@@ -8,8 +8,16 @@
 // - 每个窗口都用转盘（launcher）已验证常驻显示的配方：小窗 + transparent +
 //   focusable + 挂 Progman（图标层之上）+ WS_EX_NOACTIVATE + 默认鼠标穿透，
 //   主进程 30ms 光标轮询命中渲染页上报的矩形后才可点击；
-// - 组件拖动 = 直接拖窗口（launcher 同款 grabOff 方案），松手吸附最近九宫格
-//   槽位并持久化；音律动效拖动后按窗口中心回写 posX/posY。
+// - 组件拖动 = 直接拖窗口（launcher 同款 grabOff 方案），松手即按落位保存；
+//   音律动效拖动后按窗口中心回写 posX/posY。
+//
+// ★ 位置模型（v1.7.1）：「自由位置」优先于「九宫格槽位」，两者互斥且来源单一：
+//   - 自由位置：桌面拖动落位后写入（组件 item.posX/posY、动效 audioViz.posX/posY，
+//     均为窗口中心相对工作区的比例）。自由位置有效时，九宫格槽位不再参与落位；
+//   - 九宫格槽位：设置页点宫格时写入（组件 item.pos、转盘 launcher.grid），
+//     同时清除自由位置 —— 交回九宫格定位；
+//   - 其它任何参数调整（大小/颜色/数量/开关…）都不得改动位置字段，
+//     否则拖动摆放的位置会被静默弹回九宫格/默认位置。
 const { BrowserWindow, ipcMain, screen } = require('electron');
 const path = require('path');
 const desktop = require('./desktop');
@@ -269,39 +277,85 @@ class WidgetsHost {
 
   // ---------- 落位 ----------
 
-  /** 组件/动效的目标矩形（物理像素）。九宫格槽位锚定工作区；aviz 以 posX/posY 为中心 */
-  _boundsFor(key) {
-    const d = screen.getPrimaryDisplay();
-    const sf = d.scaleFactor || 1;
-    const wa = d.workArea; // DIP {x,y,width,height}
-    let cx, cy, w, h; // CSS px
+  /** 组件/动效的内容尺寸（CSS px）。九宫格槽位与自由位置换算共用 */
+  _contentSize(key) {
     if (key === 'aviz') {
       const av = this.store.settings.audioViz || {};
       const size = Math.min(2, Math.max(0.5, Number(av.size) || 1));
       const circular = av.style === 'circle' || av.style === 'rings';
+      const wa = screen.getPrimaryDisplay().workArea;
       if (circular) {
         const side = Math.min(480, Math.max(180, Math.min(wa.width, wa.height) * 0.30 * size));
-        w = h = side + 70;
-      } else {
-        w = Math.min(1400, Math.max(400, wa.width * 0.5 * size)) + 70;
-        h = Math.min(340, Math.max(140, wa.height * 0.16 * size)) + 60;
+        return { w: side + 70, h: side + 70 };
       }
-      const defY = circular ? 0.5 : (av.pos === 'top' ? 0.12 : 0.88);
+      return {
+        w: Math.min(1400, Math.max(400, wa.width * 0.5 * size)) + 70,
+        h: Math.min(340, Math.max(140, wa.height * 0.16 * size)) + 60,
+      };
+    }
+    const item = ((this.store.settings.widgets || {}).items || {})[key] || {};
+    const tbl = WIDGET_SIZES[key] || WIDGET_SIZES.cpu;
+    const size = tbl[item.size] ? item.size : 'm';
+    const [w, h] = tbl[size];
+    return { w, h };
+  }
+
+  /**
+   * 窗口中心可移动范围（CSS px）：保证整窗留在工作区内。
+   * 拖动落位与逆换算必须用同一套限制，否则「拖到边角 → 落位被钳回屏内」
+   * 会让保存的比例与实际位置不符，下一次换算时位置漂移。
+   */
+  _centerLimits(w, h, wa) {
+    const halfW = Math.min(w / 2, wa.width / 2);
+    const halfH = Math.min(h / 2, wa.height / 2);
+    return {
+      minX: wa.x + halfW, maxX: wa.x + wa.width - halfW,
+      minY: wa.y + halfH, maxY: wa.y + wa.height - halfH,
+    };
+  }
+
+  /** 自由位置 → 窗口中心（CSS px）；无自由位置返回 null（交给九宫格槽位） */
+  _freeCenter(item, w, h, wa) {
+    if (item.posX == null || item.posY == null) return null;
+    const lim = this._centerLimits(w, h, wa);
+    const cx = Math.min(lim.maxX, Math.max(lim.minX, wa.x + Number(item.posX) * wa.width));
+    const cy = Math.min(lim.maxY, Math.max(lim.minY, wa.y + Number(item.posY) * wa.height));
+    return { cx, cy };
+  }
+
+  /**
+   * 组件/动效的目标矩形（物理像素）。
+   * 定位优先级：拖动保存的自由位置（posX/posY）> 九宫格槽位（pos）。
+   */
+  _boundsFor(key) {
+    const d = screen.getPrimaryDisplay();
+    const sf = d.scaleFactor || 1;
+    const wa = d.workArea; // DIP {x,y,width,height}
+    const { w, h } = this._contentSize(key); // CSS px
+    let cx, cy;
+    if (key === 'aviz') {
+      const av = this.store.settings.audioViz || {};
+      const circular = av.style === 'circle' || av.style === 'rings';
+      const defY = circular ? 0.5 : (av.pos === 'top' ? 0.10 : 0.90);
       const posX = av.posX == null ? 0.5 : av.posX;
       const posY = av.posY == null ? defY : av.posY;
       cx = wa.x + Math.min(0.98, Math.max(0.02, posX)) * wa.width;
       cy = wa.y + Math.min(0.96, Math.max(0.04, posY)) * wa.height;
     } else {
       const item = ((this.store.settings.widgets || {}).items || {})[key] || {};
-      const tbl = WIDGET_SIZES[key] || WIDGET_SIZES.cpu;
-      const size = tbl[item.size] ? item.size : 'm';
-      [w, h] = tbl[size];
-      const pos = item.pos || 'tl';
-      const row = pos[0], col = pos[1];
-      const anchorX = col === 'l' ? wa.x + MARGIN : col === 'c' ? wa.x + wa.width / 2 : wa.x + wa.width - MARGIN;
-      const anchorY = row === 't' ? wa.y + MARGIN : row === 'm' ? wa.y + wa.height / 2 : wa.y + wa.height - MARGIN;
-      cx = anchorX + (col === 'l' ? w / 2 : col === 'c' ? 0 : -w / 2);
-      cy = anchorY + (row === 't' ? h / 2 : row === 'm' ? 0 : -h / 2);
+      // ★ 拖动保存的自由位置优先：有效时不再吸附九宫格槽位
+      const free = this._freeCenter(item, w, h, wa);
+      if (free) {
+        cx = free.cx;
+        cy = free.cy;
+      } else {
+        const pos = item.pos || 'tl';
+        const row = pos[0], col = pos[1];
+        const anchorX = col === 'l' ? wa.x + MARGIN : col === 'c' ? wa.x + wa.width / 2 : wa.x + wa.width - MARGIN;
+        const anchorY = row === 't' ? wa.y + MARGIN : row === 'm' ? wa.y + wa.height / 2 : wa.y + wa.height - MARGIN;
+        cx = anchorX + (col === 'l' ? w / 2 : col === 'c' ? 0 : -w / 2);
+        cy = anchorY + (row === 't' ? h / 2 : row === 'm' ? 0 : -h / 2);
+      }
     }
     const vd = desktop.getDesktopRect();
     const pw = Math.round(w * sf), ph = Math.round(h * sf);
@@ -398,34 +452,36 @@ class WidgetsHost {
     const cy = (r.y + r.h / 2) / sf;
 
     if (p.key === 'aviz') {
-      // 音律动效：窗口中心 → posX/posY（工作区比例）
+      // 音律动效：窗口中心 → posX/posY（工作区比例；与九宫格/精确滑杆同一数据源）
       const posX = Math.min(0.98, Math.max(0.02, (cx - wa.x) / wa.width));
       const posY = Math.min(0.96, Math.max(0.04, (cy - wa.y) / wa.height));
       const cur = this.store.settings.audioViz || {};
-      this.store.updateSettings({ audioViz: { ...cur, posX, posY } });
-      if (this.hooks.onConfigChanged) this.hooks.onConfigChanged();
-    } else {
-      const rows = { t: wa.y + MARGIN, m: wa.y + wa.height / 2, b: wa.y + wa.height - MARGIN };
-      const cols = { l: wa.x + MARGIN, c: wa.x + wa.width / 2, r: wa.x + wa.width - MARGIN };
-      let best = 'tl', bestD = Infinity;
-      for (const row of ['t', 'm', 'b']) {
-        for (const col of ['l', 'c', 'r']) {
-          const dx = cx - cols[col], dy = cy - rows[row];
-          const dist = dx * dx + dy * dy;
-          if (dist < bestD) { bestD = dist; best = row + col; }
-        }
+      if (cur.posX !== posX || cur.posY !== posY) {
+        this.store.updateSettings({ audioViz: { ...cur, posX, posY } });
+        if (this.hooks.onConfigChanged) this.hooks.onConfigChanged();
       }
-      const w = this.store.settings.widgets || {};
-      const items = { ...(w.items || {}) };
+    } else {
+      // 桌面组件：★ 直接保存落位的自由位置。
+      // 旧实现会吸附到最近的九宫格槽位（写回 item.pos），导致永远拖不到
+      // 想要的位置、多个组件还会挤在同一槽位上 —— 现在只记录实际落位。
+      const { w, h } = this._contentSize(p.key);
+      const lim = this._centerLimits(w, h, wa);
+      const ccx = Math.min(lim.maxX, Math.max(lim.minX, cx));
+      const ccy = Math.min(lim.maxY, Math.max(lim.minY, cy));
+      const posX = (ccx - wa.x) / Math.max(1, wa.width);
+      const posY = (ccy - wa.y) / Math.max(1, wa.height);
+      const wc = this.store.settings.widgets || {};
+      const items = { ...(wc.items || {}) };
       const item = { ...(items[p.key] || {}) };
-      if (item.pos !== best) {
-        item.pos = best;
+      if (item.posX !== posX || item.posY !== posY) {
+        item.posX = posX;
+        item.posY = posY;
         items[p.key] = item;
-        this.store.updateSettings({ widgets: { ...w, items } });
+        this.store.updateSettings({ widgets: { ...wc, items } });
         if (this.hooks.onConfigChanged) this.hooks.onConfigChanged();
       }
     }
-    this._placePart(p); // 吸附/回写后精确落位
+    this._placePart(p); // 按保存的位置精确落位（自由位置下与松手位置一致）
     // 调整模式拖动落位完成 → 自动退出（客户端按钮经 adjust-state 事件复位）
     if (p.adjusting) this.setAdjust(p.key, false);
   }

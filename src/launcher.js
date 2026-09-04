@@ -196,8 +196,12 @@ class LauncherHost {
     if (ORIENTATIONS.includes(patch.orientation)) next.orientation = patch.orientation;
     if (patch.shortcuts === undefined) next.shortcuts = cur.shortcuts;
     if (patch.boxed === undefined) next.boxed = cur.boxed;
-    if (patch.grid !== undefined) {
-      // 九宫格定位接管：清除自定义坐标（拖动保存的 x/y），后续由 grid 推导落位
+    // 九宫格定位接管：清除自定义坐标（拖动保存的 x/y），后续由 grid 推导落位。
+    // ★ 必须是「调用方显式传了 grid」才接管 —— 早期版本用 patch.grid !== undefined
+    //   判断，而上游会把已存配置深合并进补丁（grid 恒有值，拖动后还是 null），
+    //   结果任何参数调整（数量/方向/收纳…）都被当成点了九宫格，把拖动位置清空
+    //   并弹回默认位置（v1.7.1）。
+    if (Object.prototype.hasOwnProperty.call(patch, 'grid')) {
       next.grid = patch.grid || null;
       next.x = null;
       next.y = null;
@@ -223,7 +227,7 @@ class LauncherHost {
       // 数量/快捷方式/收起开关变化 → 重建图标并推送（渲染页会重新上报尺寸）
       this.pushConfig();
     }
-    if (patch.grid !== undefined && this.win && !this.win.isDestroyed() && this.hwnd) {
+    if (Object.prototype.hasOwnProperty.call(patch, 'grid') && this.win && !this.win.isDestroyed() && this.hwnd) {
       this._applyGrid(next.grid);
     }
     if (this.onChanged) this.onChanged();
@@ -572,7 +576,13 @@ class LauncherHost {
       const r = desktop.getWindowRectScreen(this.hwnd);
       if (r) {
         const cfg = this.cfg;
-        this.store.updateSettings({ launcher: { ...cfg, x: r.x, y: r.y, grid: null } });
+        // ★ 拖动保存的是绝对坐标，九宫格让位（grid=null）。
+        //   位置没变就不写盘（避免调整模式下的空点一下把定位模式切走）
+        if (cfg.x !== r.x || cfg.y !== r.y || cfg.grid != null) {
+          this.store.updateSettings({ launcher: { ...cfg, x: r.x, y: r.y, grid: null } });
+          // 通知客户端刷新设置页：九宫格高亮复位为「自由摆放」状态
+          if (this.onChanged) this.onChanged();
+        }
       }
     }
     // 调整模式拖动落位完成 → 自动退出（客户端按钮经 adjust-state 事件复位）

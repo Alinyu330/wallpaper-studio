@@ -976,9 +976,24 @@ const POS_LABELS = {
 };
 
 function saveWidgets(patch) {
-  const w = { ...(state.settings.widgets || {}), ...patch };
+  const cur = state.settings.widgets || {};
+  const w = { ...cur, ...patch };
+  // items 逐项深合并：只改某一个组件的 pos/size/开关时，不能把兄弟组件的
+  // 配置从本地 state 里抹掉（否则界面上其它组件会瞬间变回关闭态）
+  if (patch.items) {
+    const items = { ...(cur.items || {}) };
+    for (const [k, v] of Object.entries(patch.items)) {
+      items[k] = { ...(items[k] || {}), ...(v && typeof v === 'object' ? v : {}) };
+    }
+    w.items = items;
+  }
   state.settings.widgets = w;
   window.api.updateSettings({ widgets: w });
+}
+
+/** 组件当前是否为「自由摆放」（桌面拖动保存的位置，优先于九宫格槽位） */
+function isWidgetFree(item) {
+  return !!(item && item.posX != null && item.posY != null);
 }
 
 // ---------- 设置页通用：数值输入 + 固定调整点 + 调整模式 ----------
@@ -1068,16 +1083,27 @@ function renderWidgetsSettings() {
     grid.className = 'pos-grid';
     for (const pos of Object.keys(POS_LABELS)) {
       const pb = document.createElement('button');
-      pb.className = 'pos-cell' + (item.pos === pos ? ' active' : '');
-      pb.title = POS_LABELS[pos];
+      pb.className = 'pos-cell' + (!freePos && item.pos === pos ? ' active' : '');
+      pb.title = freePos
+        ? `${POS_LABELS[pos]}：点击即交回九宫格定位（清除当前自由位置）`
+        : POS_LABELS[pos];
       pb.dataset.pos = pos;
       pb.addEventListener('click', () => {
-        saveWidgets({ items: { [key]: { ...item, pos } } });
+        // 点九宫格 = 交回九宫格定位：清掉桌面拖动保存的自由位置
+        saveWidgets({ items: { [key]: { ...item, pos, posX: null, posY: null } } });
         renderWidgetsSettings();
       });
       grid.appendChild(pb);
     }
     posWrap.appendChild(grid);
+    // 自由摆放标记：拖动过位置后，九宫格不再接管
+    if (freePos) {
+      const tag = document.createElement('span');
+      tag.className = 'wg-free-tag';
+      tag.textContent = '自由摆放';
+      tag.title = '当前位置由桌面拖动决定（九宫格暂不接管）；点任一宫格可交回九宫格定位';
+      posWrap.appendChild(tag);
+    }
     body.appendChild(posWrap);
     // 大小
     const sizeWrap = document.createElement('div');
@@ -1104,7 +1130,7 @@ function renderWidgetsSettings() {
     const adjBtn = document.createElement('button');
     adjBtn.className = 'btn ghost small';
     adjBtn.textContent = wgAdjustingKey === key ? '调整中 · 点此结束' : '调整位置';
-    adjBtn.title = '进入调整模式后，直接在桌面上按住组件拖动，松开即保存位置';
+    adjBtn.title = '进入调整模式后，直接在桌面上按住组件拖动到任意位置，松开即保存（保存的位置优先于左侧九宫格）';
     adjBtn.addEventListener('click', async () => {
       const turnOn = wgAdjustingKey !== key;
       const ok = await window.api.setWidgetsAdjust(key, turnOn);
@@ -1274,12 +1300,20 @@ function syncAvGrid(av, circular) {
   const grid = $('#av-pos9');
   if (!grid || !grid.children.length) return;
   const defY = circular ? 0.5 : (av.pos === 'top' ? 0.10 : 0.90);
+  const free = av.posX != null || av.posY != null;
   const cx = Math.round((av.posX ?? 0.5) * 100);
   const cy = Math.round((av.posY ?? defY) * 100);
   grid.querySelectorAll('.pos-cell').forEach(b => {
     const [gx, gy] = AV_GRID[b.dataset.cell] || [];
-    b.classList.toggle('active', gx === cx && gy === cy);
+    b.classList.toggle('active', !free && gx === cx && gy === cy);
   });
+  // 拖动保存的自由位置优先于九宫格：提示用户当前由哪个来源决定位置
+  const sub = document.querySelector('#av-pos9-row .row-sub');
+  if (sub) {
+    sub.textContent = free
+      ? '当前为桌面拖动保存的自由位置（九宫格暂不接管）；点任一宫格即交回九宫格定位，点上方「顶部 / 底部」回到预设'
+      : '点击快速摆放到中心 / 左中 / 右上等常用位置；拖动调整与精确滑杆仍可用';
+  }
 }
 
 /** 实时音频状态（主进程每 600ms 推送）：文字 + 电平条 */

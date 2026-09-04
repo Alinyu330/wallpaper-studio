@@ -517,6 +517,18 @@ input[type="number"] {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
 }
+/* 自由摆放标记：桌面拖动保存的位置优先于九宫格（v1.7.1） */
+.wg-free-tag {
+  flex: none;
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: rgba(124,92,255,.14);
+  border: 1px solid rgba(124,92,255,.34);
+  cursor: default;
+}
 
 input[type="range"] {
   -webkit-appearance: none;

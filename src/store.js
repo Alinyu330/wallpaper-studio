@@ -15,12 +15,14 @@ const DEFAULT_CONFIG = {
       enabled: false,
       theme: 'auto',            // auto/light/dark
       opacity: 0.72,            // 组件面板底透明度
+      // 位置模型（v1.7.1）：posX/posY 为桌面拖动保存的自由位置（窗口中心相对
+      // 工作区的比例，null = 未拖动过）；非 null 时优先于 pos 九宫格槽位。
       items: {
-        clock:  { on: false, pos: 'tl', size: 'l' }, // 时钟（可点击切换12/24小时制）
-        cpu:    { on: false, pos: 'tr', size: 'm' },
-        gpu:    { on: false, pos: 'tr', size: 'm' },
-        mem:    { on: false, pos: 'tr', size: 'm' },
-        volume: { on: false, pos: 'br', size: 'm' }, // 音量（可拖动调节/点击静音）
+        clock:  { on: false, pos: 'tl', posX: null, posY: null, size: 'l' }, // 时钟（可点击切换12/24小时制）
+        cpu:    { on: false, pos: 'tr', posX: null, posY: null, size: 'm' },
+        gpu:    { on: false, pos: 'tc', posX: null, posY: null, size: 'm' },
+        mem:    { on: false, pos: 'mr', posX: null, posY: null, size: 'm' },
+        volume: { on: false, pos: 'br', posX: null, posY: null, size: 'm' }, // 音量（可拖动调节/点击静音）
       },
     },
     lastWindowBounds: null,     // 主窗口位置记忆

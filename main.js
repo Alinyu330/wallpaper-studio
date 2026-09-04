@@ -313,9 +313,14 @@ function applySettingsUpdate(patch) {
   }
   // launcher 深合并（关键：只调 orientation/bgOpacity/edgeFade 等参数时，
   // 若整体替换会丢失 enabled/shortcuts/boxed/count —— 表现为「调节参数后
-  // 转盘开关被异常关闭、已收纳项消失」）
+  // 转盘开关被异常关闭、已收纳项消失」）。
+  // ★ 保留合并前的原始补丁：合并后 patch.launcher 会被旧配置填满（含 grid/x/y），
+  //   直接交给 applyPatch 会让「改数量」也被当成「点了九宫格」，把拖动保存的
+  //   自由位置清空并弹回默认位置（v1.7.1）。
+  let launcherPatch = null;
   if (patch && patch.launcher) {
     const old = store.settings.launcher || {};
+    launcherPatch = patch.launcher;
     patch = {
       ...patch,
       launcher: { ...old, ...patch.launcher },
@@ -328,7 +333,7 @@ function applySettingsUpdate(patch) {
   if (patch.rotation !== undefined) setupRotation();
   if (patch.widgets !== undefined) applyWidgetsConfig();
   if (patch.audioViz !== undefined) applyWidgetsConfig(); // 音律动效与组件共用覆盖层
-  if (patch.launcher !== undefined && launcherHost) launcherHost.applyPatch(patch.launcher);
+  if (launcherPatch && launcherHost) launcherHost.applyPatch(launcherPatch);
   if (patch.wallpaperPaused !== undefined) setWallpaperPaused(patch.wallpaperPaused);
   if (patch.hotkeyPause !== undefined) applyHotkeySetting();
   if (patch.smoothLoop !== undefined && videoEngine) videoEngine.setSmoothLoop(patch.smoothLoop);
