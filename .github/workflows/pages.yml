@@ -16,6 +16,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── GitHub Pages ────────────────────────────────────────────────
+  # alinyu330.github.io/wallpaper-studio
   deploy:
     runs-on: ubuntu-latest
     environment:
@@ -34,3 +36,24 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  # ── Cloudflare Pages ───────────────────────────────────────────
+  # wallpaper-studio.pages.dev
+  # 与 GitHub Pages 内容同源（docs/）。token 走 GitHub Actions Secret：
+  #   Settings → Secrets and variables → Actions → New repository secret
+  #   Name: CLOUDFLARE_API_TOKEN   Value: 有 Cloudflare Pages:Edit 权限的 API Token
+  deploy-cloudflare:
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: aa08136f7efd8085a0ae0b04230cfcba
+          command: pages deploy docs --project-name wallpaper-studio
+
+      # 提示：若 CF 未配 token，本 job 会在此步报错。
+      # 配置好上面的 repository secret 后重新运行本工作流即可。
