@@ -589,9 +589,13 @@
     // ---------- 尺寸 / 命中矩形上报 ----------
 
     function reportMetrics() {
-      const r = expandedEl.getBoundingClientRect();
-      if (r.width > 10 && r.height > 10) {
-        H.reportMetrics({ w: Math.ceil(r.width), h: Math.ceil(r.height) });
+      // ★ 必须用 offsetWidth/offsetHeight（布局尺寸，不受 CSS transform 影响）。
+      //   收起态 #expanded 带 scale(.12) 变换，getBoundingClientRect 量到的是缩放后
+      //   尺寸（约 1/8）——若在收起时上报（点九宫格/改配置触发 renderStrip→rAF），
+      //   主进程会把窗口缩成贴任务栏的细条，转盘被窗体裁剪形同被任务栏遮挡。
+      const w = expandedEl.offsetWidth, h = expandedEl.offsetHeight;
+      if (w > 10 && h > 10) {
+        H.reportMetrics({ w, h });
       }
       reportRects();
     }
