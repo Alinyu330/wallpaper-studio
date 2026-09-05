@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('wallpaperHost', {
   boardEdit: (payload) => ipcRenderer.invoke('wallpaper-board-edit', payload),
   boardGeocode: (q) => ipcRenderer.invoke('wallpaper-board-geocode', q),
   boardFocus: () => ipcRenderer.send('wallpaper-board-focus'),
+  boardBlur: () => ipcRenderer.send('wallpaper-board-blur'),
   boardHeight: (h) => ipcRenderer.send('wallpaper-board-height', h),
   reportAvStatus: (s) => ipcRenderer.send('wallpaper-av-status', s),
   // 拖动 = 移动整个窗口（主进程实现，launcher 同款 grabOff 方案）

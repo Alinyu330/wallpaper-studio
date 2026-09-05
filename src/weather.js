@@ -9,6 +9,7 @@
 //   promise 只会变成噪音日志）。
 // - start() 先推磁盘缓存，保证开机/断网时看板不空白。
 const https = require('https');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
@@ -16,6 +17,7 @@ const REFRESH_MS = 30 * 60 * 1000;
 const RETRY_MS = 5 * 60 * 1000;
 const MAX_RETRY = 6;
 const TIMEOUT_MS = 8000;
+const IPLOC_TTL_MS = 12 * 60 * 60 * 1000; // IP 定位结果保鲜期（跨城移动半天内自愈）
 
 // WMO weather interpretation codes → 中文 + emoji
 const WMO = {
@@ -44,7 +46,8 @@ const GEOCODE_URL = (n) => 'https://geocoding-api.open-meteo.com/v1/search'
 
 function httpGetJson(url) {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { timeout: TIMEOUT_MS }, (res) => {
+    const mod = url.startsWith('http:') ? http : https;
+    const req = mod.get(url, { timeout: TIMEOUT_MS }, (res) => {
       if (res.statusCode !== 200) { res.resume(); reject(new Error(`HTTP ${res.statusCode}`)); return; }
       let body = '';
       res.setEncoding('utf8');
@@ -56,6 +59,39 @@ function httpGetJson(url) {
     req.on('timeout', () => req.destroy(new Error('timeout')));
     req.on('error', reject);
   });
+}
+
+/**
+ * IP 地理定位（免密钥）：返回 {cityName, lat, lon, tz}。
+ * 首选 ip-api.com（免费档仅 HTTP，但支持 lang=zh-CN 中文地名）；
+ * 失败回退 ipwho.is（HTTPS，英文地名）。两者都挂 → null（调用方用兜底城市）。
+ */
+async function ipLocate() {
+  try {
+    const r = await httpGetJson('http://ip-api.com/json/?lang=zh-CN&fields=status,country,regionName,city,lat,lon,timezone');
+    if (r && r.status === 'success' && Number.isFinite(r.lat) && Number.isFinite(r.lon)) {
+      return {
+        cityName: [r.city || r.regionName, r.regionName && r.city !== r.regionName ? r.regionName : '']
+          .filter(Boolean).join(' · ') || r.country || '未知',
+        lat: r.lat, lon: r.lon, tz: r.timezone || 'auto',
+      };
+    }
+  } catch (e) {
+    console.warn('[weather] ip-api 定位失败:', e.message);
+  }
+  try {
+    const r = await httpGetJson('https://ipwho.is/');
+    if (r && r.success !== false && Number.isFinite(r.latitude) && Number.isFinite(r.longitude)) {
+      return {
+        cityName: r.city || r.region || r.country || '未知',
+        lat: r.latitude, lon: r.longitude,
+        tz: (r.timezone && r.timezone.id) || 'auto',
+      };
+    }
+  } catch (e) {
+    console.warn('[weather] ipwho.is 定位失败:', e.message);
+  }
+  return null;
 }
 
 const r1 = (v) => (Number.isFinite(v) ? Math.round(v * 10) / 10 : null);
@@ -74,16 +110,39 @@ class WeatherService {
     this.timer = null;
     this.retryTimer = null;
     this.retry = 0;
+    this.ipLoc = null;    // {cityName,lat,lon,tz,at} IP 定位缓存（仅自动模式使用）
+    this._ipLocating = null; // 进行中的定位 promise（去重并发）
   }
 
-  cfg() {
+  /**
+   * 城市配置解析：
+   * - 手动模式（用户在桌面看板/设置页显式选过城市 → manual:true）：用存储坐标；
+   * - 自动模式（默认）：按 IP 所在地定位，结果缓存 12h；定位失败兜底北京。
+   *   自动模式不写回 store —— 换城市/换网络后下次启动重新定位，无需用户干预。
+   */
+  async cfg() {
     const w = (this.store.settings.board || {}).weather || {};
-    return {
-      cityName: w.cityName || '北京',
-      lat: Number.isFinite(w.lat) ? w.lat : 39.9042,
-      lon: Number.isFinite(w.lon) ? w.lon : 116.4074,
-      tz: w.tz || 'Asia/Shanghai',
-    };
+    if (w.manual && w.cityName && Number.isFinite(w.lat) && Number.isFinite(w.lon)) {
+      return { cityName: w.cityName, lat: w.lat, lon: w.lon, tz: w.tz || 'auto' };
+    }
+    const loc = await this._autoLoc();
+    if (loc) return loc;
+    return { cityName: '北京', lat: 39.9042, lon: 116.4074, tz: 'Asia/Shanghai' };
+  }
+
+  _autoLoc() {
+    if (this.ipLoc && Date.now() - this.ipLoc.at < IPLOC_TTL_MS) return Promise.resolve(this.ipLoc);
+    if (this._ipLocating) return this._ipLocating;
+    this._ipLocating = ipLocate().then((r) => {
+      this._ipLocating = null;
+      if (r) {
+        this.ipLoc = { ...r, at: Date.now() };
+        console.log(`[weather] IP 自动定位: ${r.cityName} (${r.lat}, ${r.lon})`);
+        return this.ipLoc;
+      }
+      return this.ipLoc; // 定位失败但有旧缓存 → 接着用
+    }).catch(() => { this._ipLocating = null; return this.ipLoc; });
+    return this._ipLocating;
   }
 
   start() {
@@ -122,7 +181,7 @@ class WeatherService {
   }
 
   async refresh() {
-    const w = this.cfg();
+    const w = await this.cfg();
     try {
       const raw = await httpGetJson(FORECAST_URL(w));
       this.data = this._normalize(raw, w);

@@ -129,17 +129,30 @@
     .bd-add { font-size: 10.5px; opacity: .5; cursor: pointer; padding: 2px 0 0; letter-spacing: .5px; }
     .bd-add:hover { opacity: .95; }
     .bd-city { cursor: pointer; border-bottom: 1px dotted currentColor; }
-    .bd-inrow { display: flex; gap: 4px; align-items: center; margin-top: 3px; }
-    .bd-input { min-width: 0; flex: 1; background: rgba(255,255,255,.12); color: inherit; border: 1px solid rgba(255,255,255,.35); border-radius: 6px; font-size: 11px; font-family: inherit; padding: 2px 6px; outline: none; }
-    .bd-input::placeholder { color: inherit; opacity: .45; }
-    body.theme-light .bd-input { background: rgba(0,0,0,.06); border-color: rgba(0,0,0,.3); }
-    .bd-inrow .fixed { flex: none; width: 78px; }
-    .bd-ann { flex: none; cursor: pointer; font-size: 11px; opacity: .4; user-select: none; }
-    .bd-ann.on { opacity: 1; }
-    .bd-citylist { margin-top: 3px; }
-    .bd-ci { font-size: 11px; padding: 2px 5px; margin: 1px 0; cursor: pointer; border-radius: 4px; opacity: .85; }
-    .bd-ci:hover { background: rgba(255,255,255,.16); }
-    body.theme-light .bd-ci:hover { background: rgba(0,0,0,.1); }
+    .bd-inrow { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+    /* 输入框：下划线式，与「无卡片融入壁纸」一致 —— 无边框无底色，
+       聚焦时紫色光标 + 主题色下划线点亮，比白底圆角框协调得多 */
+    .bd-input {
+      min-width: 0; flex: 1;
+      background: transparent; color: inherit;
+      border: none; border-bottom: 1.5px solid rgba(255,255,255,.30);
+      font-size: 12px; font-family: inherit; letter-spacing: .3px;
+      padding: 3px 1px 4px; outline: none;
+      caret-color: #9d8bff;
+      transition: border-color .15s, background .15s;
+    }
+    .bd-input::placeholder { color: inherit; opacity: .38; }
+    .bd-input:focus { border-bottom-color: #9d8bff; background: linear-gradient(180deg, transparent 55%, rgba(124,92,255,.14)); }
+    body.theme-light .bd-input { border-bottom-color: rgba(0,0,0,.28); caret-color: #6a4df0; }
+    body.theme-light .bd-input:focus { border-bottom-color: #6a4df0; background: linear-gradient(180deg, transparent 55%, rgba(106,77,240,.10)); }
+    .bd-inrow .fixed { flex: none; width: 84px; }
+    .bd-ann { flex: none; cursor: pointer; font-size: 12px; opacity: .4; user-select: none; padding: 0 2px; transition: opacity .12s, transform .12s; }
+    .bd-ann:hover { opacity: .8; }
+    .bd-ann.on { opacity: 1; transform: scale(1.15); }
+    .bd-citylist { margin-top: 4px; }
+    .bd-ci { font-size: 11.5px; padding: 3px 6px; margin: 1px 0; cursor: pointer; border-radius: 6px; opacity: .85; transition: background .12s, opacity .12s; }
+    .bd-ci:hover { background: rgba(157,139,255,.22); opacity: 1; }
+    body.theme-light .bd-ci:hover { background: rgba(106,77,240,.16); }
 
     /* ---------- 音律动效（独立小窗：画布填满窗口） ---------- */
     #av-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: none; }
@@ -439,6 +452,9 @@
       editing = null;
       if (cityTimer) { clearTimeout(cityTimer); cityTimer = null; }
       window.wallpaperHost.boardHeight(null);
+      // 编辑期间主进程为让键盘/IME 进来临时摘掉了窗口的 WS_EX_NOACTIVATE，
+      // 关闭编辑器必须恢复，否则组件点击会持续抢前台焦点
+      window.wallpaperHost.boardBlur();
       buildBoard();
       if (!keepInteractive) window.wallpaperHost.setInteracting(false);
       scheduleRects();
@@ -451,9 +467,20 @@
       });
     }
 
+    // 焦点自检：打开编辑器后若窗口没真正拿到焦点（前台锁拒绝等），
+    // 主动重拉几次；拿到焦点后 document.hasFocus() 为真即不再打扰
+    function ensureEditorFocus(token) {
+      for (const ms of [250, 800, 1500]) {
+        setTimeout(() => {
+          if (!editing || editing.token !== token) return;
+          if (!document.hasFocus()) window.wallpaperHost.boardFocus();
+        }, ms);
+      }
+    }
+
     function openTodoEditor() {
       closeEditor(true);
-      editing = { kind: 'todo', token: ++edSeq };
+      editing = { kind: 'todo', token: ++edSeq, at: Date.now() };
       const token = editing.token;
       const add = document.getElementById('bd-add-todo');
       if (!add) return;
@@ -462,6 +489,7 @@
       window.wallpaperHost.setInteracting(true);
       window.wallpaperHost.boardFocus();
       inp.focus();
+      ensureEditorFocus(token);
       editKeydown(inp, () => {
         const v = inp.value.trim();
         if (!v) { closeEditor(); return; }
@@ -472,7 +500,7 @@
 
     function openEventEditor() {
       closeEditor(true);
-      editing = { kind: 'event', ann: false, token: ++edSeq };
+      editing = { kind: 'event', ann: false, token: ++edSeq, at: Date.now() };
       const token = editing.token;
       const add = document.getElementById('bd-add-ev');
       if (!add) return;
@@ -484,6 +512,7 @@
       window.wallpaperHost.setInteracting(true);
       window.wallpaperHost.boardFocus();
       dInp.focus();
+      ensureEditorFocus(token);
       ann.addEventListener('click', () => {
         editing.ann = !editing.ann;
         ann.classList.toggle('on', editing.ann);
@@ -503,14 +532,20 @@
 
     function openCityEditor() {
       closeEditor(true);
-      editing = { kind: 'city', token: ++edSeq };
+      editing = { kind: 'city', token: ++edSeq, at: Date.now() };
       const token = editing.token;
       const wx = document.getElementById('bd-wx');
       if (!wx) return;
       window.wallpaperHost.boardHeight(window.innerHeight + 96);
-      wx.innerHTML = '<input class="bd-input" placeholder="输入城市名搜索，Esc 取消"><div class="bd-citylist"></div>';
+      wx.innerHTML = '<input class="bd-input" placeholder="输入城市名搜索，Esc 取消"><div class="bd-citylist">' +
+        '<div class="bd-ci" data-auto="1" style="opacity:.7">📍 恢复自动定位（按 IP 所在地）</div></div>';
       const inp = wx.querySelector('input');
       const list = wx.querySelector('.bd-citylist');
+      const autoRow = list.querySelector('[data-auto]');
+      autoRow.addEventListener('click', () => {
+        window.wallpaperHost.boardEdit({ op: 'city-auto' })
+          .then((b) => editCommit(token, b)).catch(() => closeEditor());
+      });
       window.wallpaperHost.setInteracting(true);
       window.wallpaperHost.boardFocus();
       inp.focus();
@@ -570,17 +605,19 @@
         if (editing) closeEditor();
       });
       root.addEventListener('mousedown', () => window.wallpaperHost.setInteracting(true));
-      // 焦点抖动处理：NOACTIVATE 小窗的程序化焦点会被系统随时回收（环境 blur 每
-      // 几秒一次），不能拿 blur 当「用户离开」信号关编辑器 —— 只需重新拉焦点，
-      // 保证打字不中断。真正离开靠 Esc / 点看板其它位置 / 提交成功收尾。
-      window.addEventListener('blur', () => {
-        if (!editing) return;
-        if (closeEditor.refocusTimer) clearTimeout(closeEditor.refocusTimer);
-        closeEditor.refocusTimer = setTimeout(() => {
-          closeEditor.refocusTimer = null;
-          if (editing) window.wallpaperHost.boardFocus();
-        }, 120);
-      });
+    // 焦点抖动处理：编辑器刚打开的几秒内，焦点可能被系统/前台应用瞬时抢走，
+    // 需要重新拉回保证打字不中断。但编辑器打开 1.6s 后窗口是真正激活态，
+    // 此时的 blur 多半是用户主动切走 —— 不能再抢回焦点（敌意行为），
+    // 真正离开靠 Esc / 点看板其它位置 / 提交成功收尾。
+    window.addEventListener('blur', () => {
+      if (!editing) return;
+      if (Date.now() - (editing.at || 0) > 1600) return;
+      if (closeEditor.refocusTimer) clearTimeout(closeEditor.refocusTimer);
+      closeEditor.refocusTimer = setTimeout(() => {
+        closeEditor.refocusTimer = null;
+        if (editing && Date.now() - (editing.at || 0) <= 1600) window.wallpaperHost.boardFocus();
+      }, 120);
+    });
     }
 
     // ---------- 交互 ----------

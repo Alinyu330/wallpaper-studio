@@ -200,6 +200,7 @@ class WidgetsHost {
   _destroyPart(key) {
     const p = this.parts.get(key);
     if (!p) return;
+    this._stopEditGuard(p);
     this.parts.delete(key);
     console.log(`[widgets] destroy ${key} hwnd=${p.hwnd} stack=`, new Error().stack);
     try { if (p.win && !p.win.isDestroyed()) p.win.close(); } catch (_) {}
@@ -284,7 +285,9 @@ class WidgetsHost {
         this._ensureCreated(key);
         continue;
       }
-      if (p.hwnd) desktop.ensureLauncherOverlay(p.hwnd);
+      // 看板编辑中（editingFocus）跳过 Z 序重申：此时窗口被激活抬到应用窗口
+      // 之上供用户输入，placeAboveProgman 会把它压回应用窗口之下（编辑器消失）
+      if (p.hwnd && !p.editingFocus) desktop.ensureLauncherOverlay(p.hwnd);
     }
     this._syncInputTimer();
   }
@@ -690,7 +693,9 @@ class WidgetsHost {
     ipcMain.on('wallpaper-set-sys-volume', (_e, v) => {
       if (this.hooks.onSysVolume) this.hooks.onSysVolume(v);
     });
-    ipcMain.on('wallpaper-toggle-sys-mute', () => {
+    ipcMain.on('wallpaper-toggle-sys-mute', (e) => {
+      const p = partOf(e);
+      console.log(`[widgets] 收到静音切换 IPC（来自 ${p ? p.key : '未知窗口'}）`);
       if (this.hooks.onToggleSysMute) this.hooks.onToggleSysMute();
     });
     // 桌面看板勾选待办：直接写 store + 回推 + 同步客户端。
@@ -744,8 +749,14 @@ class WidgetsHost {
           const lat = Number(payload.lat);
           const lon = Number(payload.lon);
           if (cityName && Number.isFinite(lat) && Number.isFinite(lon)) {
-            b.weather = { ...(b.weather || {}), cityName, lat, lon, tz: payload.tz || 'auto' };
+            // manual:true = 用户显式指定，天气服务此后不再按 IP 自动定位
+            b.weather = { ...(b.weather || {}), cityName, lat, lon, tz: payload.tz || 'auto', manual: true };
           }
+          break;
+        }
+        case 'city-auto': {
+          // 恢复自动定位：清空手动标记与坐标（运行时的 IP 定位结果不落盘）
+          b.weather = { cityName: '', lat: null, lon: null, tz: 'auto', manual: false };
           break;
         }
         default:
@@ -756,17 +767,47 @@ class WidgetsHost {
       this.store.updateSettings({ board: b });
       this._pushTo(p);
       if (this.hooks.onConfigChanged) this.hooks.onConfigChanged();
-      if (payload.op === 'city-set' && this.hooks.onWeatherReload) this.hooks.onWeatherReload();
+      if ((payload.op === 'city-set' || payload.op === 'city-auto') && this.hooks.onWeatherReload) this.hooks.onWeatherReload();
       return { ok: true, board: b };
     });
     ipcMain.handle('wallpaper-board-geocode', (_e, q) =>
       (this.hooks.geocodeCity ? this.hooks.geocodeCity(String(q || '')) : Promise.resolve([])));
-    // 编辑器需要键盘输入：窗口是 WS_EX_NOACTIVATE，鼠标点击不激活窗口，
-    // 键击仍会派发给此前的前台窗口 → 渲染页在聚焦输入框时请求主进程拉前台。
-    // 用户刚在本窗口点击（最近输入事件在本进程）→ SetForegroundWindow 放行。
+    // 编辑器需要键盘输入：窗口常驻 WS_EX_NOACTIVATE（不抢焦点），但 NOACTIVATE
+    // 窗口永远无法被激活 —— 点击不激活、SetForegroundWindow 也无效，键击与 IME
+    // 候选窗都会派发给此前的前台窗口（曾表现为「输入框能聚焦但打字无反应」）。
+    // 解法：编辑期间临时摘掉 NOACTIVATE 位，再正常激活 + 聚焦 webContents；
+    // 编辑器关闭时（wallpaper-board-blur）恢复。用户刚在本窗口点击
+    // （最近输入事件在本进程）→ SetForegroundWindow 放行。
     ipcMain.on('wallpaper-board-focus', (e) => {
       const p = partOf(e);
-      if (p && p.win && !p.win.isDestroyed()) { try { p.win.focus(); } catch (_) {} }
+      if (!p || !p.win || p.win.isDestroyed()) return;
+      try {
+        if (p.hwnd) {
+          desktop.setNoActivate(p.hwnd, false);
+          // win.focus() 的 SetForegroundWindow 有前台锁：覆盖层鼠标穿透时本进程
+          // 没有「最近输入」，会被静默拒绝 → AttachThreadInput 旁路强制前台
+          desktop.forceForeground(p.hwnd);
+        }
+        p.editingFocus = true;
+        p.win.focus();
+        p.win.webContents.focus();
+        console.log(`[widgets] board-focus: 编辑焦点已拉取 hwnd=${p.hwnd}`);
+        this._startEditGuard(p);
+      } catch (_) {}
+    });
+    // 编辑器关闭：恢复 NOACTIVATE（组件点击不再抢焦点）并重申桌面带 Z 序
+    // （激活期间窗口可能被抬到应用窗口之上）
+    ipcMain.on('wallpaper-board-blur', (e) => {
+      const p = partOf(e);
+      if (!p) return;
+      p.editingFocus = false;
+      this._stopEditGuard(p);
+      try {
+        if (p.hwnd) {
+          desktop.setNoActivate(p.hwnd, true);
+          desktop.ensureLauncherOverlay(p.hwnd);
+        }
+      } catch (_) {}
     });
     // 城市编辑器临时加高窗口（null = 恢复配置尺寸并按落位重挂）
     ipcMain.on('wallpaper-board-height', (e, h) => {

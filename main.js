@@ -26,6 +26,11 @@ const { dispose: jobGuardDispose } = require('./src/job-guard');
 // 关闭自动播放手势要求，让后台覆盖层窗口的 WebAudio 正常工作。
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
+// 任务栏/任务管理器/通知署名显示「壁纸工坊」而非宿主进程名 Electron
+// （打包版 electron-builder 会自动注入 appId；开发态 npm start 必须显式设置）。
+// 注意不要用 app.setName —— 那会搬移 userData 目录导致用户配置丢失。
+if (process.platform === 'win32') app.setAppUserModelId('com.alinyu.wallpaperstudio');
+
 // ---------- 覆盖层渲染保活（核心修复） ----------
 // 挂到 Progman 的透明子窗口（转盘/组件/音律动效）会被 Chromium 的
 // 原生窗口遮挡计算(CalculateNativeWinOcclusion)判为"被完全遮挡/不可见"，
@@ -1191,6 +1196,21 @@ function setupIpc() {
       if (req.url === '/capture') {
         const r = await captureDebugScreens();
         res.end(JSON.stringify(r, null, 2));
+      } else if (req.url === '/state') {
+        // 组件输入状态诊断：inputOn/rects 数/编辑焦点/光标位置与命中
+        const out = { cursor: desktop.getCursorPos(), parts: {} };
+        if (widgetsHost) {
+          for (const [k, p] of widgetsHost.parts) {
+            out.parts[k] = {
+              hwnd: p.hwnd, inputOn: p.inputOn, rects: (p.rects || []).length,
+              interacting: p.interacting, editingFocus: !!p.editingFocus,
+              rect: p.hwnd ? desktop.getWindowRectScreen(p.hwnd) : null,
+              hitNow: p.hwnd ? desktop.cursorInRects(p.hwnd, p.rects) : null,
+              firstRects: (p.rects || []).slice(0, 4),
+            };
+          }
+        }
+        res.end(JSON.stringify(out, null, 2));
       } else if (process.env.WP_DEBUG === '1' && req.url.startsWith('/settings')) {
         // WP_DEBUG=1 调试端点：模拟客户端 settings:update 全链路（仅本机回环）
         try {
@@ -1553,8 +1573,12 @@ if (gotLock) {
       },
       onToggleSysMute: () => {
         const next = !sysCache.muted;
+        console.log(`[volume] 静音切换: ${sysCache.muted} → ${next}`);
         sysCache.muted = next;
-        sysVolume.setMute(next).then((ok) => { if (!ok) pollSysVolume(); });
+        sysVolume.setMute(next).then((ok) => {
+          console.log(`[volume] setMute(${next}) ${ok ? '成功' : '失败，回读同步'}`);
+          if (!ok) pollSysVolume();
+        });
       },
       onConfigChanged: () => notifyMain('settings:sync', store.settings),
       // 桌面看板编辑：城市搜索与切换后立刻重拉天气

@@ -1452,7 +1452,9 @@ function renderBoardEditor() {
   $('#bd-sec-weather').checked = s.weather !== false;
   $('#bd-sec-todo').checked = s.todo !== false;
   const w = b.weather || {};
-  $('#bd-city-now').textContent = w.cityName ? `当前：${w.cityName}（${Number(w.lat).toFixed(2)}, ${Number(w.lon).toFixed(2)}）` : '未设置城市';
+  $('#bd-city-now').textContent = (w.manual && w.cityName)
+    ? `当前：${w.cityName}（${Number(w.lat).toFixed(2)}, ${Number(w.lon).toFixed(2)}）`
+    : '自动定位（按 IP 所在地）· 搜索可手动指定';
 
   const evList = $('#bd-ev-list');
   evList.innerHTML = '';
@@ -1542,7 +1544,7 @@ function bindBoardEditor() {
         row.style.cursor = 'pointer';
         row.innerHTML = `<span class="lc-name">${escHtml(r.name)}</span>`;
         row.addEventListener('click', () => {
-          saveBoard({ weather: { cityName: r.name, lat: r.lat, lon: r.lon, tz: r.tz } });
+          saveBoard({ weather: { cityName: r.name, lat: r.lat, lon: r.lon, tz: r.tz, manual: true } });
           list.innerHTML = '';
           $('#bd-city-q').value = '';
           toast(`看板天气已切到 ${r.name}`);
@@ -1551,6 +1553,11 @@ function bindBoardEditor() {
       }
       if (!(res || []).length) list.innerHTML = '<p class="hint">没有匹配的城市</p>';
     }, 400);
+  });
+  // 恢复自动定位：清掉手动城市，天气服务回到按 IP 定位
+  $('#bd-city-auto').addEventListener('click', () => {
+    saveBoard({ weather: { cityName: '', lat: null, lon: null, tz: 'auto', manual: false } });
+    toast('已恢复按 IP 自动定位');
   });
   renderBoardEditor();
 }

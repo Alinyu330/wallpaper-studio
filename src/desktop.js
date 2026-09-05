@@ -42,6 +42,12 @@ const GetClassNameW = user32.func('GetClassNameW', 'int32_t', ['intptr_t', koffi
 const GetWindowTextW = user32.func('GetWindowTextW', 'int32_t', ['intptr_t', koffi.out(koffi.pointer('int16_t')), 'int32_t']);
 const GetSystemMetrics = user32.func('GetSystemMetrics', 'int32_t', ['int32_t']);
 const GetForegroundWindow = user32.func('GetForegroundWindow', 'intptr_t', []);
+const SetForegroundWindow = user32.func('SetForegroundWindow', 'int', ['intptr_t']);
+const BringWindowToTop = user32.func('BringWindowToTop', 'int', ['intptr_t']);
+const SetActiveWindow = user32.func('SetActiveWindow', 'intptr_t', ['intptr_t']);
+const SetFocus = user32.func('SetFocus', 'intptr_t', ['intptr_t']);
+const AttachThreadInput = user32.func('AttachThreadInput', 'int', ['uint32', 'uint32', 'int']);
+const GetCurrentThreadId = kernel32.func('GetCurrentThreadId', 'uint32', []);
 const SendMessageTimeoutW = user32.func(
   'SendMessageTimeoutW', 'intptr_t',
   ['intptr_t', 'uint32_t', 'uintptr_t', 'uintptr_t', 'uint32_t', 'uint32_t', koffi.out(koffi.pointer('uintptr_t'))]
@@ -529,6 +535,67 @@ function ensureChildOnTop(parentHwnd, className) {
 // 改用 Wallpaper Engine 式方案：保持顶层窗口，插入顶层 Z 序中 Progman 正上方
 // （壁纸带/图标之上、所有应用窗口之下），看门狗周期性重申。
 // Chromium 顶层窗口正常走 DComp 呈现，不存在冻结问题。
+
+/** 当前前台窗口所属进程 PID（0 = 无前台窗口/查询失败） */
+function getForegroundPid() {
+  const fg = Number(BigIntAsInt(GetForegroundWindow()));
+  if (!fg) return 0;
+  return getWindowPid(fg);
+}
+
+/**
+ * 强制把窗口拉到前台（AttachThreadInput 绕过前台锁）。
+ * 背景：SetForegroundWindow 有前台锁保护 —— 只有「收到最近一次输入」的进程
+ * 才能设置前台窗口。覆盖层默认鼠标穿透，点击落在桌面/任务栏时本进程没有
+ * 最近输入，win.focus() 会被静默拒绝（实测点击打开编辑器后焦点仍归任务栏）。
+ * AttachThreadInput 把本线程挂到当前前台线程的输入队列后，系统视两进程为
+ * 同一输入上下文，SetForegroundWindow 即放行。这是 Windows 官方认可的
+ * 输入法/悬浮窗类应用的常规做法（不注入、不改他人内存）。
+ */
+function forceForeground(hwnd) {
+  if (!hwnd || !IsWindow(hwnd)) return false;
+  const fg = Number(BigIntAsInt(GetForegroundWindow()));
+  const cur = GetCurrentThreadId();
+  let fgThread = 0;
+  if (fg && fg !== hwnd) {
+    const pidOut = [0];
+    fgThread = GetWindowThreadProcessId(fg, pidOut) | 0;
+  }
+  let attached = false;
+  try {
+    if (fgThread && fgThread !== cur) attached = !!AttachThreadInput(cur, fgThread, 1);
+    BringWindowToTop(hwnd);
+    SetActiveWindow(hwnd);
+    SetForegroundWindow(hwnd);
+    SetFocus(hwnd);
+    return true;
+  } catch (_) {
+    return false;
+  } finally {
+    if (attached) { try { AttachThreadInput(cur, fgThread, 0); } catch (_) {} }
+  }
+}
+
+/**
+ * 临时切换 WS_EX_NOACTIVATE。
+ * 背景：NOACTIVATE 窗口永远无法被激活 —— 点击不激活，SetForegroundWindow 同样
+ * 无效，键盘输入与输入法（IME 候选窗）永远派发给前一个前台窗口，表现为
+ * 「输入框能聚焦但打字毫无反应」。看板桌面编辑（待办/日程/城市）需要在编辑
+ * 期间摘掉该位让窗口真正拿到焦点，编辑结束再恢复（恢复后组件点击不抢焦点）。
+ * EXSTYLE 变更必须配 SWP_FRAMECHANGED 才生效。
+ */
+function setNoActivate(hwnd, noActivate) {
+  if (!hwnd || !IsWindow(hwnd)) return false;
+  return pmv2(() => {
+    const ex = BigIntAsInt(GetWindowLongPtrW(hwnd, GWL_EXSTYLE));
+    const want = !!noActivate;
+    if (!!(ex & WS_EX_NOACTIVATE) === want) return true;
+    const next = want ? (ex | WS_EX_NOACTIVATE) : (ex & ~WS_EX_NOACTIVATE);
+    SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next);
+    // SWP_NOZORDER(0x4) | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED(0x20)
+    return !!SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x4 | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | 0x20);
+  });
+}
 
 /**
  * 把覆盖层插入顶层窗口 Z 序中 Progman 的正上方：
@@ -1234,6 +1301,9 @@ module.exports = {
   ensureDesktopLayerOverlay,
   attachLauncherOverlay,
   ensureLauncherOverlay,
+  setNoActivate,
+  forceForeground,
+  getForegroundPid,
   moveWindowToScreen,
   resizeWindowToScreen,
   getWindowRectScreen,

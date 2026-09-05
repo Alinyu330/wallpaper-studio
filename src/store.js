@@ -94,7 +94,9 @@ const DEFAULT_CONFIG = {
     board: {                    // 信息看板内容（几何/开关在 widgets.items.board）
       sections: { calendar: true, weather: true, todo: true }, // 三块各自可关
       rows: { events: 4, todo: 6 },   // 面板最多显示几行，窗口高度按此计算
-      weather: { cityName: '广州 · 广东 · 中国', lat: 23.11667, lon: 113.25, tz: 'Asia/Shanghai' },
+      // 默认自动模式（manual:false）：天气服务按 IP 所在地定位，不落盘；
+      // 用户手动选过城市后 manual:true + 坐标持久化，之后以手动为准。
+      weather: { cityName: '', lat: null, lon: null, tz: 'auto', manual: false },
       events: [],               // [{id,text,date:'2026-10-01',type:'event'|'anniversary'}]
       todos: [],                // [{id,text,done}]
     },
