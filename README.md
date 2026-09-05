@@ -21,6 +21,34 @@
 
 > 已安装旧版？客户端「设置 → 检查更新」即可应用内一键更新，无需重新下载安装包。
 
+### 历史版本下载（全部版本，新 → 旧，安装包均已随 Release 发布）
+
+| 版本 | 国内加速下载 | GitHub 直连 |
+|---|---|---|
+| v1.12.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.0/WallpaperStudio-Setup-1.12.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.0/WallpaperStudio-Setup-1.12.0.exe) |
+| v1.11.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.11.0/WallpaperStudio-Setup-1.11.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.11.0/WallpaperStudio-Setup-1.11.0.exe) |
+| v1.10.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.10.0/WallpaperStudio-Setup-1.10.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.10.0/WallpaperStudio-Setup-1.10.0.exe) |
+| v1.9.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.9.0/WallpaperStudio-Setup-1.9.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.9.0/WallpaperStudio-Setup-1.9.0.exe) |
+| v1.8.6 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.6/WallpaperStudio-Setup-1.8.6.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.6/WallpaperStudio-Setup-1.8.6.exe) |
+| v1.8.5 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.5/WallpaperStudio-Setup-1.8.5.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.5/WallpaperStudio-Setup-1.8.5.exe) |
+| v1.8.4 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.4/WallpaperStudio-Setup-1.8.4.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.4/WallpaperStudio-Setup-1.8.4.exe) |
+| v1.8.3 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.3/WallpaperStudio-Setup-1.8.3.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.3/WallpaperStudio-Setup-1.8.3.exe) |
+| v1.8.2 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.2/WallpaperStudio-Setup-1.8.2.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.2/WallpaperStudio-Setup-1.8.2.exe) |
+| v1.8.1 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.1/WallpaperStudio-Setup-1.8.1.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.1/WallpaperStudio-Setup-1.8.1.exe) |
+| v1.8.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.0/WallpaperStudio-Setup-1.8.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.0/WallpaperStudio-Setup-1.8.0.exe) |
+| v1.7.1 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.7.1/WallpaperStudio-Setup-1.7.1.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.7.1/WallpaperStudio-Setup-1.7.1.exe) |
+| v1.7.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.7.0/WallpaperStudio-Setup-1.7.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.7.0/WallpaperStudio-Setup-1.7.0.exe) |
+| v1.6.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.6.0/WallpaperStudio-Setup-1.6.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.6.0/WallpaperStudio-Setup-1.6.0.exe) |
+| v1.5.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.5.0/WallpaperStudio-Setup-1.5.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.5.0/WallpaperStudio-Setup-1.5.0.exe) |
+| v1.4.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.4.0/WallpaperStudio-Setup-1.4.0.exe) |
+| v1.3.2 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.2/WallpaperStudio-Setup-1.3.2.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.2/WallpaperStudio-Setup-1.3.2.exe) |
+| v1.3.1 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.1/WallpaperStudio-Setup-1.3.1.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.1/WallpaperStudio-Setup-1.3.1.exe) |
+| v1.3.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.0/WallpaperStudio-Setup-1.3.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.3.0/WallpaperStudio-Setup-1.3.0.exe) |
+| v1.2.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.2.0/WallpaperStudio-Setup-1.2.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.2.0/WallpaperStudio-Setup-1.2.0.exe) |
+| v1.1.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) |
+
+> 各版本更新内容见下方「新增功能与修复问题」分节与 [官网更新日志](https://wallpaper-studio.pages.dev/#changelog)；更早版本（v1.0.0）见 [Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)。
+
 ## v1.12.0 新增功能与修复问题
 
 **新增功能**
@@ -33,6 +61,22 @@
 
 - 修复更新版本后客户端收纳的快捷方式、文件无法恢复到桌面的问题（根因：NSIS 覆盖安装会静默运行旧版卸载器，旧逻辑误删全部数据目录；此后的每次升级均受保护）
 - 修复更新版本后上传的壁纸从壁纸库消失、无法使用的问题（壁纸库索引随数据目录被误删所致，现完整保留）
+
+## v1.11.0 新增功能与修复问题
+
+**新增功能**
+
+- **天气城市按 IP 自动定位**：信息看板天气开箱即显示所在地天气，无需手动设置；桌面看板点城市名或设置页搜索可手动指定（以手动为准），一键恢复自动定位
+
+**修复问题**
+
+- 修复桌面看板无法输入的问题 — 添加待办 / 日程、修改天气城市时打字无反应、中文输入法不弹出（三重根因均已修复）
+- 修复看板编辑器卡住时删除按钮首次点击被吞的问题
+- 修复任务栏 / 任务管理器中应用名显示为 Electron 的问题 — 正确显示为「壁纸工坊」
+
+**优化**
+
+- 看板输入框改为下划线式设计，与组件无边框融入壁纸的风格统一
 
 ## v1.10.0 新增功能与修复问题
 
