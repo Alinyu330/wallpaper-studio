@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>壁纸工坊 Wallpaper Studio — 免费/开源的桌面壁纸软件</title>
-<meta name="description" content="壁纸工坊：免费开源的 Windows 桌面壁纸软件。支持静态图片、动态视频（MP4/AVI/MKV）、网页与 EXE 壁纸，播放速度/亮度/分辨率等参数自由调节，实时预览、性能优化、一键设置桌面与锁屏。">
+<meta name="description" content="壁纸工坊：免费开源的 Windows 桌面壁纸软件。支持静态图片、动态视频（MP4/AVI/MKV）、网页与 EXE 壁纸，快捷方式转盘与文件收纳区，桌面组件（时钟/信息看板/网速监控/音量）、音律动效与性能档位，播放速度/亮度/分辨率等参数自由调节，实时预览、一键设置桌面与锁屏。">
 <link rel="icon" href="favicon.png" type="image/png">
 <style>
 :root {
@@ -115,6 +115,17 @@ h1 .grad { background: var(--grad); -webkit-background-clip: text; background-cl
   background: linear-gradient(to bottom, transparent, var(--bg) 92%);
   border-radius: 0 0 14px 14px;
 }
+
+/* 效果展示网格 */
+.shot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 26px 22px; }
+.shot-grid figure { margin: 0; }
+.shot-grid img {
+  display: block; width: 100%;
+  border-radius: 12px;
+  border: 1px solid #2a3040;
+  box-shadow: 0 18px 50px rgba(0,0,0,.45);
+}
+.shot-grid figcaption { font-size: 13px; color: var(--dim); margin-top: 10px; text-align: center; }
 
 /* ---------- 章节 ---------- */
 section { padding: 84px 0; }
@@ -245,7 +256,7 @@ footer {
 .reveal { opacity: 0; transform: translateY(26px); transition: opacity .7s cubic-bezier(.2,.7,.3,1), transform .7s cubic-bezier(.2,.7,.3,1); }
 .reveal.in { opacity: 1; transform: translateY(0); }
 
-@media (max-width: 860px) {
+  @media (max-width: 860px) {
   .type-row { grid-template-columns: 56px 1fr; }
   .type-desc { grid-column: 2; }
   .feat-grid { grid-template-columns: 1fr; }
@@ -253,6 +264,7 @@ footer {
   .feat:nth-last-child(-n+2) { border-bottom: 1px solid var(--border); }
   .feat:last-child { border-bottom: none; }
   .nav-links a.hide-m { display: none; }
+  .shot-grid { grid-template-columns: 1fr; }
 }
 </style>
 </head>
@@ -262,6 +274,7 @@ footer {
   <div class="nav-inner">
     <div class="brand"><span class="brand-mark"></span>壁纸工坊</div>
     <div class="nav-links">
+      <a href="#shots" class="hide-m">效果</a>
       <a href="#features" class="hide-m">功能</a>
       <a href="#compare" class="hide-m">对比</a>
       <a href="#changelog" class="hide-m">版本</a>
@@ -275,23 +288,49 @@ footer {
 
 <header>
   <div class="wrap hero-inner">
-    <div class="ver-badge"><i></i>v1.8.6 · 应用内一键更新 · 文件收纳区 · 快捷方式转盘 · 桌面组件</div>
+    <div class="ver-badge"><i></i>v1.9.0 · 信息看板 · 系统监控 · 性能档位 · 快捷方式转盘 · 文件收纳区</div>
     <h1>让桌面<span class="grad">动起来</span></h1>
-    <p class="tagline">壁纸工坊是一款免费开源的 Windows 桌面壁纸软件 — 视频、图片、网页、EXE 程序皆可设为壁纸，点选/框选收纳桌面快捷方式为转盘、文件与文件夹收进独立收纳区，时钟/CPU/GPU/音量/音律动效组件融入桌面，参数精确可调，性能深度优化。</p>
+    <p class="tagline">壁纸工坊是一款免费开源的 Windows 桌面壁纸软件 — 视频、图片、网页、EXE 程序皆可设为壁纸，点选/框选收纳桌面快捷方式为转盘、文件与文件夹收进独立收纳区，信息看板 / 网速监控 / 时钟 / 音量组件融入桌面，音律动效随音乐律动，性能档位深度优化，参数精确可调。</p>
     <div class="cta-row">
-      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.6/WallpaperStudio-Setup-1.8.6.exe" onclick="trackDownload(this)">
+      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.9.0/WallpaperStudio-Setup-1.9.0.exe" onclick="trackDownload(this)">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        国内高速下载 v1.8.6
+        国内高速下载 v1.9.0
       </a>
-      <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.6/WallpaperStudio-Setup-1.8.6.exe" onclick="trackDownload(this)">GitHub 直连下载</a>
+      <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.9.0/WallpaperStudio-Setup-1.9.0.exe" onclick="trackDownload(this)">GitHub 直连下载</a>
       <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio" target="_blank" rel="noopener">查看源码</a>
     </div>
-    <p class="cta-note"><span>Windows 10 / 11 · x64</span><span>v1.8.6 · 约 200 MB（内置全格式解码器）</span><span>MIT 开源协议</span><span>下载慢？试试 <a href="https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.6/WallpaperStudio-Setup-1.8.6.exe" style="color:var(--accent2)">备用加速节点</a></span><span>国内镜像：<a href="https://wallpaper-studio.pages.dev/" style="color:var(--accent2)">wallpaper-studio.pages.dev</a></span></p>
+    <p class="cta-note"><span>Windows 10 / 11 · x64</span><span>v1.9.0 · 约 200 MB（内置全格式解码器）</span><span>MIT 开源协议</span><span>下载慢？试试 <a href="https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.9.0/WallpaperStudio-Setup-1.9.0.exe" style="color:var(--accent2)">备用加速节点</a></span><span>国内镜像：<a href="https://wallpaper-studio.pages.dev/" style="color:var(--accent2)">wallpaper-studio.pages.dev</a></span></p>
     <div class="shot-wrap">
-      <img src="app-screenshot.png" alt="壁纸工坊主界面 — 壁纸库、实时预览与参数调节面板" loading="eager">
+      <img src="shot-main.png" alt="壁纸工坊主界面 — 壁纸库、实时预览与参数调节面板" loading="eager">
     </div>
   </div>
 </header>
+
+<section id="shots" style="padding-top: 64px;">
+  <div class="wrap reveal">
+    <div class="sec-tag">效果展示</div>
+    <h2>桌面上长这样</h2>
+    <p class="sec-sub">组件、转盘与收纳区全部实时渲染在你的桌面壁纸上，无边框融入观感，不遮挡任何窗口。</p>
+    <div class="shot-grid">
+      <figure>
+        <img src="shot-widgets.png" alt="桌面组件 — 信息看板 / 时钟 / 网速监控 / 音量" loading="lazy">
+        <figcaption>桌面组件：信息看板 · 时钟 · 网速监控 · 音量</figcaption>
+      </figure>
+      <figure>
+        <img src="shot-board.png" alt="信息看板组件 — 日历 / 天气 / 待办" loading="lazy">
+        <figcaption>信息看板：日历日程 · 七日天气 · 桌面待办</figcaption>
+      </figure>
+      <figure>
+        <img src="shot-launcher.png" alt="桌面快捷方式转盘 — 真实图标与倒影" loading="lazy">
+        <figcaption>快捷方式转盘：真实图标 + 倒影，点击即启动</figcaption>
+      </figure>
+      <figure>
+        <img src="shot-filebox.png" alt="桌面文件收纳区 — 毛玻璃浮层" loading="lazy">
+        <figcaption>文件收纳区：毛玻璃浮层，文件 / 文件夹分组收纳</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
 
 <section id="types">
   <div class="wrap reveal">
@@ -330,12 +369,28 @@ footer {
     <p class="sec-sub">每一个参数都有固定调整点与精确数值输入，每一帧渲染都为低占用而优化。</p>
     <div class="feat-grid">
       <div class="feat">
-        <h3><span class="dot"></span>音律动效 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.7.0 新增</em></h3>
-        <p>系统音频实时频谱可视化，随音乐律动：条形频谱 + 垂直镜像倒影，支持主色/渐变色、大小缩放、灵敏度调节与顶部/底部摆放，融入壁纸不突兀，桌面秒变音乐现场。</p>
+        <h3><span class="dot"></span>性能档位 · GPU / 帧率调节 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.9.0 新增</em></h3>
+        <p>省电 / 均衡 / 性能三档一键设定音律帧率、组件刷新间隔、硬解模式、视频帧率上限与解码缓存；细分项支持固定调节点 + 自由输入单独微调；Chromium 硬件加速可关闭（老显卡 / 驱动异常更稳），GPU 进程反复崩溃自动降级软件渲染。</p>
       </div>
       <div class="feat">
-        <h3><span class="dot"></span>组件独立调参 + 九宫格定位 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.7.0 重构</em></h3>
-        <p>时钟 / CPU / GPU / 内存 / 音量 / 音律动效每个组件独立小窗口、无边框融入壁纸；客户端一键进入「调整模式」自由拖动，桌面默认只显示不误触；组件、音律动效、转盘均支持九宫格三行三列一键吸附定位，任务栏自动避让。</p>
+        <h3><span class="dot"></span>信息看板组件 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.9.0 新增</em></h3>
+        <p>日历日程 / 纪念日倒计时 + Open-Meteo 实时与七日天气预报 + 桌面可直接勾选的待办清单 — 一块看板掌握今天，待办在桌面上打勾即完成。</p>
+      </div>
+      <div class="feat">
+        <h3><span class="dot"></span>系统状态监控组件 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.9.0 新增</em></h3>
+        <p>上下行网速实时迷你曲线 + CPU / GPU / 内存占用概览，数据低频刷新零负担，系统状态一眼可见、融入壁纸不突兀。</p>
+      </div>
+      <div class="feat">
+        <h3><span class="dot"></span>组件玻璃质感 + 拖动吸附 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.9.0 新增</em></h3>
+        <p>毛玻璃 / 液态玻璃样式、四种形状，亮度 / 对比 / 饱和 / 不透明度全局调色；拖动组件靠近同伴自动吸附对齐，桌面排版整齐不歪斜。</p>
+      </div>
+      <div class="feat">
+        <h3><span class="dot"></span>音律动效 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.7.0 · v1.9.0 重写</em></h3>
+        <p>系统音频实时频谱可视化，随音乐律动：条形频谱 + 霓虹样式 + 三种倒影形态（渐隐 / 镜面 / 水面），主色/渐变色、亮度对比饱和与倒影强度可调；绘制全面重写（离屏辉光层 + 两次合成），帧率可限，高律动低占用。</p>
+      </div>
+      <div class="feat">
+        <h3><span class="dot"></span>组件独立调参 + 九宫格定位 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.7.0 · v1.9.0 增强</em></h3>
+        <p>时钟 / 信息看板 / 网速与系统监控 / 音量 / 音律动效每个组件独立小窗口、无边框融入壁纸；客户端一键进入「调整模式」自由拖动，拖动时自动吸附对齐，桌面默认只显示不误触；组件、音律动效、转盘均支持九宫格三行三列一键吸附定位，任务栏自动避让。</p>
       </div>
       <div class="feat">
         <h3><span class="dot"></span>点选 / 框选收纳 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.6.0 新增</em></h3>
@@ -350,12 +405,12 @@ footer {
         <p>检查更新发现新版本后，弹出新版功能介绍窗口（更新日志直读发布页）；点「立即更新」在客户端内直接下载安装包（实时进度、可随时取消），下载完成自动静默安装 — 全程无需跳转网页、无需手动下载替换。</p>
       </div>
       <div class="feat">
-        <h3><span class="dot"></span>桌面文件收纳区 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.8.0 新增</em></h3>
-        <p>桌面普通文件（办公文档 / 媒体 / 归档）与文件夹收进独立浮层，与快捷方式转盘职责分离：文件夹 / 文件自动分组排列（可按名称 / 时间 / 手动排序），网格列数与透明度可调；鼠标靠近正常显示、离开自动转半透明毛玻璃，与壁纸协调；文件收纳即移动隐藏、可一键恢复，文件夹仅登记引用点开即进。</p>
+        <h3><span class="dot"></span>桌面文件收纳区 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.8.0 · v1.9.0 重构</em></h3>
+        <p>桌面普通文件（办公文档 / 媒体 / 归档）与文件夹收进独立浮层，与快捷方式转盘职责分离：文件夹 / 文件自动分组排列（可按名称 / 时间 / 手动排序），网格列数与透明度可调；文件名完整两行显示，空闲先转半透明毛玻璃、再收缩为单个文件图标，悬停自动展开；镜像倒影与调色可调；文件收纳即移动隐藏、可一键恢复，文件夹仅登记引用点开即进。</p>
       </div>
       <div class="feat">
-        <h3><span class="dot"></span>桌面快捷方式转盘 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.5.0 · v1.8.0 收敛</em></h3>
-        <p>快捷方式（.lnk/.url）、程序文件（.exe/.bat/.cmd）与系统项（控制面板 / 回收站 / 网络 / 此电脑）以转盘形式收纳在桌面（图标层之上、不遮挡任何窗口）：点击图标一键启动，图标取系统真实图标无空白占位；按住图标条或拖动条左右拖动即可像转盘一样轮换图标（带惯性甩动）；同屏数量 4~12 可调；空闲自动收起为小胶囊，悬停即展开；无边框轻量设计融入壁纸。</p>
+        <h3><span class="dot"></span>桌面快捷方式转盘 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.5.0 · v1.9.0 增强</em></h3>
+        <p>快捷方式（.lnk/.url）、程序文件（.exe/.bat/.cmd）与系统项（控制面板 / 回收站 / 网络 / 此电脑）以转盘形式收纳在桌面（图标层之上、不遮挡任何窗口）：点击图标一键启动，图标取系统真实图标无空白占位；按住图标条或拖动条左右拖动即可像转盘一样轮换图标（带惯性甩动）；同屏数量 4~12 可调；空闲自动收起为小胶囊，悬停即展开；v1.9.0 新增「隐藏到壁纸后」收纳方式 — 文件留在原地、仅把图标停到屏幕外，恢复精确回原位。</p>
       </div>
       <div class="feat">
         <h3><span class="dot"></span>平滑循环过渡 2.0 <em style="font-style:normal;font-size:10.5px;color:var(--accent2);background:rgba(79,140,255,.12);padding:2px 8px;border-radius:999px">v1.5.0 升级</em></h3>
@@ -441,6 +496,9 @@ footer {
           <tr><td>桌面快捷方式转盘（App 收纳启动）</td><td class="self">✓ v1.5.0</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
           <tr><td>点选 / 框选桌面快捷方式收纳</td><td class="self">✓ v1.6.0</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
           <tr><td>文件 / 文件夹收纳区（独立浮层）</td><td class="self">✓ v1.8.0</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
+          <tr><td>信息看板组件（日历 / 天气 / 待办）</td><td class="self">✓ v1.9.0</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
+          <tr><td>网速 / CPU / GPU 桌面监控组件</td><td class="self">✓ v1.9.0</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
+          <tr><td>性能档位（帧率 / 硬解 / 缓存一键预设）</td><td class="self">✓ v1.9.0</td><td class="yes">✓</td><td class="no">✕</td><td class="no">✕</td></tr>
           <tr><td>应用内一键更新（功能介绍弹窗 + 免跳网页安装）</td><td class="self">✓ v1.8.1</td><td class="yes">✓</td><td class="yes">✓</td><td class="no">✕</td></tr>
           <tr><td>音律动效（系统音频频谱可视化）</td><td class="self">✓ v1.7.0</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
           <tr><td>播放速度调节</td><td class="yes">✓ 0.25×–4×</td><td class="no">✕</td><td class="no">✕</td><td class="no">✕</td></tr>
@@ -464,9 +522,28 @@ footer {
   <div class="wrap reveal">
     <div class="sec-tag">版本信息</div>
     <h2>更新日志与历史版本</h2>
-    <p class="sec-sub">当前版本 <b style="color: var(--text)">v1.8.6</b> · 持续迭代中 · 每个版本均可下载安装包</p>
+    <p class="sec-sub">当前版本 <b style="color: var(--text)">v1.9.0</b> · 持续迭代中 · 每个版本均可下载安装包</p>
     <div class="ver-block">
-      <h3>v1.8.6 <span class="tag">最新</span></h3>
+      <h3>v1.9.0 <span class="tag">最新</span></h3>
+      <ul>
+        <li><b>新增</b> 性能档位与 GPU / 帧率调节 — 省电 / 均衡 / 性能三档一键设定音律帧率、组件刷新间隔、硬解模式、视频帧率上限与解码缓存；细分项支持固定调节点 + 自由输入单独微调；Chromium 硬件加速可关闭（老显卡 / 驱动异常更稳，需重启）；GPU 进程反复崩溃自动降级软件渲染</li>
+        <li><b>新增</b> 信息看板组件 — 日历日程 / 纪念日倒计时 + Open-Meteo 实时与七日天气预报 + 桌面可直接勾选的待办清单</li>
+        <li><b>新增</b> 系统状态监控组件 — 上下行网速实时迷你曲线 + CPU / GPU / 内存占用概览</li>
+        <li><b>新增</b> 组件玻璃质感 — 毛玻璃 / 液态玻璃样式、四种形状、亮度 / 对比 / 饱和 / 不透明度全局调色；组件拖动自动吸附对齐</li>
+        <li><b>新增</b> 转盘收纳「隐藏到壁纸后」— 第二种收纳方式：文件留在原地、仅把桌面图标停到屏幕外（肉眼不可见、无法点选 / 框选），恢复后精确回到原位；回收站 / 此电脑等系统图标恒走此方式；看门狗自动对抗资源管理器重排</li>
+        <li><b>新增</b> 音律动效霓虹样式与镜面 / 水面倒影，亮度 / 对比 / 饱和 / 倒影强度可调；窗口最大化 / 应用全屏时自动暂停绘制省 GPU</li>
+        <li><b>重构</b> 文件收纳区 — 文件名完整两行显示（修复旧版被窗口裁切）；空闲先转半透明毛玻璃、再收缩为单个文件图标，悬停自动展开、点击弹出收纳内容；面板镜像倒影与调色可调</li>
+        <li><b>重写</b> 音律动效绘制 — 改为「离屏辉光层 + 两次合成」，每帧上百次高斯模糊填充降为 2 次图像合成；帧率可限（15/24/30/60/不限）；镜像倒影与主体同层绘制，彻底消除倒影区残影 / 撕裂</li>
+        <li><b>优化</b> 循环与轮换平滑 — 定时轮换提前 3 秒预热解码器，到点立即开始溶解（消除「停顿数秒再突然切换」）；待命槽提前重建，压缩循环交界定格停顿；关闭平滑循环改为硬切循环（不再播一遍就冻在末帧）；丢帧策略改为仅显示端丢帧</li>
+        <li><b>修复</b> 调节参数后组件开关被异常关闭、组件面板不透明度滑杆无效、音量组件调节无效果、部分快捷方式在转盘显示空白文件图标、音律动效镜像倒影不同步 / 残影 / 撕裂</li>
+      </ul>
+      <div class="ver-dl">
+        <a href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.9.0/WallpaperStudio-Setup-1.9.0.exe" onclick="trackDownload(this)">国内加速下载 v1.9.0</a>
+        <a href="https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.9.0/WallpaperStudio-Setup-1.9.0.exe" onclick="trackDownload(this)">GitHub 直连</a>
+      </div>
+    </div>
+    <div class="ver-block" style="border-left-color: var(--border);">
+      <h3>v1.8.6</h3>
       <ul>
         <li><b>修复</b> 检查更新后下载进度一直为 0、无法完成更新 — 安装包完整性校验值改用 GitHub API 资产自带的 sha256，不再因校验信息请求失败而把全部加速节点一并禁用（旧版一旦请求失败就只剩必死的官方直连，进度永远停在 0%）；分片改为边收边落盘、断点续传不丢已下字节；多源测速择优 + 并发提速，110MB 安装包实测约 3 分钟下完</li>
         <li><b>修复</b> 切换壁纸 / 操作时客户端卡顿、整窗变黑一段时间 — 单击预览、应用壁纸、轮换切换不再整页重建壁纸网格（此前每次点击都销毁并重建全部视频缩略图解码器，与桌面壁纸引擎抢占 GPU）；壁纸缩略图懒加载，滚动到可见才解码；预览视频同壁纸不重建、窗口隐藏到托盘时暂停；配置写盘由同步 + 忙等改为防抖异步，拖滑杆、拖动窗口不再阻塞主线程；新增 GPU/渲染进程崩溃日志，便于遗留问题定位</li>
@@ -694,9 +771,9 @@ footer {
     <h2>把桌面交给想象力</h2>
     <p>免费、开源、开箱即用。</p>
     <div class="cta-row" style="justify-content: center;">
-      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.8.6/WallpaperStudio-Setup-1.8.6.exe" onclick="trackDownload(this)">
+      <a class="btn btn-primary" href="https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.9.0/WallpaperStudio-Setup-1.9.0.exe" onclick="trackDownload(this)">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        国内高速下载 v1.8.6
+        国内高速下载 v1.9.0
       </a>
       <a class="btn btn-ghost" href="#changelog">历史版本下载</a>
       <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases" target="_blank" rel="noopener">全部版本</a>
@@ -706,7 +783,7 @@ footer {
 
 <footer>
   <div class="wrap foot-inner">
-    <div>壁纸工坊 Wallpaper Studio · v1.8.6 · MIT License</div>
+    <div>壁纸工坊 Wallpaper Studio · v1.9.0 · MIT License</div>
     <div class="foot-links">
       <a href="https://wallpaper-studio.pages.dev/" title="官网主站（Cloudflare CDN）">官网</a>
       <a href="https://alinyu330.github.io/wallpaper-studio/" target="_blank" rel="noopener">GitHub Pages</a>

@@ -41,8 +41,8 @@ glass*.png
 tt*.png
 tm1.png
 act1.png
-shot*.png
-screen-*.png
+/shot*.png
+/screen-*.png
 popup-*.png
 gdi-test*.png
 strip-*.png

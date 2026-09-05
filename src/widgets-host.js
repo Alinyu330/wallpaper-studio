@@ -22,15 +22,14 @@ const { BrowserWindow, ipcMain, screen } = require('electron');
 const path = require('path');
 const desktop = require('./desktop');
 
-const WIDGET_KEYS = ['clock', 'cpu', 'gpu', 'mem', 'volume'];
+const WIDGET_KEYS = ['clock', 'volume', 'netmon', 'board'];
 
 // 组件内容尺寸（CSS px）[宽, 高]，窗口贴内容开（多留一点呼吸边）
 const WIDGET_SIZES = {
   clock:  { s: [216, 106], m: [272, 126], l: [352, 152] },
-  cpu:    { s: [156, 74],  m: [190, 86],  l: [228, 100] },
-  gpu:    { s: [156, 74],  m: [190, 86],  l: [228, 100] },
-  mem:    { s: [156, 74],  m: [190, 86],  l: [228, 100] },
   volume: { s: [174, 92],  m: [210, 100], l: [250, 112] },
+  netmon: { s: [168, 104], m: [200, 120], l: [240, 140] },
+  board:  { s: [255, 200], m: [300, 240], l: [354, 283] }, // 基准值；实际高度由 _contentSize 按开启的块计算
 };
 const MARGIN = 26; // 九宫格槽位与屏幕边缘的间距（CSS px）
 
@@ -45,7 +44,19 @@ class WidgetsHost {
     this.parts = new Map(); // key → {key,win,hwnd,rects,interacting,adjusting,inputOn,dragging,grabOff}
     this.inputTimer = null;
     this._ipc = false;
+    this._weatherCache = null; // 最新天气数据（新建看板窗时随配置一起下发）
+    this.avizPerfPaused = false; // 主进程性能检测：上层有最大化/全屏窗口 → 暂停动效绘制
     this._registerIpc();
+  }
+
+  /** 性能暂停下发（aviz 窗自己停/起 rAF 循环，不动窗口与音频捕获） */
+  setAvizPerfPause(on) {
+    const next = !!on;
+    if (this.avizPerfPaused === next) return;
+    this.avizPerfPaused = next;
+    const p = this.parts.get('aviz');
+    if (!p || !p.win || p.win.isDestroyed()) return;
+    try { p.win.webContents.send('aviz:perf-pause', { on: next }); } catch (_) {}
   }
 
   // ---------- 配置 ----------
@@ -63,10 +74,28 @@ class WidgetsHost {
     return want;
   }
 
-  /** 主进程是否需要启动性能数据采集（有指标/音量组件才采） */
+  /**
+   * 主进程需要哪些性能数据采集。
+   * GPU 与网速各自是独立的 PDH 采集线程（GPU Engine 计数器一台机器可达 800+
+   * 实例），对应组件没开就不该让它们跑；CPU/内存是主线程 os.* 调用，只要有
+   * 任意指标类组件在就需要 1s tick。
+   * @returns {{any:boolean, gpu:boolean, net:boolean}}
+   */
+  statsNeeds() {
+    const n = { any: false, gpu: false, net: false };
+    for (const k of this.parts.keys()) {
+      if (k === 'aviz' || k === 'board') continue; // 音律动效与信息看板都不消费 stats 广播
+      n.any = true;
+      // GPU 采集线程：独立 GPU 组件已并入系统状态监控的概览行，netmon 在就要采
+      if (k === 'gpu' || k === 'netmon') n.gpu = true;
+      if (k === 'netmon') n.net = true;
+    }
+    return n;
+  }
+
+  /** 是否需要启动性能数据采集（兼容旧调用点，细分需求见 statsNeeds） */
   wantsStats() {
-    for (const k of this.parts.keys()) if (k !== 'aviz') return true;
-    return false;
+    return this.statsNeeds().any;
   }
 
   /** 配置变化入口（设置页 / 桌面拖动落位后）：增删窗口 + 落位 + 推送 */
@@ -114,6 +143,7 @@ class WidgetsHost {
     const p = {
       key, win: null, hwnd: 0, rects: [],
       interacting: false, adjusting: false, inputOn: false, dragging: false, grabOff: { dx: 0, dy: 0 },
+      avAlive: 0, // 音律动效渲染页心跳（见 repaintAll）
     };
     const b = this._boundsFor(key);
     const sf = screen.getPrimaryDisplay().scaleFactor || 1;
@@ -261,12 +291,19 @@ class WidgetsHost {
 
   /** 强制重绘（主进程 1s 高频循环调用）：透明子窗口挂 Progman 后 DWM 可能停止合成 */
   repaintAll() {
+    const now = Date.now();
     for (const p of this.parts.values()) {
       try {
-        if (p.win && !p.win.isDestroyed()) {
-          p.win.webContents.invalidate();
-          if (p.hwnd) desktop.nudgeWindow(p.hwnd);
-        }
+        if (!p.win || p.win.isDestroyed()) continue;
+        // invalidate 很便宜（只标脏），且是 DWM 保活的关键 —— 所有部件都保留
+        p.win.webContents.invalidate();
+        if (!p.hwnd) continue;
+        // nudgeWindow = SetWindowPos，会强制整棵 Progman 树重新合成，与音律动效
+        // canvas 自身的 rAF present 打架 → 镜像倒影区撕裂/残影。自绘期间跳过；
+        // 心跳（渲染页每 600ms 上报 wallpaper-av-status）中断 2.5s 说明渲染进程
+        // 卡死，自动恢复 nudge，绝不会把它饿死。
+        const selfAnimating = p.key === 'aviz' && p.avAlive && now - p.avAlive < 2500;
+        if (!selfAnimating) desktop.nudgeWindow(p.hwnd);
       } catch (_) {}
     }
   }
@@ -293,8 +330,31 @@ class WidgetsHost {
         h: Math.min(340, Math.max(140, wa.height * 0.16 * size)) + 60,
       };
     }
+    if (key === 'board') {
+      // 高度按「开启了哪几块 × 各自行数」算；开关某一块时窗口原地伸缩，不销毁重建
+      const b = this.store.settings.board || {};
+      const s = b.sections || {};
+      const item = ((this.store.settings.widgets || {}).items || {})[key] || {};
+      const k = { s: 0.85, m: 1, l: 1.18 }[item.size] ?? 1;
+      const rowH = 22 * k, headH = 20 * k, gap = 10 * k;
+      let h = 28 * k;
+      const w = 300 * k;
+      if (s.calendar !== false) {
+        const ev = (b.events || []).filter((e) => e.type !== 'anniversary');
+        const an = (b.events || []).filter((e) => e.type === 'anniversary');
+        h += headH + 30 * k + Math.min(ev.length, b.rows?.events ?? 4) * rowH
+          + Math.min(an.length, 3) * rowH + gap;
+      }
+      if (s.weather !== false) h += headH + 64 * k + 7 * rowH * 0.9 + gap;
+      if (s.todo !== false) h += headH + Math.min((b.todos || []).length, b.rows?.todo ?? 6) * rowH + gap;
+      const wa = screen.getPrimaryDisplay().workArea;
+      return {
+        w: Math.round(Math.min(420, Math.max(240, w))),
+        h: Math.round(Math.min(wa.height * 0.8, Math.max(90, h))),
+      };
+    }
     const item = ((this.store.settings.widgets || {}).items || {})[key] || {};
-    const tbl = WIDGET_SIZES[key] || WIDGET_SIZES.cpu;
+    const tbl = WIDGET_SIZES[key] || WIDGET_SIZES.netmon;
     const size = tbl[item.size] ? item.size : 'm';
     const [w, h] = tbl[size];
     return { w, h };
@@ -435,9 +495,43 @@ class WidgetsHost {
     const r = desktop.getWindowRectScreen(p.hwnd);
     if (!r) return;
     const vd = desktop.getDesktopRect();
-    const x = Math.min(Math.max(cur.x - p.grabOff.dx, vd.x - r.w + 60), vd.x + vd.width - 60);
-    const y = Math.min(Math.max(cur.y - p.grabOff.dy, vd.y - r.h + 30), vd.y + vd.height - 30);
+    let x = Math.min(Math.max(cur.x - p.grabOff.dx, vd.x - r.w + 60), vd.x + vd.width - 60);
+    let y = Math.min(Math.max(cur.y - p.grabOff.dy, vd.y - r.h + 30), vd.y + vd.height - 30);
+    const snap = this._snapAgainst(x, y, r.w, r.h, p);
+    x = snap.x; y = snap.y;
     desktop.moveWindowToScreen(p.hwnd, x, y);
+  }
+
+  /**
+   * 拖动吸附：与其余组件的边/中心对齐（差值 ≤ SNAP_PX 物理像素）。
+   * 边贴边留 GAP 缝隙，边齐平与中心对齐不留缝。只改本次落位坐标，
+   * 不建立任何分组/联动关系 —— 各组件之后仍独立拖动与调参。
+   */
+  _snapAgainst(x, y, w, h, self) {
+    const SNAP = 12, GAP = 8;
+    let sx = null, sy = null;
+    for (const q of this.parts.values()) {
+      if (q === self || !q.hwnd || !q.win || q.win.isDestroyed()) continue;
+      const qr = desktop.getWindowRectScreen(q.hwnd);
+      if (!qr) continue;
+      const candX = [
+        [Math.abs(x + w - qr.x), qr.x - w - GAP],         // 我的右缘 → 它的左缘
+        [Math.abs(qr.x + qr.w - x), qr.x + qr.w + GAP],   // 它的右缘 → 我的左缘
+        [Math.abs(x - qr.x), qr.x],                       // 左缘齐平
+        [Math.abs(x + w - (qr.x + qr.w)), qr.x + qr.w - w], // 右缘齐平
+        [Math.abs(x + w / 2 - (qr.x + qr.w / 2)), qr.x + qr.w / 2 - w / 2], // 水平居中
+      ];
+      for (const [d, v] of candX) if (d <= SNAP && (sx === null || d < sx.d)) sx = { d, v };
+      const candY = [
+        [Math.abs(y + h - qr.y), qr.y - h - GAP],
+        [Math.abs(qr.y + qr.h - y), qr.y + qr.h + GAP],
+        [Math.abs(y - qr.y), qr.y],
+        [Math.abs(y + h - (qr.y + qr.h)), qr.y + qr.h - h],
+        [Math.abs(y + h / 2 - (qr.y + qr.h / 2)), qr.y + qr.h / 2 - h / 2],
+      ];
+      for (const [d, v] of candY) if (d <= SNAP && (sy === null || d < sy.d)) sy = { d, v };
+    }
+    return { x: sx === null ? x : Math.round(sx.v), y: sy === null ? y : Math.round(sy.v) };
   }
 
   _dragEnd(p) {
@@ -496,22 +590,49 @@ class WidgetsHost {
     try {
       if (!p.win || p.win.isDestroyed()) return;
       const sf = screen.getPrimaryDisplay().scaleFactor || 1;
+      const w = this.store.settings.widgets || {};
+      const common = {
+        theme: w.theme || 'auto',
+        // opacity 此前只在设置页被读取、从未下发，「面板不透明度」滑杆是死控件
+        opacity: typeof w.opacity === 'number' ? w.opacity : 0.72,
+        style: w.style || 'none',
+        shape: w.shape || 'rounded',
+        brightness: Number.isFinite(w.brightness) ? w.brightness : 100,
+        contrast: Number.isFinite(w.contrast) ? w.contrast : 100,
+        saturate: Number.isFinite(w.saturate) ? w.saturate : 100,
+        scaleFactor: sf,
+      };
       if (p.key === 'aviz') {
         p.win.webContents.send('wallpaper-config', {
-          part: 'aviz',
-          audioViz: this.store.settings.audioViz || {},
-          scaleFactor: sf,
+          part: 'aviz', audioViz: this.store.settings.audioViz || {},
+          perfPaused: this.avizPerfPaused,   // 新建窗时也要带上，否则暂停态丢失
+          ...common,
+        });
+      } else if (p.key === 'board') {
+        p.win.webContents.send('wallpaper-config', {
+          part: 'board', ...common,
+          board: this.store.settings.board || {},
+          weather: this._weatherCache || null,
         });
       } else {
-        const w = this.store.settings.widgets || {};
         p.win.webContents.send('wallpaper-config', {
-          part: p.key,
-          theme: w.theme || 'auto',
+          part: p.key, ...common,
           item: ((w.items || {})[p.key]) || {},
-          scaleFactor: sf,
         });
       }
     } catch (_) {}
+  }
+
+  /**
+   * 天气数据只发看板窗：broadcast 按 statsInterval 触发（性能档 250ms），
+   * 把 7 日预报塞进去 = 4KB × 4/s，纯属浪费。
+   */
+  pushWeather(data) {
+    this._weatherCache = data || null;
+    const p = this.parts.get('board');
+    if (p && p.win && !p.win.isDestroyed()) {
+      try { p.win.webContents.send('wallpaper-weather', this._weatherCache); } catch (_) {}
+    }
   }
 
   /** 性能数据广播（CPU/GPU/内存/音量组件） */
@@ -558,14 +679,31 @@ class WidgetsHost {
     ipcMain.on('wallpaper-drag-start', (e) => { const p = partOf(e); if (p) this._dragStart(p); });
     ipcMain.on('wallpaper-drag-move', (e) => { const p = partOf(e); if (p) this._dragMove(p); });
     ipcMain.on('wallpaper-drag-end', (e) => { const p = partOf(e); if (p) this._dragEnd(p); });
-    ipcMain.on('wallpaper-av-status', (_e, s) => {
+    ipcMain.on('wallpaper-av-status', (e, s) => {
+      // 存活心跳：渲染页每 600ms 上报一次（只要动效开着就发，与音频捕获成败无关），
+      // repaintAll 据此判断 aviz 正在自绘、跳过会与 canvas present 打架的 nudgeWindow
+      const p = partOf(e);
+      if (p) p.avAlive = Date.now();
       if (this.hooks.onAvStatus) this.hooks.onAvStatus(s || {});
     });
-    ipcMain.on('wallpaper-set-volume', (_e, v) => {
-      if (this.hooks.onVolume) this.hooks.onVolume(v);
+    ipcMain.on('wallpaper-set-sys-volume', (_e, v) => {
+      if (this.hooks.onSysVolume) this.hooks.onSysVolume(v);
     });
-    ipcMain.on('wallpaper-toggle-mute', () => {
-      if (this.hooks.onToggleMute) this.hooks.onToggleMute();
+    ipcMain.on('wallpaper-toggle-sys-mute', () => {
+      if (this.hooks.onToggleSysMute) this.hooks.onToggleSysMute();
+    });
+    // 桌面看板勾选待办：直接写 store + 回推 + 同步客户端。
+    // ★ 绝不走 applySettingsUpdate → applyWidgetsConfig → _syncNow：
+    //   那条链会 _placePart 甚至 _destroyPart/_createPart，勾一下复选框就重建窗口。
+    //   与 _dragEnd 落位保存是同一套写法。
+    ipcMain.on('wallpaper-board-todo', (e, id) => {
+      const p = partOf(e);
+      if (!p || p.key !== 'board' || !id) return;
+      const b = this.store.settings.board || {};
+      const todos = (b.todos || []).map((t) => (t.id === id ? { ...t, done: !t.done } : t));
+      this.store.updateSettings({ board: { ...b, todos } });
+      this._pushTo(p); // 幂等回推，确认最终状态
+      if (this.hooks.onConfigChanged) this.hooks.onConfigChanged();
     });
   }
 }

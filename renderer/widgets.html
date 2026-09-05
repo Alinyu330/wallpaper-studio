@@ -28,6 +28,33 @@
       color: #1a1d26;
       text-shadow: 0 1px 8px rgba(255,255,255,.65), 0 0 20px rgba(255,255,255,.35);
     }
+    /* ---------- 组件样式：毛玻璃 / 液态玻璃（背景层与内容层分离） ----------
+       背景层单独承载 backdrop-filter：若与内容同层，内容的 filter 会破坏
+       backdrop-filter 的采样。透明窗上 backdrop-filter 若采样不到身后桌面，
+       半透明着色 + 镜面高光仍能让面板读作玻璃卡，两种情况观感都成立。 */
+    #wg-bg { position: fixed; inset: 0; z-index: 0; display: none; pointer-events: none; }
+    #root { z-index: 1; }
+    body.style-frosted #wg-bg {
+      display: block;
+      background: rgba(18, 20, 28, .42);
+      -webkit-backdrop-filter: blur(14px) saturate(1.3);
+      backdrop-filter: blur(14px) saturate(1.3);
+    }
+    body.style-liquid #wg-bg {
+      display: block;
+      background: linear-gradient(135deg, rgba(255,255,255,.16), rgba(255,255,255,.05) 40%, rgba(18,20,28,.30));
+      -webkit-backdrop-filter: blur(22px) saturate(1.6) brightness(1.06);
+      backdrop-filter: blur(22px) saturate(1.6) brightness(1.06);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.28), inset 0 -1px 0 rgba(255,255,255,.10);
+    }
+    body.theme-light.style-frosted #wg-bg { background: rgba(255,255,255,.40); }
+    body.theme-light.style-liquid #wg-bg {
+      background: linear-gradient(135deg, rgba(255,255,255,.55), rgba(255,255,255,.28));
+    }
+    body.shape-rounded #wg-bg { border-radius: 14px; }
+    body.shape-pill #wg-bg { border-radius: 999px; }
+    body.shape-circle #wg-bg { border-radius: 50%; }
+    body.shape-square #wg-bg { border-radius: 4px; }
     body.has-wg .wg { display: flex; }
     body.has-wg.clock .wg { text-align: center; cursor: pointer; }
 
@@ -41,19 +68,9 @@
     .date::before, .date::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,.16); }
     body.theme-light .date::before, body.theme-light .date::after { background: rgba(0,0,0,.12); }
 
-    /* 指标（CPU/GPU/内存）：标签 + 数值 + 细进度条 */
-    .m-head { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; }
+    /* 标签 + 数值（系统状态监控的网速行复用） */
     .m-label { font-size: 10.5px; font-weight: 600; letter-spacing: 2.5px; opacity: .62; }
     .m-val { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
-    .m-bar { margin-top: 9px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.14); overflow: hidden; }
-    body.theme-light .m-bar { background: rgba(0,0,0,.12); }
-    .m-bar i {
-      display: block; height: 100%; width: 0; border-radius: 2px;
-      background: linear-gradient(90deg, #34d399, #6ee7a8);
-      transition: width .6s cubic-bezier(.4, 0, .2, 1);
-    }
-    .m-bar i.warn { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
-    .m-bar i.crit { background: linear-gradient(90deg, #f43f5e, #fb7185); }
 
     /* 音量（可交互） */
     .v-head { display: flex; align-items: center; gap: 10px; }
@@ -72,6 +89,39 @@
       box-shadow: 0 1px 5px rgba(0,0,0,.4);
     }
     .v-hint { margin-top: 6px; font-size: 10.5px; opacity: .55; letter-spacing: .5px; }
+
+    /* ---------- 系统状态监控：上下行速率 + 迷你历史 ---------- */
+    .nm-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    /* 数值 + 单位必须同在一行：标签可收缩，数值不折行 */
+    .nm-row .m-label { flex: 1 1 auto; min-width: 0; letter-spacing: .5px; white-space: nowrap; overflow: hidden; }
+    .nm-row .m-val { flex: 0 0 auto; font-size: 17px; white-space: nowrap; }
+    .nm-hist { display: flex; align-items: flex-end; gap: 1.5px; height: 16px; margin: 3px 0 6px; }
+    .nm-hist i { flex: 1; min-height: 1px; border-radius: 1px; background: linear-gradient(180deg, #22d3ee, #4f8cff); opacity: .85; }
+    .nm-hist.up i { background: linear-gradient(180deg, #a3e635, #34d399); }
+    .nm-sum { margin-top: 2px; font-size: 10.5px; opacity: .6; letter-spacing: .5px; font-variant-numeric: tabular-nums; }
+
+    /* ---------- 信息看板（日历 / 天气 / 待办） ---------- */
+    .bd-head { font-size: 10.5px; font-weight: 600; letter-spacing: 2px; opacity: .6; margin: 8px 0 4px; }
+    .bd-head:first-child { margin-top: 0; }
+    .bd-date { font-size: 20px; font-weight: 200; letter-spacing: 1px; font-variant-numeric: tabular-nums; }
+    .bd-line { display: flex; align-items: baseline; gap: 8px; font-size: 12px; line-height: 1.5; }
+    .bd-line .t { opacity: .65; flex: none; font-variant-numeric: tabular-nums; }
+    .bd-line .x { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bd-line .d { flex: none; opacity: .8; font-variant-numeric: tabular-nums; }
+    .bd-wx { display: flex; align-items: baseline; gap: 10px; }
+    .bd-wx .tmp { font-size: 26px; font-weight: 200; font-variant-numeric: tabular-nums; }
+    .bd-wx .meta { font-size: 11px; opacity: .7; }
+    .bd-hours { display: flex; gap: 6px; margin-top: 4px; }
+    .bd-hours div { flex: 1; text-align: center; font-size: 9.5px; opacity: .78; }
+    .bd-hours .e { font-size: 13px; }
+    .bd-days { margin-top: 4px; }
+    .bd-days .bd-line { font-size: 11px; }
+    .bd-todo { display: flex; align-items: center; gap: 7px; font-size: 12px; cursor: pointer; padding: 1px 0; }
+    .bd-todo .box { flex: none; width: 13px; height: 13px; border: 1.5px solid rgba(255,255,255,.7); border-radius: 3.5px; }
+    body.theme-light .bd-todo .box { border-color: rgba(0,0,0,.6); }
+    .bd-todo.done .box { background: rgba(124,92,255,.9); border-color: transparent; }
+    .bd-todo.done .tx { text-decoration: line-through; opacity: .5; }
+    .bd-stale { font-size: 9.5px; opacity: .5; letter-spacing: .5px; }
 
     /* ---------- 音律动效（独立小窗：画布填满窗口） ---------- */
     #av-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: none; }
@@ -99,6 +149,7 @@
   </style>
 </head>
 <body>
+  <div id="wg-bg"></div>
   <div class="wg" id="root"></div>
   <div id="adjust-tip">按住拖动调整位置 · 松手自动保存</div>
   <canvas id="av-canvas"></canvas>
@@ -112,23 +163,38 @@
 
     const root = document.getElementById('root');
     let cfg = null;        // 组件窗: {part,theme,item,scaleFactor} / aviz窗: {part,audioViz,scaleFactor}
-    let stats = { cpu: null, gpu: null, mem: null, volume: 0, mute: false };
+    let stats = { cpu: null, gpu: null, mem: null, sysVolume: null, sysMuted: false };
     let h24 = true;        // 时钟 12/24 小时制（点击切换）
     let volDragging = false;
 
     const sfNow = () => (cfg && cfg.scaleFactor) || window.devicePixelRatio || 1;
+    const numOr = (v, d) => (Number.isFinite(Number(v)) ? Number(v) : d);
 
     // ---------- 渲染 ----------
-    const LABELS = { cpu: 'CPU', gpu: 'GPU', mem: '内存' };
-
     function build() {
       const theme = cfg && cfg.theme === 'light' ? ' theme-light' : '';
+      const style = IS_AVIZ ? 'none' : ((cfg && cfg.style) || 'none');
+      const shape = (cfg && cfg.shape) || 'rounded';
       // 调整模式类不能被覆盖（主进程随时可能开关调整模式）
-      const base = `part-${PART}${IS_AVIZ ? '' : ' has-wg'}${theme}`;
+      const base = `part-${PART}${IS_AVIZ ? '' : ' has-wg'}${theme} style-${style} shape-${shape}`;
       document.body.className = document.body.classList.contains('adjusting') ? base + ' adjusting' : base;
+      const bg = document.getElementById('wg-bg');
       if (IS_AVIZ) {
         root.style.display = 'none';
+        root.style.filter = '';
+        if (bg) bg.style.display = 'none';
       } else {
+        // 面板不透明度（设置页滑杆下发；此前从未传到组件窗口，滑杆是死控件）
+        // 音律动效有自己的 canvas alpha，不走这里
+        const op = Number(cfg && cfg.opacity);
+        const opStr = (Number.isFinite(op) && op > 0) ? String(Math.min(1, op)) : '';
+        root.style.opacity = opStr;
+        if (bg) bg.style.opacity = opStr;
+        const br = numOr(cfg && cfg.brightness, 100);
+        const ct = numOr(cfg && cfg.contrast, 100);
+        const sa = numOr(cfg && cfg.saturate, 100);
+        root.style.filter = (br === 100 && ct === 100 && sa === 100)
+          ? '' : `brightness(${br}%) contrast(${ct}%) saturate(${sa}%)`;
         buildWidget();
         renderWidget();
       }
@@ -138,10 +204,6 @@
     function buildWidget() {
       if (PART === 'clock') {
         root.innerHTML = '<div class="time" id="w-time"></div><div class="date" id="w-date"></div>';
-      } else if (LABELS[PART]) {
-        root.innerHTML =
-          `<div class="m-head"><span class="m-label">${LABELS[PART]}</span><span class="m-val" id="w-val">--</span></div>` +
-          `<div class="m-bar"><i id="w-bar"></i></div>`;
       } else if (PART === 'volume') {
         root.innerHTML =
           '<div class="v-head"><span class="v-ico" id="w-ico">🔊</span><span class="v-val" id="w-val">0%</span></div>' +
@@ -149,6 +211,16 @@
           '<div class="v-knob" id="w-knob"></div></div></div>' +
           '<div class="v-hint">拖动调节 · 点击图标静音</div>';
         bindVolumeEvents();
+      } else if (PART === 'netmon') {
+        // 纯展示组件：不上报交互矩形（见 reportRects），不吞桌面图标点击
+        root.innerHTML =
+          '<div class="nm-row"><span class="m-label">↓ 下行</span><span class="m-val" id="w-down">--</span></div>' +
+          '<div class="nm-hist" id="w-hist-d"></div>' +
+          '<div class="nm-row"><span class="m-label">↑ 上行</span><span class="m-val" id="w-up">--</span></div>' +
+          '<div class="nm-hist up" id="w-hist-u"></div>' +
+          '<div class="nm-sum" id="w-sum">CPU -- · GPU -- · 内存 --</div>';
+      } else if (PART === 'board') {
+        buildBoard();
       }
     }
 
@@ -169,37 +241,164 @@
 
     function renderWidget() {
       if (PART === 'clock') { renderClock(); return; }
-      if (LABELS[PART]) {
-        const v = stats[PART];
-        const val = document.getElementById('w-val');
-        const bar = document.getElementById('w-bar');
-        if (!val) return;
-        val.textContent = (v === null || v === undefined) ? '--' : Math.round(v) + '%';
-        if (bar) {
-          let cls = '';
-          if (typeof v === 'number') {
-            if (v >= 85) cls = 'crit'; else if (v >= 60) cls = 'warn';
-          }
-          bar.className = cls;
-          bar.style.width = (typeof v === 'number' ? Math.min(100, v) : 0) + '%';
-        }
-        return;
-      }
+      if (PART === 'netmon') { renderNetmon(); return; }
+      if (PART === 'board') return; // 由 buildBoard/renderBoard 自管
       if (PART === 'volume') renderVolume();
     }
 
     function renderVolume() {
       const val = document.getElementById('w-val');
       if (!val) return;
-      const v = Math.round(stats.volume || 0);
-      const mute = !!stats.mute;
+      const known = Number.isFinite(Number(stats.sysVolume));
+      const v = known ? Math.round(Number(stats.sysVolume)) : 0;
+      const mute = !!stats.sysMuted || !known;
       const ico = document.getElementById('w-ico');
       const fill = document.getElementById('w-fill');
       const knob = document.getElementById('w-knob');
-      if (ico) ico.textContent = mute || v === 0 ? '🔇' : v < 40 ? '🔈' : v < 75 ? '🔉' : '🔊';
-      val.textContent = `${v}%`;
+      if (ico) ico.textContent = mute ? '🔇' : v < 40 ? '🔈' : v < 75 ? '🔉' : '🔊';
+      val.textContent = known ? `${v}%` : '--%';
       if (fill) fill.style.width = `${mute ? 0 : v}%`;
       if (knob) knob.style.left = `${mute ? 0 : v}%`;
+    }
+
+    // ---------- 系统状态监控 ----------
+    const NM_N = 28;
+    const nmHist = { d: [], u: [] };
+    function fmtRate(b) {
+      if (b === null || b === undefined) return '--';
+      if (b < 1024) return `${Math.round(b)} B/s`;
+      if (b < 1048576) return `${(b / 1024).toFixed(1)} KB/s`;
+      if (b < 1073741824) return `${(b / 1048576).toFixed(2)} MB/s`;
+      return `${(b / 1073741824).toFixed(2)} GB/s`;
+    }
+    const fmtPct = (v) => (v === null || v === undefined ? '--' : `${Math.round(v)}%`);
+    /** 对数刻度：网速动态范围极大，线性刻度会让小流量完全看不见 */
+    function paintHist(id, arr) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.children.length !== NM_N) {
+        el.innerHTML = '';
+        for (let i = 0; i < NM_N; i++) el.appendChild(document.createElement('i'));
+      }
+      const max = Math.max(1, ...arr);
+      const lgMax = Math.log10(1 + max);
+      for (let i = 0; i < NM_N; i++) {
+        const v = arr[i] || 0;
+        const h = v > 0 ? Math.max(8, Math.round((Math.log10(1 + v) / lgMax) * 100)) : 1;
+        el.children[i].style.height = `${h}%`;
+      }
+    }
+    function renderNetmon() {
+      const d = document.getElementById('w-down');
+      const u = document.getElementById('w-up');
+      if (d) d.textContent = fmtRate(stats.netDown);
+      if (u) u.textContent = fmtRate(stats.netUp);
+      nmHist.d.push(stats.netDown || 0); if (nmHist.d.length > NM_N) nmHist.d.shift();
+      nmHist.u.push(stats.netUp || 0); if (nmHist.u.length > NM_N) nmHist.u.shift();
+      paintHist('w-hist-d', nmHist.d);
+      paintHist('w-hist-u', nmHist.u);
+      const sum = document.getElementById('w-sum');
+      if (sum) sum.textContent = `CPU ${fmtPct(stats.cpu)} · GPU ${fmtPct(stats.gpu)} · 内存 ${fmtPct(stats.mem)}`;
+    }
+
+    // ---------- 信息看板（日历 / 天气 / 待办） ----------
+    let weather = null;
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    /** 纪念日到「下一个周年」的天数（跨年自动滚到明年） */
+    function daysToAnniv(dateStr) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateStr || ''));
+      if (!m) return null;
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const month = (+m[2]) - 1, day = +m[3];
+      let t = new Date(now.getFullYear(), month, day);
+      if (t < today) t = new Date(now.getFullYear() + 1, month, day);
+      return Math.round((t - today) / 86400000);
+    }
+    const todayStr = () => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+
+    function buildBoard() {
+      weather = (cfg && cfg.weather) || weather;
+      const b = (cfg && cfg.board) || {};
+      const s = b.sections || {};
+      let html = '';
+      if (s.calendar !== false) html += '<div class="bd-head">日历</div><div class="bd-date" id="bd-date"></div><div id="bd-ev"></div>';
+      if (s.weather !== false) html += '<div class="bd-head">天气 <span class="bd-stale" id="bd-stale"></span></div><div id="bd-wx"></div>';
+      if (s.todo !== false) html += '<div class="bd-head">待办</div><div id="bd-todo"></div>';
+      root.innerHTML = html || '<div class="bd-head">看板三块内容均已关闭</div>';
+      renderBoard();
+    }
+
+    function renderBoard() {
+      const b = (cfg && cfg.board) || {};
+      const s = b.sections || {};
+      if (s.calendar !== false) {
+        const d = new Date();
+        const week = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
+        const de = document.getElementById('bd-date');
+        if (de) de.textContent = `${d.getMonth() + 1}月${d.getDate()}日 星期${week}`;
+        const ev = document.getElementById('bd-ev');
+        if (ev) {
+          const today = todayStr();
+          const rows = (b.events || [])
+            .filter((e) => e && e.type !== 'anniversary' && (e.date || '') >= today)
+            .sort((x, y) => String(x.date).localeCompare(String(y.date)))
+            .slice(0, b.rows?.events ?? 4);
+          const ans = (b.events || [])
+            .filter((e) => e && e.type === 'anniversary')
+            .map((e) => ({ e, n: daysToAnniv(e.date) }))
+            .filter((x) => x.n !== null)
+            .sort((x, y) => x.n - y.n)
+            .slice(0, 3);
+          let html = '';
+          for (const e of rows) html += `<div class="bd-line"><span class="t">${esc(String(e.date || '').slice(5).replace('-', '/'))}</span><span class="x">${esc(e.text)}</span></div>`;
+          for (const { e, n } of ans) html += `<div class="bd-line"><span class="t">🎂</span><span class="x">${esc(e.text)}</span><span class="d">${n === 0 ? '今天' : `还有 ${n} 天`}</span></div>`;
+          ev.innerHTML = html || '<div class="bd-line"><span class="x" style="opacity:.5">暂无日程 / 纪念日</span></div>';
+        }
+      }
+      if (s.weather !== false) {
+        const st = document.getElementById('bd-stale');
+        if (st) st.textContent = weather && weather.stale ? '· 缓存' : '';
+        const wx = document.getElementById('bd-wx');
+        if (wx) {
+          if (!weather || !weather.current) {
+            wx.innerHTML = '<div class="bd-line"><span class="x" style="opacity:.5">天气获取中 / 离线…</span></div>';
+          } else {
+            const c = weather.current;
+            let html = `<div class="bd-wx"><span class="tmp">${c.temp ?? '--'}°</span>` +
+              `<span class="meta">${c.emoji} ${esc(c.label)} · 体感 ${c.feels ?? '--'}° · 湿 ${c.humidity ?? '--'}% · 风 ${c.wind ?? '--'}km/h</span></div>`;
+            if ((weather.hourly || []).length) {
+              html += '<div class="bd-hours">' + weather.hourly.slice(0, 6).map((h) =>
+                `<div><div>${esc(h.t)}</div><div class="e">${h.emoji}</div><div>${h.temp ?? '--'}°</div></div>`).join('') + '</div>';
+            }
+            if ((weather.daily || []).length) {
+              html += '<div class="bd-days">' + weather.daily.map((dd) =>
+                `<div class="bd-line"><span class="t">${esc(dd.date)}</span><span class="x">${dd.emoji} ${esc(dd.label)}</span><span class="d">${dd.min ?? '--'}~${dd.max ?? '--'}°</span></div>`).join('') + '</div>';
+            }
+            wx.innerHTML = html;
+          }
+        }
+      }
+      if (s.todo !== false) {
+        const td = document.getElementById('bd-todo');
+        if (td) {
+          const todos = (b.todos || []).slice(0, b.rows?.todo ?? 6);
+          td.innerHTML = todos.length
+            ? todos.map((t) => `<div class="bd-todo${t.done ? ' done' : ''}" data-id="${esc(t.id)}"><span class="box"></span><span class="tx">${esc(t.text)}</span></div>`).join('')
+            : '<div class="bd-line"><span class="x" style="opacity:.5">暂无待办</span></div>';
+          td.querySelectorAll('.bd-todo').forEach((el) => {
+            el.addEventListener('click', () => {
+              if (el.dataset.id) window.wallpaperHost.toggleTodo(el.dataset.id);
+            });
+          });
+        }
+      }
+      scheduleRects(); // 待办行数变化 → 交互矩形要重报
     }
 
     // ---------- 交互 ----------
@@ -213,23 +412,24 @@
         if (!rail) return;
         const r = rail.getBoundingClientRect();
         const pct = Math.min(100, Math.max(0, ((clientX - r.left) / r.width) * 100));
-        stats.volume = Math.round(pct);
-        stats.mute = false;
-        window.wallpaperHost.setVolume(stats.volume);
+        stats.sysVolume = Math.round(pct);
+        stats.sysMuted = false;
+        window.wallpaperHost.setSysVolume(stats.sysVolume);
         renderVolume();
       };
       root.addEventListener('mousedown', (e) => {
         window.wallpaperHost.setInteracting(true);
-        if (e.target.closest('.v-ico')) { window.wallpaperHost.toggleMute(); return; }
+        if (e.target.closest('.v-ico')) { window.wallpaperHost.toggleSysMute(); return; }
         if (e.target.closest('.v-track')) { volDragging = true; setFromX(e.clientX); }
       });
       window.addEventListener('mousemove', (e) => { if (volDragging) setFromX(e.clientX); });
       window.addEventListener('mouseup', () => { volDragging = false; window.wallpaperHost.setInteracting(false); });
       track.addEventListener('wheel', (e) => {
         e.preventDefault();
-        stats.volume = Math.min(100, Math.max(0, (stats.volume || 0) - Math.sign(e.deltaY) * 5));
-        stats.mute = false;
-        window.wallpaperHost.setVolume(stats.volume);
+        const base = Number.isFinite(Number(stats.sysVolume)) ? Number(stats.sysVolume) : 0;
+        stats.sysVolume = Math.min(100, Math.max(0, base - Math.sign(e.deltaY) * 5));
+        stats.sysMuted = false;
+        window.wallpaperHost.setSysVolume(stats.sysVolume);
         renderVolume();
       }, { passive: false });
     }
@@ -273,7 +473,14 @@
     window.wallpaperHost.onConfig((c) => {
       cfg = c;
       build();
-      if (IS_AVIZ) avApplyConfig(c.audioViz);
+      if (IS_AVIZ) { avSetPerfPaused(c.perfPaused); avApplyConfig(c.audioViz); }
+    });
+    if (window.wallpaperHost.onPerfPause) {
+      window.wallpaperHost.onPerfPause((v) => { if (IS_AVIZ) avSetPerfPaused(v && v.on); });
+    }
+    window.wallpaperHost.onWeather((w) => {
+      weather = w;
+      if (PART === 'board') renderBoard();
     });
     window.wallpaperHost.onStats((s) => {
       stats = { ...stats, ...s };
@@ -293,10 +500,19 @@
     function reportRects() {
       const sf = sfNow();
       const rects = [];
-      if (!IS_AVIZ && !document.body.classList.contains('adjusting')) {
-        // 组件窗：上报内容矩形（音量拖动/时钟点击用）；音律动效纯展示不上报
-        const r = root.getBoundingClientRect();
-        if (r.width > 0) rects.push({ x: r.left * sf, y: r.top * sf, w: r.width * sf, h: r.height * sf });
+      if (!IS_AVIZ && PART !== 'netmon' && !document.body.classList.contains('adjusting')) {
+        // 组件窗：上报内容矩形（音量拖动/时钟点击用）；
+        // 音律动效与网速监控纯展示不上报 —— 否则会吞掉组件后方桌面图标的点击
+        if (PART === 'board') {
+          // 看板只上报待办行（唯一交互目标），外扩 6px 便于命中
+          root.querySelectorAll('.bd-todo').forEach((el) => {
+            const r = el.getBoundingClientRect();
+            if (r.width > 0) rects.push({ x: (r.left - 6) * sf, y: (r.top - 6) * sf, w: (r.width + 12) * sf, h: (r.height + 12) * sf });
+          });
+        } else {
+          const r = root.getBoundingClientRect();
+          if (r.width > 0) rects.push({ x: r.left * sf, y: r.top * sf, w: r.width * sf, h: r.height * sf });
+        }
       }
       window.wallpaperHost.reportRects(rects);
     }
@@ -309,8 +525,21 @@
     // WebAudio Analyser 频谱分析 + Canvas 绘制；窗口即动效条带，几何随窗口尺寸。
     // 样式：bars 频谱条 / wave 波浪 / circle 圆环 / mountain 山峦 /
     //       dots 圆点 / rings 同心环 / blocks LED 块
+    //
+    // ★ 性能（v1.9.0）：绘制路径彻底不用 canvas shadowBlur。
+    //   旧实现每根柱、每个点都单独带一次阴影 —— 频谱条开镜像是 128 次高斯模糊
+    //   填充/帧；圆点与 LED 块更是在内层循环里逐次改 shadowBlur（384 / 392 次）；
+    //   圆环每帧新建 96 个渐变。60Hz 下必然掉帧，而掉帧时 DWM 只拿到部分更新的
+    //   表面，镜像倒影区就留下「一堆卡顿的动效样式」（残影 / 撕裂）。
+    //   现在：所有发光形状每帧只画进一张离屏层一次（镜像也画在同一层，结构上
+    //   不可能与主体独立撕裂），再用两次 drawImage 合成 —— ctx.filter='blur()'
+    //   的模糊副本作辉光 + 清晰副本作主体。每帧从上百次模糊填充降到 2 次图像合成。
+    //   另有帧率上限（cfg.fps，来自设置页「音律动效帧率」），不再跟着显示器
+    //   刷新率跑满 60~165Hz。
     const avCanvas = document.getElementById('av-canvas');
     const g2d = avCanvas.getContext('2d');
+    const TAU = Math.PI * 2;
+    const AV_MAX_PIXELS = 1.8e6; // backing store 面积上限
     const av = {
       on: false, cfg: {},
       audioCtx: null, analyser: null, srcNode: null, track: null,
@@ -318,7 +547,22 @@
       raf: 0, restartTimer: null, failCount: 0, spin: 0,
       _peak: 0, _lastError: null, _devAt: 0, _blkPeaks: null,
       _ring0: 0, _ring1: 0, _ring2: 0,
+      _lastTs: 0,          // 帧率节流：上一次实际绘制的时间戳
+      _prevTs: 0,          // 帧率节流：上一个 rAF 时间戳
+      _rafDt: 0,           // rAF 间隔滑动平均 = 估算的显示器刷新周期
+      _grads: new Map(),   // 渐变缓存（配置/尺寸变化时清空）
+      _circG: null,        // 圆环 96 个放射渐变的整组缓存
     };
+    // 辉光离屏层（懒建，停用动效时释放）
+    let avLayer = null, avLctx = null;
+    // ctx.filter 在极老内核上可能不支持，探测一次决定走合成还是直绘
+    const avCanFilter = (() => {
+      try {
+        const c = document.createElement('canvas').getContext('2d');
+        c.filter = 'blur(2px)';
+        return c.filter === 'blur(2px)';
+      } catch (_) { return false; }
+    })();
 
     function avHexToRgb(hex) {
       const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
@@ -329,26 +573,74 @@
     const avRgba = (rgb, a) => `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
     const avLighten = (rgb, k) => rgb.map((v) => Math.round(v + (255 - v) * k));
 
+    /**
+     * 渐变缓存：旧实现里圆环每帧新建 96 个 createLinearGradient，其余样式每帧
+     * 也各新建 1~2 个。颜色与几何都不随帧变化，按 key 缓存后配置不变时零新建。
+     */
+    function avLinGrad(ctx, key, x0, y0, x1, y1, stops) {
+      let g = av._grads.get(key);
+      if (g) return g;
+      // 容量兜底：反复换配色会不断产生新 key，超阈值整表清空（下一帧按需重建）
+      if (av._grads.size > 64) av._grads.clear();
+      g = ctx.createLinearGradient(x0, y0, x1, y1);
+      for (const [off, col] of stops) g.addColorStop(off, col);
+      av._grads.set(key, g);
+      return g;
+    }
+    /** 几何/配色变了缓存就全部失效（key 里带几何，这里再兜底防无界增长） */
+    function avDropCaches() {
+      av._grads.clear();
+      av._circG = null;
+    }
+
     function avResizeCanvas() {
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      avCanvas.width = Math.round(window.innerWidth * dpr);
-      avCanvas.height = Math.round(window.innerHeight * dpr);
+      const W = window.innerWidth, H = window.innerHeight;
+      let dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      // 面积钳制：4K + 大小 2.0 时 W*H*dpr^2 可达数百万像素，
+      // 每帧 clearRect 与两次 drawImage 都是按面积付费
+      const px = W * H * dpr * dpr;
+      if (px > AV_MAX_PIXELS) dpr = Math.max(0.5, Math.sqrt(AV_MAX_PIXELS / Math.max(1, W * H)));
+      avCanvas.width = Math.round(W * dpr);
+      avCanvas.height = Math.round(H * dpr);
       g2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (avLayer) { avLayer.width = 0; avLayer.height = 0; } // 强制下一帧按新尺寸重建
+      avDropCaches();
     }
     window.addEventListener('resize', () => {
       if (av.on) avResizeCanvas();
     });
 
+    /**
+     * 各样式的「水面线」描述：off = 水面线相对 cy 的偏移，up = 水面线以上的内容高度。
+     * avGeom（决定 cy 与整体缩放）与 avMirrorAxis（倒影翻转轴）共用，避免两处算法漂移。
+     */
+    function avAxis(g, st) {
+      if (st === 'wave') return { off: g.maxAmp, up: g.maxAmp * 2 };
+      if (st === 'circle') return { off: g.R + g.maxLen, up: (g.R + g.maxLen) * 2 };
+      if (st === 'rings') return { off: g.R * 1.16, up: g.R * 1.16 * 2 };
+      return { off: g.maxH / 2, up: g.maxH };   // bars / neon / mountain / dots / blocks
+    }
+    /** 倒影是否真的会画出来（总开关 + 强度） */
+    function avMirrorOn() {
+      const c = av.cfg;
+      return c.mirror !== false && Math.min(1, Math.max(0, numOr(c.mirrorOpacity, 22) / 100)) > 0.01;
+    }
+
     /** 几何：窗口即条带，内容居中（缩放已由窗口尺寸体现） */
     function avGeom() {
       const W = window.innerWidth, H = window.innerHeight;
-      return {
-        W, H, cx: W / 2, cy: H / 2,
-        maxH: H * 0.66,
-        maxAmp: H * 0.36,
-        R: Math.min(W, H) * 0.30,
-        maxLen: Math.min(W, H) * 0.20,
-      };
+      const m = Math.min(W, H);
+      const g = { W, H, cx: W / 2, cy: H / 2, maxH: H * 0.66, maxAmp: H * 0.36, R: m * 0.30, maxLen: m * 0.20 };
+      if (!avMirrorOn()) return g;
+      // 开倒影：水面线抬到 0.62H，主体等比收紧到「水面线以上放得下」，下方 0.38H 留给倒影
+      const axis = H * 0.62;
+      const a0 = avAxis(g, av.cfg.style);
+      const k = Math.min(1, (axis - 3) / a0.up);
+      if (k < 1) {
+        g.maxH *= k; g.maxAmp *= k; g.R *= k; g.maxLen *= k;
+      }
+      g.cy = axis - avAxis(g, av.cfg.style).off;
+      return g;
     }
 
     async function avStartCapture() {
@@ -376,7 +668,7 @@
         };
         av.failCount = 0;
         av._lastError = null;
-        if (!av.raf) av.raf = requestAnimationFrame(avDraw);
+        avStartLoop();
         track.onended = () => { // 音频设备切换/系统重置：自动恢复捕获
           if (!av.on) return;
           avReleaseAudio();
@@ -403,6 +695,7 @@
     }
 
     function avReleaseAudio() {
+      avStopLoop();
       try { if (av.track) av.track.stop(); } catch (_) {}
       try { if (av.srcNode) av.srcNode.disconnect(); } catch (_) {}
       try { if (av.audioCtx) av.audioCtx.close(); } catch (_) {}
@@ -411,12 +704,18 @@
 
     function avStopAll() {
       if (av.restartTimer) { clearTimeout(av.restartTimer); av.restartTimer = null; }
-      if (av.raf) { cancelAnimationFrame(av.raf); av.raf = 0; }
+      avStopLoop();
       avReleaseAudio();
       av.failCount = 0;
       av._peak = 0;
       av._blkPeaks = null;
       g2d.clearRect(0, 0, avCanvas.width, avCanvas.height);
+      // 释放辉光层：停用动效后不该继续占着这张与窗口等大的位图
+      if (avLayer) { avLayer.width = 0; avLayer.height = 0; }
+      avLayer = null; avLctx = null;
+      if (avMir) { avMir.width = 0; avMir.height = 0; }
+      avMir = null; avMirCtx = null;
+      avDropCaches();
     }
 
     function avApplyConfig(c) {
@@ -427,10 +726,9 @@
       if (want) {
         avCanvas.style.display = 'block';
         avResizeCanvas();
-        if (!prevOn) {
-          avStartCapture();
-          av.raf = requestAnimationFrame(avDraw);
-        }
+        // 循环由捕获成功回调启动（avStartLoop），这里不排 rAF —— 旧实现两处都排，
+        // 靠 av.raf 是否为零互相躲让，很脆弱
+        if (!prevOn) avStartCapture();
       } else {
         avStopAll();
         avCanvas.style.display = 'none';
@@ -445,10 +743,165 @@
       return (av.freq[idx] || 0) / 255;
     }
 
-    function avDraw() {
-      if (!av.on) return;
-      av.raf = requestAnimationFrame(avDraw);
-      if (!av.analyser) return;
+    // ---------- 绘制循环（帧率可调） ----------
+    let avPerfPaused = false;   // 主进程性能暂停：上层有最大化/全屏窗口，动效完全看不见
+    function avStartLoop() {
+      if (!av.on || av.raf || avPerfPaused) return;
+      av._lastTs = 0; av._prevTs = 0; av._rafDt = 0;
+      av.raf = requestAnimationFrame(avLoop);
+    }
+    function avStopLoop() {
+      if (av.raf) { cancelAnimationFrame(av.raf); av.raf = 0; }
+      av._lastTs = 0; av._prevTs = 0; av._rafDt = 0;
+    }
+    function avSetPerfPaused(on) {
+      const next = !!on;
+      if (next === avPerfPaused) return;
+      avPerfPaused = next;
+      if (next) avStopLoop();
+      else if (av.on && av.analyser) avStartLoop();
+    }
+
+    function avLoop(ts) {
+      // 没有 analyser 就彻底退出循环（捕获成功后由 avStartLoop 重新拉起），
+      // 不像旧实现那样按显示器刷新率空转
+      if (!av.on || !av.analyser) { av.raf = 0; return; }
+      av.raf = requestAnimationFrame(avLoop);
+      // 估算显示器刷新周期（rAF 间隔滑动平均）
+      if (av._prevTs) {
+        const dt = ts - av._prevTs;
+        if (dt > 0 && dt < 100) av._rafDt = av._rafDt ? av._rafDt * 0.8 + dt * 0.2 : dt;
+      }
+      av._prevTs = ts;
+      const fps = Number(av.cfg.fps) || 0;
+      if (fps > 0) {
+        const min = 1000 / fps;
+        // ★ 容差必须随刷新周期自适应：固定容差在高刷屏上会把帧率量化到偏低一档
+        //   （165Hz 上 30fps → 27.5fps，因为 33.3ms 落在 30.3 与 36.4 两个 tick 之间）。
+        //   取刷新周期的 0.55 倍 = 吸附到最接近目标的那个 tick。
+        //   注意高刷屏上无法精确命中任意目标帧率（只能取刷新周期的整数倍），
+        //   这是显示器的物理限制，不是 bug。
+        const tol = Math.min(min * 0.45, (av._rafDt || 0) * 0.55);
+        if (av._lastTs && ts - av._lastTs < min - tol) return;
+        av._lastTs = ts;
+      }
+      avDrawFrame();
+    }
+
+    // ---------- 辉光层合成 ----------
+    /** 离屏层用 dpr=1：模糊之后还要放大，肉眼无差，位图面积直接省一半以上 */
+    function avEnsureLayer(g) {
+      const w = Math.max(1, Math.round(g.W)), h = Math.max(1, Math.round(g.H));
+      if (!avLayer) avLayer = document.createElement('canvas');
+      if (avLayer.width !== w || avLayer.height !== h) { avLayer.width = w; avLayer.height = h; }
+      avLctx = avLayer.getContext('2d');
+      avLctx.clearRect(0, 0, w, h);
+      return avLctx;
+    }
+
+    /** 组装 canvas filter 串：可选前缀（如 blur）+ 用户调色（全 100 时不加调色段） */
+    function avColorFilter(prefix) {
+      const c = av.cfg;
+      const br = numOr(c.brightness, 100), ct = numOr(c.contrast, 100), sa = numOr(c.saturate, 100);
+      let f = prefix ? `${prefix} ` : '';
+      if (br !== 100 || ct !== 100 || sa !== 100) f += `brightness(${br}%) contrast(${ct}%) saturate(${sa}%)`;
+      return f.trim() || 'none';
+    }
+
+    /**
+     * 把发光形状画进离屏层一次，再两次 drawImage 合成到主画布：
+     * 模糊副本 = 辉光，清晰副本 = 主体。
+     * 取代旧实现里逐形状的 shadowBlur（每帧上百次高斯模糊填充）。
+     * @param {Function} drawShapes (ctx, withGlowExtras) => void，只画形状、不设阴影
+     */
+    function avComposite(g, alpha, blurPx, drawShapes) {
+      if (!avCanFilter) {
+        // 老内核不支持 ctx.filter：直绘，至少不再有逐次 shadowBlur
+        g2d.save();
+        g2d.globalAlpha = alpha;
+        drawShapes(g2d, true);
+        g2d.restore();
+        return;
+      }
+      const L = avEnsureLayer(g);
+      drawShapes(L, true);
+      g2d.save();
+      g2d.globalAlpha = alpha * 0.85;
+      g2d.filter = avColorFilter(`blur(${blurPx}px)`);
+      g2d.drawImage(avLayer, 0, 0, g.W, g.H);   // 辉光
+      g2d.filter = avColorFilter('');
+      g2d.globalAlpha = alpha;
+      g2d.drawImage(avLayer, 0, 0, g.W, g.H);   // 主体
+      g2d.restore();
+    }
+
+    /**
+     * 倒影合成：把整张发光层关于基线真翻转后叠加。
+     * ★ 旧实现只有「频谱条」有倒影，且是高度×0.55 的缩放副本 —— 幅度与主体对不上，
+     *   其余 7 种样式干脆没有倒影。现在统一在合成阶段翻转同一张层，
+     *   倒影与主体像素同源，动效必然完整复刻。
+     */
+    let avMir = null, avMirCtx = null;
+    function avEnsureMir(w, h) {
+      if (!avMir) avMir = document.createElement('canvas');
+      if (avMir.width !== w || avMir.height !== h) { avMir.width = w; avMir.height = h; }
+      avMirCtx = avMir.getContext('2d');
+      avMirCtx.setTransform(1, 0, 0, 1, 0, 0);
+      avMirCtx.clearRect(0, 0, w, h);
+      return avMirCtx;
+    }
+    /** 各样式的「水面线」：主体内容的最下缘 */
+    function avMirrorAxis(g, st) {
+      return g.cy + avAxis(g, st).off;
+    }
+    function avReflection(g, alpha) {
+      const c = av.cfg;
+      if (!avMirrorOn() || !avCanFilter || !avLayer) return;
+      const mode = ['fade', 'mirror', 'water'].includes(c.mirrorMode) ? c.mirrorMode : 'fade';
+      const baseOp = Math.min(1, Math.max(0, numOr(c.mirrorOpacity, 22) / 100));
+      const op = alpha * (mode === 'mirror' ? Math.min(1, baseOp * 1.6) : mode === 'water' ? baseOp * 1.2 : baseOp);
+      const base = avMirrorAxis(g, c.style);
+      const reach = Math.floor(g.H - base - 1);   // 窗口下沿留给倒影的空间
+      if (reach < 4) return;
+      const W = Math.round(g.W), Hh = Math.round(g.H);
+      const m = avEnsureMir(W, reach);
+
+      // ① 翻转：源 y → base - y，基线上方 reach 像素的内容落到 avMir 的 0..reach
+      m.save();
+      m.setTransform(1, 0, 0, -1, 0, base);
+      m.drawImage(avLayer, 0, 0, W, Hh);
+      m.restore();
+      // ② 淡出：越远离水面线越透明（destination-out 按遮罩 alpha 擦除）。
+      //    endA = 底沿处的擦除量：镜面留得最多，渐隐基本擦净。
+      const endA = mode === 'mirror' ? 0.6 : mode === 'water' ? 0.8 : 0.95;
+      const fade = m.createLinearGradient(0, 0, 0, reach);
+      fade.addColorStop(0, 'rgba(0,0,0,0)');
+      fade.addColorStop(0.45, `rgba(0,0,0,${(endA * 0.32).toFixed(3)})`);
+      fade.addColorStop(1, `rgba(0,0,0,${endA})`);
+      m.globalCompositeOperation = 'destination-out';
+      m.fillStyle = fade;
+      m.fillRect(0, 0, W, reach);
+      m.globalCompositeOperation = 'source-over';
+
+      // ③ 合成到主画布；water 按 3px 横条逐条加正弦位移（振幅随深度增大 = 越远越晃）
+      g2d.save();
+      g2d.globalAlpha = op;
+      g2d.filter = avColorFilter(mode === 'water' ? 'blur(1.2px)' : mode === 'fade' ? 'blur(2px)' : '');
+      if (mode === 'water') {
+        const t = (performance.now() / 1000) * 2.1;
+        const SL = 3;
+        for (let d = 0; d < reach; d += SL) {
+          const k = d / reach;
+          const off = Math.sin(t + d * 0.052) * (1.2 + 7.5 * k * k);
+          g2d.drawImage(avMir, 0, d, W, SL, off, base + d, W, SL);
+        }
+      } else {
+        g2d.drawImage(avMir, 0, 0, W, reach, 0, base, W, reach);
+      }
+      g2d.restore();
+    }
+
+    function avDrawFrame() {
       const c = av.cfg;
       const g = avGeom();
       const sens = Math.min(3, Math.max(0.5, Number(c.sensitivity) || 1.2));
@@ -456,140 +909,201 @@
       const rgb = avHexToRgb(c.color);
       const rgb2 = c.gradient === false ? rgb : avLighten(rgb, 0.5);
       g2d.clearRect(0, 0, g.W, g.H);
-      g2d.globalAlpha = alpha;
 
       const st = c.style;
       if (st === 'circle') {
         av.analyser.getByteFrequencyData(av.freq);
-        avDrawCircle(g, rgb, rgb2, sens);
+        avDrawCircle(g, rgb, rgb2, sens, alpha);
       } else if (st === 'rings') {
         av.analyser.getByteFrequencyData(av.freq);
-        avDrawRings(g, rgb, rgb2, sens);
+        avDrawRings(g, rgb, rgb2, sens, alpha);
       } else if (st === 'wave') {
         av.analyser.getByteTimeDomainData(av.wave);
-        avDrawWave(g, rgb, rgb2, sens);
+        avDrawWave(g, rgb, rgb2, sens, alpha);
       } else if (st === 'mountain') {
         av.analyser.getByteFrequencyData(av.freq);
-        avDrawMountain(g, rgb, rgb2, sens);
+        avDrawMountain(g, rgb, rgb2, sens, alpha);
       } else if (st === 'dots') {
         av.analyser.getByteFrequencyData(av.freq);
-        avDrawDots(g, rgb, rgb2, sens);
+        avDrawDots(g, rgb, rgb2, sens, alpha);
       } else if (st === 'blocks') {
         av.analyser.getByteFrequencyData(av.freq);
-        avDrawBlocks(g, rgb, rgb2, sens);
+        avDrawBlocks(g, rgb, rgb2, sens, alpha);
+      } else if (st === 'neon') {
+        av.analyser.getByteFrequencyData(av.freq);
+        avDrawNeon(g, rgb, rgb2, sens, alpha);
       } else {
         av.analyser.getByteFrequencyData(av.freq);
-        avDrawBars(g, rgb, rgb2, sens, c.mirror !== false);
+        avDrawBars(g, rgb, rgb2, sens, alpha);
       }
-      g2d.globalAlpha = 1;
+      // 倒影统一在合成阶段做（翻转同一张发光层 → 任何样式都能完整复刻动效）
+      avReflection(g, alpha);
     }
 
-    /** 频谱条：垂直居中于窗口，可带镜像倒影 */
-    function avDrawBars(g, rgb, rgb2, sens, mirror) {
-      const N = 64;
+    /** 频谱条几何（bars 与 neon 共用） */
+    function avBarsLayout(g, N) {
       const { maxH } = g;
       const baseline = g.cy + maxH / 2;
       const totalW = g.W * 0.86;
       const bw = totalW / N;
       const barW = Math.max(2, bw * 0.62);
       const x0 = g.cx - totalW / 2;
-      const grad = g2d.createLinearGradient(x0, 0, x0 + totalW, 0);
-      grad.addColorStop(0, avRgba(rgb, 1));
-      grad.addColorStop(1, avRgba(rgb2, 1));
-      g2d.fillStyle = grad;
-      g2d.shadowColor = avRgba(rgb, 0.55);
-      g2d.shadowBlur = 12;
+      return {
+        baseline, totalW, bw, barW, x0,
+        r: Math.min(barW / 2, 3),
+        mirMax: Math.max(0, g.H - baseline - 2),
+      };
+    }
+    function avBarHeights(g, N, sens) {
       const usable = Math.floor(av.freq.length * 0.75);
+      const hs = new Float32Array(N);
       for (let i = 0; i < N; i++) {
         const v = Math.pow(avBarValue(i, N, usable), 1.15) * sens;
-        const h = Math.max(2.5, Math.min(1, v) * maxH);
-        const x = x0 + i * bw + (bw - barW) / 2;
-        const y = baseline - h;
-        const r = Math.min(barW / 2, 3);
-        g2d.beginPath();
-        if (g2d.roundRect) g2d.roundRect(x, y, barW, h, r);
-        else g2d.rect(x, y, barW, h);
-        g2d.fill();
-        if (mirror) {
-          g2d.save();
-          g2d.globalAlpha *= 0.22;
-          g2d.beginPath();
-          if (g2d.roundRect) g2d.roundRect(x, baseline, barW, h * 0.55, r);
-          else g2d.rect(x, baseline, barW, h * 0.55);
-          g2d.fill();
-          g2d.restore();
-        }
+        hs[i] = Math.max(2.5, Math.min(1, v) * g.maxH);
       }
-      g2d.shadowBlur = 0;
+      return hs;
+    }
+
+    /** 频谱条：垂直居中于窗口（倒影由 avReflection 统一叠加） */
+    function avDrawBars(g, rgb, rgb2, sens, alpha) {
+      const N = 64;
+      const L = avBarsLayout(g, N);
+      const hs = avBarHeights(g, N, sens);
+      avComposite(g, alpha, 7, (ctx) => {
+        ctx.fillStyle = avLinGrad(ctx, `bars|${L.x0.toFixed(1)}|${L.totalW.toFixed(1)}`,
+          L.x0, 0, L.x0 + L.totalW, 0, [[0, avRgba(rgb, 1)], [1, avRgba(rgb2, 1)]]);
+        // 64 根柱合并成一条 path 一次填充（无重叠，nonzero 绕向下与逐根填充等价）
+        ctx.beginPath();
+        for (let i = 0; i < N; i++) {
+          const x = L.x0 + i * L.bw + (L.bw - L.barW) / 2;
+          ctx.roundRect(x, L.baseline - hs[i], L.barW, hs[i], L.r);
+        }
+        ctx.fill();
+      });
+    }
+
+    /** 霓虹：粗圆头能量柱 + 三趟递增半径模糊以 lighter 叠加 → 强发光灯管观感 */
+    function avDrawNeon(g, rgb, rgb2, sens, alpha) {
+      const N = 48;
+      const L = avBarsLayout(g, N);
+      const hs = avBarHeights(g, N, sens);
+      const barW = Math.max(3, L.barW * 0.8);
+      const draw = (ctx) => {
+        ctx.fillStyle = avLinGrad(ctx, `neon|${L.x0.toFixed(1)}|${L.totalW.toFixed(1)}`,
+          L.x0, 0, L.x0 + L.totalW, 0, [[0, avRgba(rgb, 1)], [1, avRgba(rgb2, 1)]]);
+        ctx.beginPath();
+        for (let i = 0; i < N; i++) {
+          const x = L.x0 + i * L.bw + (L.bw - barW) / 2;
+          ctx.roundRect(x, L.baseline - hs[i], barW, hs[i], barW / 2);
+        }
+        ctx.fill();
+      };
+      if (!avCanFilter) {
+        g2d.save(); g2d.globalAlpha = alpha; draw(g2d); g2d.restore();
+        return;
+      }
+      const lay = avEnsureLayer(g);
+      draw(lay);
+      const cf = avColorFilter('');
+      g2d.save();
+      g2d.globalCompositeOperation = 'lighter';
+      for (const [blur, a] of [[18, 0.45], [9, 0.55], [3, 0.75]]) {
+        g2d.globalAlpha = alpha * a;
+        g2d.filter = cf === 'none' ? `blur(${blur}px)` : `blur(${blur}px) ${cf}`;
+        g2d.drawImage(avLayer, 0, 0, g.W, g.H);
+      }
+      g2d.filter = cf;
+      g2d.globalAlpha = alpha;
+      g2d.drawImage(avLayer, 0, 0, g.W, g.H);
+      g2d.restore();
     }
 
     /** 波浪：时域波形曲线，基线过窗口中心 */
-    function avDrawWave(g, rgb, rgb2, sens) {
+    function avDrawWave(g, rgb, rgb2, sens, alpha) {
       const maxAmp = g.maxAmp;
       const baseline = g.cy;
-      const grad = g2d.createLinearGradient(0, 0, g.W, 0);
-      grad.addColorStop(0, avRgba(rgb, 1));
-      grad.addColorStop(1, avRgba(rgb2, 1));
-      g2d.strokeStyle = grad;
-      g2d.lineWidth = 3;
-      g2d.lineCap = 'round';
-      g2d.lineJoin = 'round';
-      g2d.shadowColor = avRgba(rgb, 0.6);
-      g2d.shadowBlur = 16;
-      g2d.beginPath();
-      const n = av.wave.length;
-      const step = Math.max(1, Math.floor(n / 256));
       const x0 = g.W * 0.07;
       const span = g.W * 0.86;
-      for (let i = 0, k = 0; i < n; i += step, k++) {
-        const v = (av.wave[i] - 128) / 128;
-        const x = x0 + (i / (n - 1)) * span;
-        const y = baseline - v * maxAmp * sens;
-        if (k === 0) g2d.moveTo(x, y); else g2d.lineTo(x, y);
-      }
-      g2d.stroke();
-      g2d.shadowBlur = 0;
+      avComposite(g, alpha, 9, (ctx) => {
+        ctx.strokeStyle = avLinGrad(ctx, `wave|${g.W.toFixed(1)}`, 0, 0, g.W, 0,
+          [[0, avRgba(rgb, 1)], [1, avRgba(rgb2, 1)]]);
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        const n = av.wave.length;
+        const step = Math.max(1, Math.floor(n / 256));
+        for (let i = 0, k = 0; i < n; i += step, k++) {
+          const v = (av.wave[i] - 128) / 128;
+          const x = x0 + (i / (n - 1)) * span;
+          const y = baseline - v * maxAmp * sens;
+          if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      });
     }
 
     /** 圆环：以窗口中心为圆心的旋转放射频谱环 */
-    function avDrawCircle(g, rgb, rgb2, sens) {
+    function avDrawCircle(g, rgb, rgb2, sens, alpha) {
       const { cx, cy, R, maxLen } = g;
       const N = 96;
       av.spin += 0.0016;
       const usable = Math.floor(av.freq.length * 0.75);
-      g2d.shadowColor = avRgba(rgb, 0.5);
-      g2d.shadowBlur = 10;
-      for (let i = 0; i < N; i++) {
-        const v = Math.pow(avBarValue(i % (N / 2), N / 2, usable), 1.15) * sens; // 左右对称
-        const len = Math.max(2, Math.min(1, v) * maxLen);
-        const ang = av.spin + (i / N) * Math.PI * 2;
-        const cos = Math.cos(ang), sin = Math.sin(ang);
-        const grad = g2d.createLinearGradient(cx + cos * R, cy + sin * R, cx + cos * (R + len), cy + sin * (R + len));
-        grad.addColorStop(0, avRgba(rgb, 0.95));
-        grad.addColorStop(1, avRgba(rgb2, 0.95));
-        g2d.strokeStyle = grad;
-        g2d.lineWidth = Math.max(2, (2 * Math.PI * R / N) * 0.55);
-        g2d.lineCap = 'round';
-        g2d.beginPath();
-        g2d.moveTo(cx + cos * R, cy + sin * R);
-        g2d.lineTo(cx + cos * (R + len), cy + sin * (R + len));
-        g2d.stroke();
-      }
+      const lw = Math.max(2, (TAU * R / N) * 0.55);
+      avComposite(g, alpha, 6, (ctx) => {
+        // 96 个放射渐变整组缓存：旧实现每帧新建 96 个，是圆环样式的主要开销。
+        // ★ 必须在实际绘制的 ctx（辉光层）上创建，不能建在 g2d 上再跨 context 用。
+        const tag = ctx === g2d ? 'g' : 'l';
+        const key = `${tag}|${rgb.join()}|${rgb2.join()}|${cx.toFixed(1)}|${cy.toFixed(1)}|${R.toFixed(1)}|${maxLen.toFixed(1)}`;
+        if (!av._circG || av._circG.key !== key) {
+          const arr = new Array(N);
+          for (let i = 0; i < N; i++) {
+            const a = (i / N) * TAU;
+            const c = Math.cos(a), s = Math.sin(a);
+            const gr = ctx.createLinearGradient(cx + c * R, cy + s * R, cx + c * (R + maxLen), cy + s * (R + maxLen));
+            gr.addColorStop(0, avRgba(rgb, 0.95));
+            gr.addColorStop(1, avRgba(rgb2, 0.95));
+            arr[i] = gr;
+          }
+          av._circG = { key, arr };
+        }
+        const grads = av._circG.arr;
+        // 旋转用查表偏移实现：第 i 根的角度是 spin + i/N*TAU，对应渐变下标 spinIdx + i
+        const spinIdx = ((Math.round(av.spin / TAU * N) % N) + N) % N;
+        ctx.lineWidth = lw;
+        ctx.lineCap = 'round';
+        for (let i = 0; i < N; i++) {
+          const v = Math.pow(avBarValue(i % (N / 2), N / 2, usable), 1.15) * sens; // 左右对称
+          const len = Math.max(2, Math.min(1, v) * maxLen);
+          const ang = av.spin + (i / N) * TAU;
+          const c = Math.cos(ang), s = Math.sin(ang);
+          ctx.strokeStyle = grads[(i + spinIdx) % N];
+          ctx.beginPath();
+          ctx.moveTo(cx + c * R, cy + s * R);
+          ctx.lineTo(cx + c * (R + len), cy + s * (R + len));
+          ctx.stroke();
+        }
+      });
+      // 中心光晕本身就是柔和径向渐变，直接画 —— 再过一次模糊纯属浪费。
+      // 半径与透明度都随 level 每帧变化，不缓存（每帧仅 1 个渐变，
+      // 相对旧实现的每帧 96 个已是数量级下降）
       let sum = 0;
       for (let i = 0; i < usable; i += 8) sum += av.freq[i];
       const level = Math.min(1, (sum / (usable / 8) / 255) * sens);
       const glow = g2d.createRadialGradient(cx, cy, 0, cx, cy, R * (0.5 + level * 0.5));
       glow.addColorStop(0, avRgba(rgb, 0.16 + level * 0.22));
       glow.addColorStop(1, avRgba(rgb, 0));
+      g2d.save();
+      g2d.globalAlpha = alpha;
       g2d.fillStyle = glow;
       g2d.beginPath();
-      g2d.arc(cx, cy, R * (0.55 + level * 0.45), 0, Math.PI * 2);
+      g2d.arc(cx, cy, R * (0.55 + level * 0.45), 0, TAU);
       g2d.fill();
-      g2d.shadowBlur = 0;
+      g2d.restore();
     }
 
     /** 山峦：频谱填充面积图 + 顶部亮线（低频在左，随节奏起伏） */
-    function avDrawMountain(g, rgb, rgb2, sens) {
+    function avDrawMountain(g, rgb, rgb2, sens, alpha) {
       const N = 64;
       const { maxH } = g;
       const baseline = g.cy + maxH / 2;
@@ -601,32 +1115,28 @@
         const h = Math.max(2, Math.min(1, v) * maxH);
         pts.push([x0 + (i / (N - 1)) * span, baseline - h]);
       }
-      const fill = g2d.createLinearGradient(0, baseline - maxH, 0, baseline);
-      fill.addColorStop(0, avRgba(rgb2, 0.55));
-      fill.addColorStop(1, avRgba(rgb, 0.08));
-      g2d.beginPath();
-      g2d.moveTo(x0, baseline);
-      for (const [x, y] of pts) g2d.lineTo(x, y);
-      g2d.lineTo(x0 + span, baseline);
-      g2d.closePath();
-      g2d.fillStyle = fill;
-      g2d.fill();
-      const line = g2d.createLinearGradient(x0, 0, x0 + span, 0);
-      line.addColorStop(0, avRgba(rgb, 1));
-      line.addColorStop(1, avRgba(rgb2, 1));
-      g2d.strokeStyle = line;
-      g2d.lineWidth = 2.5;
-      g2d.lineJoin = 'round';
-      g2d.shadowColor = avRgba(rgb, 0.55);
-      g2d.shadowBlur = 14;
-      g2d.beginPath();
-      pts.forEach(([x, y], i) => (i ? g2d.lineTo(x, y) : g2d.moveTo(x, y)));
-      g2d.stroke();
-      g2d.shadowBlur = 0;
+      avComposite(g, alpha, 8, (ctx) => {
+        ctx.beginPath();
+        ctx.moveTo(x0, baseline);
+        for (const [x, y] of pts) ctx.lineTo(x, y);
+        ctx.lineTo(x0 + span, baseline);
+        ctx.closePath();
+        ctx.fillStyle = avLinGrad(ctx, `mtnfill|${baseline.toFixed(1)}|${maxH.toFixed(1)}`,
+          0, baseline - maxH, 0, baseline,
+          [[0, avRgba(rgb2, 0.55)], [1, avRgba(rgb, 0.08)]]);
+        ctx.fill();
+        ctx.strokeStyle = avLinGrad(ctx, `mtnline|${x0.toFixed(1)}|${span.toFixed(1)}`,
+          x0, 0, x0 + span, 0, [[0, avRgba(rgb, 1)], [1, avRgba(rgb2, 1)]]);
+        ctx.lineWidth = 2.5;
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.stroke();
+      });
     }
 
     /** 圆点：列×行点阵矩阵，列能量点亮对应数量的点 */
-    function avDrawDots(g, rgb, rgb2, sens) {
+    function avDrawDots(g, rgb, rgb2, sens, alpha) {
       const cols = 32, rows = 12;
       const { maxH } = g;
       const baseline = g.cy + maxH / 2;
@@ -636,33 +1146,38 @@
       const x0 = g.cx - totalW / 2;
       const usable = Math.floor(av.freq.length * 0.75);
       const rDot = Math.max(1.6, Math.min(cw, rh) * 0.28);
-      const lit2 = g2d.createLinearGradient(x0, 0, x0 + totalW, 0);
-      lit2.addColorStop(0, avRgba(rgb, 1));
-      lit2.addColorStop(1, avRgba(rgb2, 1));
+      // 先算每列点亮数，两趟绘制共用 —— 旧实现在内层循环里逐次改
+      // fillStyle/shadowBlur（32×12 = 384 次状态写/帧 + 上百次高斯模糊）
+      const lit = new Uint8Array(cols);
       for (let i = 0; i < cols; i++) {
-        const v = Math.pow(avBarValue(i, cols, usable), 1.15) * sens;
-        const lit = Math.round(Math.min(1, v) * rows);
-        for (let r = 0; r < rows; r++) {
-          const x = x0 + i * cw + cw / 2;
-          const y = baseline - (r + 0.5) * rh;
-          if (r < lit) {
-            g2d.fillStyle = lit2;
-            g2d.shadowColor = avRgba(rgb, 0.5);
-            g2d.shadowBlur = 8;
-          } else {
-            g2d.fillStyle = 'rgba(255,255,255,0.08)';
-            g2d.shadowBlur = 0;
-          }
-          g2d.beginPath();
-          g2d.arc(x, y, rDot, 0, Math.PI * 2);
-          g2d.fill();
-        }
+        lit[i] = Math.round(Math.min(1, Math.pow(avBarValue(i, cols, usable), 1.15) * sens) * rows);
       }
-      g2d.shadowBlur = 0;
+      const dot = (ctx, i, r) => {
+        const x = x0 + i * cw + cw / 2;
+        const y = baseline - (r + 0.5) * rh;
+        ctx.moveTo(x + rDot, y); // arc 前必须 moveTo，否则子路径之间会连出直线
+        ctx.arc(x, y, rDot, 0, TAU);
+      };
+      // 暗格：不发光，直接一条 path 批量填到主画布
+      g2d.save();
+      g2d.globalAlpha = alpha;
+      g2d.fillStyle = 'rgba(255,255,255,0.08)';
+      g2d.beginPath();
+      for (let i = 0; i < cols; i++) for (let r = lit[i]; r < rows; r++) dot(g2d, i, r);
+      g2d.fill();
+      g2d.restore();
+      // 亮格：一条 path 批量填进辉光层
+      avComposite(g, alpha, 5, (ctx) => {
+        ctx.fillStyle = avLinGrad(ctx, `dots|${x0.toFixed(1)}|${totalW.toFixed(1)}`,
+          x0, 0, x0 + totalW, 0, [[0, avRgba(rgb, 1)], [1, avRgba(rgb2, 1)]]);
+        ctx.beginPath();
+        for (let i = 0; i < cols; i++) for (let r = 0; r < lit[i]; r++) dot(ctx, i, r);
+        ctx.fill();
+      });
     }
 
     /** 同心环：低/中/高三环随各自频段能量脉动（响亮时开口收拢） */
-    function avDrawRings(g, rgb, rgb2, sens) {
+    function avDrawRings(g, rgb, rgb2, sens, alpha) {
       const { cx, cy, R } = g;
       const usable = Math.floor(av.freq.length * 0.75);
       const levels = [];
@@ -677,32 +1192,36 @@
       }
       av.spin += 0.0012;
       const radii = [0.52, 0.76, 1.0];
-      g2d.lineCap = 'round';
-      for (let b = 0; b < 3; b++) {
-        const level = levels[b];
-        const r = R * radii[b] * (1 + level * 0.16);
-        g2d.strokeStyle = b % 2 ? avRgba(rgb2, 0.9) : avRgba(rgb, 0.9);
-        g2d.lineWidth = Math.max(2.5, R * (0.10 - b * 0.022)) * (0.8 + level * 0.9);
-        g2d.shadowColor = avRgba(rgb, 0.45 + level * 0.3);
-        g2d.shadowBlur = 12 + level * 16;
-        g2d.beginPath();
-        // 旋转开口环：能量越高缺口越小（环"合拢"）
-        const gap = (0.55 - level * 0.4) * Math.PI;
-        g2d.arc(cx, cy, r, av.spin * (b % 2 ? -1 : 1) + gap / 2 + b, av.spin * (b % 2 ? -1 : 1) + Math.PI * 2 - gap / 2 + b);
-        g2d.stroke();
-      }
+      avComposite(g, alpha, 10, (ctx) => {
+        ctx.lineCap = 'round';
+        for (let b = 0; b < 3; b++) {
+          const level = levels[b];
+          const r = R * radii[b] * (1 + level * 0.16);
+          ctx.strokeStyle = b % 2 ? avRgba(rgb2, 0.9) : avRgba(rgb, 0.9);
+          ctx.lineWidth = Math.max(2.5, R * (0.10 - b * 0.022)) * (0.8 + level * 0.9);
+          ctx.beginPath();
+          // 旋转开口环：能量越高缺口越小（环"合拢"）
+          const gap = (0.55 - level * 0.4) * Math.PI;
+          const dir = av.spin * (b % 2 ? -1 : 1);
+          ctx.arc(cx, cy, r, dir + gap / 2 + b, dir + TAU - gap / 2 + b);
+          ctx.stroke();
+        }
+      });
+      // 中心光晕半径/透明度随能量每帧变化，不缓存（每帧仅 1 个渐变）
       const glow = g2d.createRadialGradient(cx, cy, 0, cx, cy, R * 0.5);
       glow.addColorStop(0, avRgba(rgb, 0.10 + levels[0] * 0.25));
       glow.addColorStop(1, avRgba(rgb, 0));
+      g2d.save();
+      g2d.globalAlpha = alpha;
       g2d.fillStyle = glow;
       g2d.beginPath();
-      g2d.arc(cx, cy, R * 0.5, 0, Math.PI * 2);
+      g2d.arc(cx, cy, R * 0.5, 0, TAU);
       g2d.fill();
-      g2d.shadowBlur = 0;
+      g2d.restore();
     }
 
     /** LED 块：块状能量柱 + 峰值保持下落点 */
-    function avDrawBlocks(g, rgb, rgb2, sens) {
+    function avDrawBlocks(g, rgb, rgb2, sens, alpha) {
       const cols = 28, rows = 14;
       const { maxH } = g;
       const baseline = g.cy + maxH / 2;
@@ -710,37 +1229,47 @@
       const cw = totalW / cols, rh = maxH / rows;
       const x0 = g.cx - totalW / 2;
       const usable = Math.floor(av.freq.length * 0.75);
-      if (!av._blkPeaks || av._blkPeaks.length !== cols) av._blkPeaks = new Array(cols).fill(0);
+      if (!av._blkPeaks || av._blkPeaks.length !== cols) av._blkPeaks = new Float32Array(cols);
       const bw = cw * 0.66, bh = rh * 0.62;
-      const lit2 = g2d.createLinearGradient(x0, 0, x0 + totalW, 0);
-      lit2.addColorStop(0, avRgba(rgb, 1));
-      lit2.addColorStop(1, avRgba(rgb2, 1));
+      const rr = Math.min(2.5, bh / 2);
+      // 先算每列的点亮数与峰值格，三趟绘制共用 —— 旧实现在内层循环里逐次改
+      // fillStyle/shadowBlur（28×14 = 392 次状态写/帧 + 上百次高斯模糊）
+      const lit = new Uint8Array(cols), peak = new Uint8Array(cols);
       for (let i = 0; i < cols; i++) {
         const v = Math.pow(avBarValue(i, cols, usable), 1.15) * sens;
-        const lit = Math.round(Math.min(1, v) * rows);
-        av._blkPeaks[i] = Math.max(lit, av._blkPeaks[i] - 0.08);
-        const peak = Math.round(av._blkPeaks[i]);
+        lit[i] = Math.round(Math.min(1, v) * rows);
+        av._blkPeaks[i] = Math.max(lit[i], av._blkPeaks[i] - 0.08);
+        peak[i] = Math.round(av._blkPeaks[i]);
+      }
+      const cell = (ctx, i, r) => {
+        ctx.roundRect(x0 + i * cw + (cw - bw) / 2, baseline - (r + 1) * rh + (rh - bh) / 2, bw, bh, rr);
+      };
+      // 暗格：不发光，一条 path 批量填到主画布（峰值格留给辉光层）
+      g2d.save();
+      g2d.globalAlpha = alpha;
+      g2d.fillStyle = 'rgba(255,255,255,0.07)';
+      g2d.beginPath();
+      for (let i = 0; i < cols; i++) {
         for (let r = 0; r < rows; r++) {
-          const x = x0 + i * cw + (cw - bw) / 2;
-          const y = baseline - (r + 1) * rh + (rh - bh) / 2;
-          if (r < lit) {
-            g2d.fillStyle = lit2;
-            g2d.shadowColor = avRgba(rgb, 0.45);
-            g2d.shadowBlur = 7;
-          } else if (peak > lit && r === peak - 1) {
-            g2d.fillStyle = avRgba(rgb2, 0.85);
-            g2d.shadowBlur = 0;
-          } else {
-            g2d.fillStyle = 'rgba(255,255,255,0.07)';
-            g2d.shadowBlur = 0;
-          }
-          g2d.beginPath();
-          if (g2d.roundRect) g2d.roundRect(x, y, bw, bh, Math.min(2.5, bh / 2));
-          else g2d.rect(x, y, bw, bh);
-          g2d.fill();
+          if (r < lit[i]) continue;
+          if (peak[i] > lit[i] && r === peak[i] - 1) continue;
+          cell(g2d, i, r);
         }
       }
-      g2d.shadowBlur = 0;
+      g2d.fill();
+      g2d.restore();
+      // 亮格 + 峰值格：进辉光层（各一条 path）
+      avComposite(g, alpha, 5, (ctx) => {
+        ctx.fillStyle = avLinGrad(ctx, `blocks|${x0.toFixed(1)}|${totalW.toFixed(1)}`,
+          x0, 0, x0 + totalW, 0, [[0, avRgba(rgb, 1)], [1, avRgba(rgb2, 1)]]);
+        ctx.beginPath();
+        for (let i = 0; i < cols; i++) for (let r = 0; r < lit[i]; r++) cell(ctx, i, r);
+        ctx.fill();
+        ctx.fillStyle = avRgba(rgb2, 0.85);
+        ctx.beginPath();
+        for (let i = 0; i < cols; i++) if (peak[i] > lit[i]) cell(ctx, i, peak[i] - 1);
+        ctx.fill();
+      });
     }
 
     // ---------- 输出设备切换（外放 ⇄ 耳机 ⇄ HDMI）：自动跟随默认设备重捕 ----------

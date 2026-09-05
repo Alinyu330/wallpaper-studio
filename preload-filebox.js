@@ -17,4 +17,5 @@ contextBridge.exposeInMainWorld('fileboxHost', {
   launch: (idx) => ipcRenderer.send('filebox:launch', idx),
   remove: (idx) => ipcRenderer.send('filebox:remove', idx),
   addItems: () => ipcRenderer.invoke('filebox:add'),
+  dropPaths: (paths) => ipcRenderer.invoke('filebox:drop-paths', paths),
 });

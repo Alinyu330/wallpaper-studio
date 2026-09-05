@@ -847,7 +847,7 @@ const DClientToScreen = user32.func('ClientToScreen', 'int', ['intptr_t', koffi.
  * SendMessage 让它写入，再 ReadProcessMemory 读回（只读，不注入）。
  * @returns {Array<{name,x,y,w,h}>|null} 失败返回 null（explorer 重启中等）
  */
-function getDesktopIcons() {
+function getDesktopIconsIndexed() {
   return pmv2(() => {
     let hProc = 0, rectAddr = 0, textAddr = 0, lviAddr = 0;
     try {
@@ -912,7 +912,7 @@ function getDesktopIcons() {
           name += String.fromCharCode(c);
         }
         if (!name) continue;
-        icons.push({ name, x: origin.x + rx, y: origin.y + ry, w: rw, h: rh });
+        icons.push({ i, name, x: origin.x + rx, y: origin.y + ry, w: rw, h: rh });
       }
       return icons;
     } catch (_) {
@@ -929,6 +929,153 @@ function getDesktopIcons() {
       } catch (_) {}
     }
   });
+}
+
+/** 对外保持原形状（无索引字段） */
+function getDesktopIcons() {
+  const list = getDesktopIconsIndexed();
+  return list ? list.map((x) => ({ name: x.name, x: x.x, y: x.y, w: x.w, h: x.h })) : null;
+}
+
+// ---------- 桌面图标「隐藏到壁纸后」 ----------
+// 桌面图标不是独立 HWND（是 explorer SysListView32 的列表项，整体在壁纸层之上），
+// Z 序无法把单个图标压到壁纸下，列表项也没有「单独隐藏」状态，坐标又被钳制在可视区内。
+// 可行机制 = 给文件加 FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM：
+// ★ 只加 HIDDEN 无效 —— 桌面列表不会因隐藏属性变化而重新过滤（实测 6s 内图标不消失，
+//   ATTRIBUTES / UPDATEITEM / UPDATEDIR / ASSOCCHANGED 四种通知都叫不动）。
+//   加上 SYSTEM 后走「不显示受保护的操作系统文件」这条默认规则，500ms 内图标消失，
+//   去掉属性即干净恢复，文件原地不动。
+const LVM_SETITEMPOSITION32 = 0x1031;
+const FILE_ATTRIBUTE_HIDDEN = 0x2;
+const FILE_ATTRIBUTE_SYSTEM = 0x4;
+const HIDE_ATTRS = FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM;
+const INVALID_FILE_ATTRIBUTES = 0xFFFFFFFF;
+const GetFileAttributesW = kernel32.func('GetFileAttributesW', 'uint32', ['str16']);
+const SetFileAttributesW = kernel32.func('SetFileAttributesW', 'int', ['str16', 'uint32']);
+
+/** 按索引把某个桌面图标移到指定屏幕物理坐标（列表客户区坐标由内部换算） */
+function setDesktopIconPositionByIndex(index, screenX, screenY) {
+  return pmv2(() => {
+    let hProc = 0, ptAddr = 0;
+    try {
+      const progman = findDesktopHost();
+      if (!progman) return false;
+      const defView = findChildByClass(progman, 'SHELLDLL_DefView');
+      if (!defView) return false;
+      const lv = findChildByClass(defView, 'SysListView32');
+      if (!lv) return false;
+      const origin = { x: 0, y: 0 };
+      if (!DClientToScreen(lv, origin)) return false;
+      const pidBuf = [0];
+      GetWindowThreadProcessId(lv, pidBuf);
+      hProc = Number(BigIntAsInt(OpenProcess(0x38, 0, pidBuf[0])));
+      if (!hProc) return false;
+      ptAddr = Number(BigIntAsInt(VirtualAllocEx(hProc, 0, 8, 0x1000, 4)));
+      if (!ptAddr) return false;
+      const pt = Buffer.alloc(8);
+      pt.writeInt32LE(Math.round(screenX - origin.x), 0);
+      pt.writeInt32LE(Math.round(screenY - origin.y), 4);
+      const nWrote = [0];
+      if (!WriteProcessMemory(hProc, ptAddr, pt, 8, nWrote)) return false;
+      const out = [0];
+      return !!SendMessageTimeoutW(lv, LVM_SETITEMPOSITION32, index, ptAddr, 0, 500, out);
+    } catch (_) {
+      return false;
+    } finally {
+      try {
+        if (hProc) {
+          if (ptAddr) VirtualFreeEx(hProc, ptAddr, 0, 0x8000);
+          CloseHandle(hProc);
+        }
+      } catch (_) {}
+    }
+  });
+}
+
+/**
+ * 「隐藏到壁纸后」= 给文件本身加/去隐藏属性。
+ * 桌面图标是 explorer SysListView32 的列表项，LVM_SETITEMPOSITION32 会被钳制在
+ * 可视区内（停到 -32000 实际落在左上角 0,0），坐标方式根本藏不住；
+ * 而隐藏属性让列表项直接消失、文件原地不动，恢复属性即回到原位置。
+ * @returns {boolean} 当前状态是否已等于期望值
+ */
+function setFileHiddenAttr(file, hide) {
+  const attr = GetFileAttributesW(file);
+  if (attr === INVALID_FILE_ATTRIBUTES) return false;
+  // 只动 HIDDEN|SYSTEM 两位，保留只读 / 存档等原有属性
+  const want = hide ? (attr | HIDE_ATTRS) : (attr & ~HIDE_ATTRS);
+  if (want === attr) return true;
+  return !!SetFileAttributesW(file, want);
+}
+
+/**
+ * 资源管理器设置是否会让「隐藏属性」藏不住桌面图标：
+ *   Hidden >= 2            → 显示隐藏的文件（HIDDEN 位失效）
+ *   ShowSuperHidden === 1  → 显示受保护的操作系统文件（SYSTEM 位失效）
+ * 任一成立即无法用属性隐藏，收纳只能降级为「移动到收纳目录」。
+ */
+let _showHiddenCache = { t: 0, v: false };
+function explorerHidingUnusable() {
+  const now = Date.now();
+  if (now - _showHiddenCache.t < 15000) return _showHiddenCache.v;
+  let v = false;
+  try {
+    const { execFileSync } = require('child_process');
+    const out = execFileSync('reg.exe',
+      ['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced'],
+      { windowsHide: true, maxBuffer: 1 << 20 }).toString('latin1');
+    const read = (name) => {
+      const m = new RegExp(name + '\\s+REG_DWORD\\s+0x([0-9a-f]+)', 'i').exec(out);
+      return m ? parseInt(m[1], 16) : null;
+    };
+    const hidden = read('Hidden'), superHidden = read('ShowSuperHidden');
+    v = (hidden !== null && hidden >= 2) || (superHidden !== null && superHidden === 1);
+  } catch (_) { v = false; }
+  _showHiddenCache = { t: now, v };
+  return v;
+}
+
+/** 把图标写回指定屏幕坐标（恢复显示后修正位置） */
+function showDesktopIcon(name, x, y) {
+  const list = getDesktopIconsIndexed();
+  if (!list) return false;
+  const it = list.find((xx) => xx.name === name);
+  if (!it) return false;
+  return setDesktopIconPositionByIndex(it.i, x, y);
+}
+
+// 系统桌面图标的 CLSID（注册表 HideDesktopIcons 路径用）
+const SYSTEM_ICON_CLSIDS = {
+  recycle: '{645FF040-5081-101B-9F08-00AA002F954E}',
+  thispc: '{20D04FE0-3AEA-1069-A2D8-08002B30309D}',
+  network: '{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}',
+  control: '{5399E694-6CE5-4D6C-8FCE-1D8870FDCBA0}',
+};
+const HIDE_ICONS_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\HideDesktopIcons\\NewStartPanel';
+
+/**
+ * 系统图标（回收站/此电脑等）没有实体文件，走 explorer 原生的
+ * HideDesktopIcons 注册表开关；explorer 自己记住槽位，恢复即在原位。
+ */
+function setSystemIconHidden(sysId, hide) {
+  const clsid = SYSTEM_ICON_CLSIDS[sysId];
+  if (!clsid) return false;
+  try {
+    const { execFileSync } = require('child_process');
+    if (hide) {
+      execFileSync('reg.exe', ['add', HIDE_ICONS_KEY, '/v', clsid, '/t', 'REG_DWORD', '/d', '1', '/f'],
+        { windowsHide: true });
+    } else {
+      // 值不存在时 reg delete 非零退出 = 本来就可见，视为成功
+      try {
+        execFileSync('reg.exe', ['delete', HIDE_ICONS_KEY, '/v', clsid, '/f'], { windowsHide: true });
+      } catch (_) {}
+    }
+    notifyShellIconRefresh([]);
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 /**
@@ -1091,6 +1238,10 @@ module.exports = {
   getWindowRectScreen,
   nudgeWindow,
   getDesktopIcons,
+  setFileHiddenAttr,
+  explorerHidingUnusable,
+  showDesktopIcon,
+  setSystemIconHidden,
   shellDeleteFile,
   shellCopyFile,
   shellMoveFile,

@@ -4,14 +4,16 @@ const path = require('path');
 const fs = require('fs');
 const util = require('util');
 const { Store } = require('./src/store');
-const { findMpv } = require('./src/mpv');
+const { findMpv, setGlobalPerf } = require('./src/mpv');
 const { VideoEngine } = require('./src/video-engine');
 const { ExeWallpaper } = require('./src/exe-wallpaper');
 const { StatsCollector } = require('./src/widgets-stats');
 const { LauncherHost } = require('./src/launcher');
 const { FileBoxHost } = require('./src/filebox');
 const { WidgetsHost } = require('./src/widgets-host');
+const { WeatherService } = require('./src/weather');
 const desktop = require('./src/desktop');
+const sysVolume = require('./src/sys-volume');
 const { detectType, DIALOG_FILTERS } = require('./src/file-types');
 const lockscreen = require('./src/lockscreen');
 const updater = require('./src/updater');
@@ -77,6 +79,30 @@ if (process.env.WALLPAPER_DATA_DIR) {
   app.setPath('userData', process.env.WALLPAPER_DATA_DIR);
 }
 
+// ---------- Chromium 硬件加速引导（必须在 app ready 之前） ----------
+// app.disableHardwareAcceleration() 在 ready 之后调用完全无效，而 Store 要到
+// whenReady 才构造 —— 这里独立同步读一次 config.json，并沿用 store.js:_load()
+// 的 .bak 回退语义（主配置被写坏时不至于误判档位、把用户强行降级到软件渲染）。
+function readPerfBootstrap() {
+  const dir = app.getPath('userData'); // 已受上面 WALLPAPER_DATA_DIR 影响
+  for (const f of ['config.json', 'config.json.bak']) {
+    try {
+      const p = path.join(dir, f);
+      if (!fs.existsSync(p)) continue;
+      const perf = JSON.parse(fs.readFileSync(p, 'utf-8'))?.settings?.performance;
+      if (perf && typeof perf === 'object') return perf;
+    } catch (_) {}
+  }
+  return {};
+}
+const BOOT_PERF = readPerfBootstrap();
+// 缺字段 = 默认开启，与 DEFAULT_CONFIG.settings.performance.gpuAccel 一致
+const BOOT_GPU_ACCEL = BOOT_PERF.gpuAccel !== false;
+if (!BOOT_GPU_ACCEL) {
+  app.disableHardwareAcceleration();
+  console.log('[perf] Chromium 硬件加速已按配置关闭（软件渲染）');
+}
+
 let mainWindow = null;
 let wallpaperWindow = null;
 let tray = null;
@@ -86,6 +112,7 @@ let exeWallpaper = null;
 let launcherHost = null;
 let fileboxHost = null;
 let rotationTimer = null;
+let rotationPreheatTimer = null; // 轮换前 3s 的预热定时器
 let isQuitting = false;
 
 // 桌面 DIY 组件 + 音律动效（v1.9.0：Wallpaper Engine 式每组件独立小窗口。
@@ -93,6 +120,7 @@ let isQuitting = false;
 // 抑制（壁纸冻结）、组件自身"鼠标靠近才显示"，已整体废弃）
 let widgetsHost = null;
 let statsCollector = null;
+let weatherService = null;
 
 // 全局暂停（视频冻结 + 轮换停止）
 let globalPaused = false;
@@ -298,9 +326,32 @@ function setupOverlayRepaintWatch() {
 /** 配置变化入口（设置页开关/参数、桌面拖动落位后）：增删组件窗口 + 推送 */
 async function applyWidgetsConfig() {
   if (!widgetsHost) return;
-  await widgetsHost.sync(); // 串行链：await 后 parts 才反映最新开关（wantsStats 依赖）
-  if (widgetsHost.wantsStats()) startStatsCollector();
+  await widgetsHost.sync(); // 串行链：await 后 parts 才反映最新开关（statsNeeds 依赖）
+  const needs = widgetsHost.statsNeeds();
+  if (needs.any) startStatsCollector(needs);
   else stopStatsCollector();
+  syncWeatherService();
+}
+
+/** 天气服务按需启停：看板窗存在且天气块开启才拉取，否则不占网络与定时器 */
+function ensureWeatherService() {
+  if (!weatherService && store && widgetsHost) {
+    weatherService = new WeatherService(
+      store,
+      (d) => widgetsHost.pushWeather(d),
+      path.join(app.getPath('userData'), 'weather.json'),
+    );
+  }
+  return weatherService;
+}
+function syncWeatherService() {
+  if (!store || !widgetsHost) return;
+  const w = store.settings.widgets || {};
+  const b = store.settings.board || {};
+  const need = !!w.enabled && !!((w.items || {}).board || {}).on && (b.sections || {}).weather !== false;
+  if (!need) { if (weatherService) weatherService.stop(); return; }
+  const svc = ensureWeatherService();
+  if (svc) svc.start();
 }
 
 /** 设置更新统一入口（IPC settings:update 与调试端点共用） */
@@ -345,6 +396,32 @@ function applySettingsUpdate(patch) {
       filebox: { ...old, ...patch.filebox },
     };
   }
+  // board 深合并：sections/rows/weather 子对象展开合并；events/todos 数组整体替换。
+  // updateSettings 是裸 Object.assign，局部补丁 {board:{todos}} 会抹掉 sections/weather。
+  let boardStructChanged = false;
+  let boardCityChanged = false;
+  if (patch && patch.board) {
+    const old = store.settings.board || {};
+    const nb = patch.board;
+    boardStructChanged =
+      JSON.stringify({ s: old.sections, r: old.rows }) !== JSON.stringify({ s: nb.sections, r: nb.rows });
+    boardCityChanged = JSON.stringify(old.weather || {}) !== JSON.stringify(nb.weather || {});
+    patch = {
+      ...patch,
+      board: {
+        ...old, ...nb,
+        sections: { ...(old.sections || {}), ...(nb.sections || {}) },
+        rows: { ...(old.rows || {}), ...(nb.rows || {}) },
+        weather: { ...(old.weather || {}), ...(nb.weather || {}) },
+        events: Array.isArray(nb.events) ? nb.events : (old.events || []),
+        todos: Array.isArray(nb.todos) ? nb.todos : (old.todos || []),
+      },
+    };
+  }
+  // 性能档位快照：updateSettings 之后就拿不到旧值了，而 hwdec/videoFpsCap/
+  // videoResCap/videoCacheMb 是 mpv 启动期参数（变了必须重启引擎），
+  // gpuAccel 更是 app ready 前才生效（变了必须重启应用）
+  const perfBefore = { ...(store.settings.performance || {}) };
   store.updateSettings(patch);
   if (patch.autoStart !== undefined) {
     applyAutoStartSetting(!!patch.autoStart);
@@ -357,28 +434,80 @@ function applySettingsUpdate(patch) {
   if (patch.wallpaperPaused !== undefined) setWallpaperPaused(patch.wallpaperPaused);
   if (patch.hotkeyPause !== undefined) applyHotkeySetting();
   if (patch.smoothLoop !== undefined && videoEngine) videoEngine.setSmoothLoop(patch.smoothLoop);
-  if (patch.performance !== undefined) updatePerfFlags();
+  if (patch.performance !== undefined) applyPerformancePatch(perfBefore);
+  if (patch.board !== undefined) {
+    // 块开关/行数变了 → 窗口尺寸要变（走 sync 的原地 resize）；
+    // 只改内容（待办/日程/城市）→ 原地重推配置，绝不进 _syncNow 的增删窗口逻辑
+    if (boardStructChanged) applyWidgetsConfig();
+    else if (widgetsHost) widgetsHost.pushConfig();
+    syncWeatherService();
+    if (boardCityChanged && weatherService) weatherService.reload();
+  }
   // 推送最新配置给主界面，本地 state 与主进程保持一致
   // （否则桌面拖动等经主进程直接写入后，界面下一次保存会用旧 state 覆盖新值）
   notifyMain('settings:sync', store.settings);
   return { ok: true };
 }
 
-function startStatsCollector() {
+/**
+ * 性能档位落地。
+ * @param {object} before 本次 updateSettings 之前的 performance 快照
+ */
+function applyPerformancePatch(before) {
+  const perf = store.settings.performance || {};
+  // mpv 全局档位（hwdec / 帧率上限 / 分辨率天花板 / demuxer 缓存）
+  setGlobalPerf(perf);
+  // 启动期参数变了 → 正在播的视频必须重启引擎才生效
+  const MPV_LAUNCH_KEYS = ['hwdec', 'videoFpsCap', 'videoResCap', 'videoCacheMb'];
+  const launchChanged = MPV_LAUNCH_KEYS.some((k) => (before || {})[k] !== perf[k]);
+  if (launchChanged && currentWallpaper?.type === 'video' && videoEngine?.isRunning) {
+    console.log('[perf] mpv 启动期参数变化，重启视频引擎:',
+      MPV_LAUNCH_KEYS.filter((k) => (before || {})[k] !== perf[k]).join(','));
+    videoEngine.restart();
+  }
+  // 组件数据刷新间隔（只换定时器，不重启采集线程）
+  if ((before || {}).statsInterval !== perf.statsInterval && statsCollector) {
+    statsCollector.setIntervalMs(perf.statsInterval || 1000);
+  }
+  updatePerfFlags();
+  // Chromium 硬件加速只能在 app ready 前设置 → 与本次启动生效值不同就需要重启应用
+  if (perf.gpuAccel !== undefined && !!perf.gpuAccel !== BOOT_GPU_ACCEL) {
+    notifyMain('perf:restart-required', { gpuAccel: !!perf.gpuAccel, auto: false });
+  }
+}
+
+/** 系统主音量缓存（异步轮询更新，stats 广播只读缓存，避免阻塞采集回调） */
+const sysCache = { volume: null, muted: false };
+let sysPolling = false;
+function pollSysVolume() {
+  if (sysPolling) return;
+  sysPolling = true;
+  sysVolume.get()
+    .then((r) => { if (r) { sysCache.volume = r.volume; sysCache.muted = r.muted; } })
+    .catch(() => {})
+    .finally(() => { sysPolling = false; });
+}
+
+function startStatsCollector(needs) {
   if (!statsCollector) {
     statsCollector = new StatsCollector();
     statsCollector.on((data) => {
-      // 广播给所有组件小窗口（CPU/GPU/内存/音量各自消费）
+      // 音量组件显示系统主音量：仅在组件存在时轮询（否则不拉起 PowerShell worker）
+      if (widgetsHost && widgetsHost.parts.has('volume')) pollSysVolume();
+      // 广播给所有组件小窗口（CPU/GPU/内存/音量组件各自消费）
       if (widgetsHost) {
         widgetsHost.broadcast({
           ...data,
-          volume: currentParams?.volume ?? 0,
-          mute: !!currentParams?.mute,
+          sysVolume: sysCache.volume,
+          sysMuted: sysCache.muted,
         });
       }
     });
   }
-  statsCollector.start(1000);
+  const perf = store.settings.performance || {};
+  statsCollector.start(perf.statsInterval || 1000);
+  // 按需拉起 PDH 采集线程（GPU / 网速各自独立），对应组件关掉即终止线程
+  statsCollector.setNeeds(needs || (widgetsHost ? widgetsHost.statsNeeds() : {}));
 }
 
 function stopStatsCollector() {
@@ -629,33 +758,49 @@ function syncMpvPause() {
   videoEngine.setExpectedPause(shouldPause);
 }
 
-/** 重算三项性能暂停标志（有变化才同步 mpv 并打日志） */
+/** 重算性能暂停标志（有变化才同步 mpv / 动效并打日志） */
 function updatePerfFlags() {
   if (!store) return;
   const perf = store.settings.performance || {};
   const active = currentWallpaper?.type === 'video' && videoEngine?.isRunning;
+  const avCfg = store.settings.audioViz || {};
+  const avActive = !!(widgetsHost && widgetsHost.parts.has('aviz')) && avCfg.pauseOnOccult !== false;
 
-  let fs = false, bat = false, max = false;
+  // 一次轮询内懒算复用：壁纸与动效共用同一份检测结果，不重复枚举窗口
+  let fsCache = null, maxCache = null;
+  const isFs = () => (fsCache === null ? (fsCache = desktop.isFullscreenApp()) : fsCache);
+  const isMax = () => (maxCache === null ? (maxCache = desktop.isAnyWindowMaximized()) : maxCache);
+
+  let fs = false, bat = false, max = false, avz = false;
   if (active) {
-    if (perf.fullscreenPause !== false) fs = desktop.isFullscreenApp();
-    if (perf.maximizedPause === true) max = desktop.isAnyWindowMaximized();
+    if (perf.fullscreenPause !== false) fs = isFs();
+    if (perf.maximizedPause === true) max = isMax();
     if (perf.batteryPause !== false) {
       try { bat = powerMonitor.isOnBatteryPower(); } catch (_) {}
     }
   }
+  if (avActive) avz = isFs() || isMax();
+  const avChanged = avz !== !!widgetsHost?.avizPerfPaused;
+  if (avChanged && widgetsHost) widgetsHost.setAvizPerfPause(avz);
+
   const changed = fs !== fsPaused || bat !== batteryPaused || max !== maximizedPaused;
   fsPaused = fs;
   batteryPaused = bat;
   maximizedPaused = max;
-  if (changed) {
+  if (changed || avChanged) {
     syncMpvPause();
     const reasons = [];
     if (fs) reasons.push('全屏应用');
     if (max) reasons.push('窗口最大化');
     if (bat) reasons.push('电池供电');
-    console.log(reasons.length
-      ? `[perf] 检测到${reasons.join('/')}，已暂停视频壁纸`
-      : '[perf] 性能暂停已解除，恢复视频壁纸');
+    if (reasons.length || avz) {
+      const what = [];
+      if (reasons.length) what.push('视频壁纸');
+      if (avz) what.push('音律动效');
+      console.log(`[perf] 检测到${reasons.join('/') || '遮挡窗口'}，已暂停${what.join('与')}`);
+    } else {
+      console.log('[perf] 性能暂停已解除，恢复视频壁纸');
+    }
   }
 }
 
@@ -743,7 +888,8 @@ function setWallpaperPaused(paused) {
   globalPaused = !!paused;
   // 暂停是运行态，不写入配置（见 app.whenReady 中的启动重置）
   if (globalPaused) {
-    if (rotationTimer) { clearInterval(rotationTimer); rotationTimer = null; }
+    if (rotationTimer) { clearTimeout(rotationTimer); rotationTimer = null; }
+    if (rotationPreheatTimer) { clearTimeout(rotationPreheatTimer); rotationPreheatTimer = null; }
     console.log('[engine] 壁纸已全局暂停');
   } else {
     setupRotation();
@@ -783,15 +929,30 @@ function pickNextWallpaper() {
 }
 
 function setupRotation() {
-  if (rotationTimer) { clearInterval(rotationTimer); rotationTimer = null; }
+  if (rotationTimer) { clearTimeout(rotationTimer); rotationTimer = null; }
+  if (rotationPreheatTimer) { clearTimeout(rotationPreheatTimer); rotationPreheatTimer = null; }
   const rot = store.settings.rotation;
   if (!rot || !rot.enabled || globalPaused) return;
   const ms = Math.max(1, rot.intervalMin) * 60 * 1000;
-  rotationTimer = setInterval(() => {
-    const next = pickNextWallpaper();
-    if (next) applyWallpaper(next, next.params, { transition: true }); // 平滑过渡切换
-  }, ms);
-  console.log(`[rotation] 定时轮换已开启，间隔 ${rot.intervalMin} 分钟，范围 ${rot.scope}，${rot.order === 'sequential' ? '顺序' : '随机'}`);
+  const PREHEAT_MS = 3000;
+  const arm = (delay) => {
+    rotationTimer = setTimeout(() => {
+      rotationTimer = null;
+      // 提前 3s 选定下一张并预热：到点时解码器/子窗口已就绪，直接开始溶解，
+      // 消除旧实现「到点才冷启动 mpv → 停顿数秒再突然切换」的突兀感
+      const next = pickNextWallpaper();
+      if (next && videoEngine && wallpaperHwnd) {
+        try { videoEngine.preheat(next.path, wallpaperHwnd, next.params || {}); } catch (_) {}
+      }
+      rotationPreheatTimer = setTimeout(() => {
+        rotationPreheatTimer = null;
+        if (next) applyWallpaper(next, next.params, { transition: true });
+        arm(ms);
+      }, PREHEAT_MS);
+    }, delay);
+  };
+  arm(ms);
+  console.log(`[rotation] 定时轮换已开启，间隔 ${rot.intervalMin} 分钟，范围 ${rot.scope}，${rot.order === 'sequential' ? '顺序' : '随机'}（含 3s 预热）`);
 }
 
 /** 手动切换到下一张（托盘/主界面按钮） */
@@ -1011,6 +1172,8 @@ function setupIpc() {
     return widgetsHost ? widgetsHost.setAdjust(k, !!on) : false;
   });
   ipcMain.handle('audioviz:set-adjust', (_e, on) => (widgetsHost ? widgetsHost.setAdjust('aviz', !!on) : false));
+  // 看板城市搜索（Open-Meteo geocoding）；服务未创建时按需懒建（geocode 不需要 start）
+  ipcMain.handle('board:geocode', (_e, name) => (ensureWeatherService() ? ensureWeatherService().geocode(name) : []));
   ipcMain.handle('launcher:set-adjust', (_e, on) => (launcherHost ? launcherHost.setAdjust(!!on) : false));
   ipcMain.handle('filebox:set-adjust', (_e, on) => (fileboxHost ? fileboxHost.setAdjust(!!on) : false));
 
@@ -1170,6 +1333,14 @@ function setupIpc() {
   });
   // 客户端版本号（关于页动态显示，避免硬编码过期）
   ipcMain.handle('app:get-version', () => app.getVersion());
+  // 硬件加速等「app ready 前才生效」的设置改完后，客户端点「立即重启」走这里。
+  // ★ 必须先 flushSync：updateSettings 是 250ms 防抖异步落盘，relaunch 会把它丢掉
+  ipcMain.handle('app:relaunch', () => {
+    try { store?.flushSync(); } catch (_) {}
+    app.relaunch();
+    app.exit(0);
+    return true;
+  });
 
   // 显示器信息（预览比例用）
   ipcMain.handle('system:get-displays', () => {
@@ -1309,6 +1480,14 @@ if (gotLock) {
   app.whenReady().then(() => {
     console.log(`[main] 壁纸工坊引擎启动 v${app.getVersion()} (electron ${process.versions.electron})`);
     store = new Store();
+    // 首帧视频 spawn 前就要拿到档位（hwdec / 帧率上限 / 分辨率天花板 / demuxer 缓存）
+    setGlobalPerf(store.settings.performance || {});
+    try {
+      const gf = app.getGPUFeatureStatus();
+      if (gf && gf['2d_canvas'] !== 'enabled') {
+        console.warn('[perf] Chromium GPU 特性未启用（软件渲染）:', JSON.stringify(gf));
+      }
+    } catch (_) {}
     initEngine();
     launcherHost = new LauncherHost(store);
     // 收纳/恢复/移除后通知主界面刷新快捷方式设置页（payload 为收纳结果时附带提示）
@@ -1321,6 +1500,17 @@ if (gotLock) {
       onAvStatus: (s) => notifyMain('audioViz:status', s),
       onVolume: (v) => { if (currentWallpaper) updateParams({ volume: Math.min(100, Math.max(0, Math.round(v))) }); },
       onToggleMute: () => { if (currentWallpaper) updateParams({ mute: !currentParams?.mute }); },
+      // 音量组件 = 系统主音量；写完立刻刷新缓存，避免组件被自己的旧值回推「跳回」
+      onSysVolume: (v) => {
+        const n = Math.min(100, Math.max(0, Math.round(Number(v) || 0)));
+        sysCache.volume = n;
+        sysVolume.set(n).then((ok) => { if (!ok) pollSysVolume(); });
+      },
+      onToggleSysMute: () => {
+        const next = !sysCache.muted;
+        sysCache.muted = next;
+        sysVolume.setMute(next).then((ok) => { if (!ok) pollSysVolume(); });
+      },
       onConfigChanged: () => notifyMain('settings:sync', store.settings),
       // 调整模式状态变化 → 主界面按钮复位（拖动落位自动退出时）
       onAdjustState: (key, on) => notifyMain('widgets:adjust-state', { key, on }),
@@ -1435,12 +1625,26 @@ if (gotLock) {
 
   // 子进程崩溃观测：GPU 进程挂掉会让所有窗口先变全黑再恢复，
   // 这正是「切换壁纸/操作时全黑一段时间」最可能的机制，必须有日志可查
+  let gpuCrashAt = [];
   app.on('child-process-gone', (_e, details) => {
     console.error(`[crash] 子进程退出: type=${details.type} reason=${details.reason} exitCode=${details.exitCode}`);
+    // GPU 崩溃自愈：短时间内反复崩 = 这台机器的 GPU 栈不可靠，自动降级软件渲染。
+    // 必须先 flushSync —— updateSettings 是 250ms 防抖异步落盘，relaunch/退出会丢。
+    if (details.type !== 'GPU' || !store || BOOT_GPU_ACCEL === false) return;
+    const now = Date.now();
+    gpuCrashAt = gpuCrashAt.filter((t) => now - t < 300000).concat(now);
+    if (gpuCrashAt.length < 2) return;
+    gpuCrashAt = [];
+    console.error('[perf] GPU 进程 5 分钟内崩溃 2 次，自动关闭硬件加速（重启后生效）');
+    store.updateSettings({ performance: { ...store.settings.performance, gpuAccel: false } });
+    store.flushSync();
+    notifyMain('settings:sync', store.settings);
+    notifyMain('perf:restart-required', { gpuAccel: false, auto: true });
   });
 
   app.on('will-quit', () => {
     // 清理所有子进程、热键、防挂起与定时器
+    weatherService?.stop();
     videoEngine?.stopAll();
     exeWallpaper?.stop();
     launcherHost?.destroy();

@@ -18,14 +18,19 @@ const DEFAULT_CONFIG = {
       enabled: false,
       theme: 'auto',            // auto/light/dark
       opacity: 0.72,            // 组件面板底透明度
+      style: 'none',            // none 无底色 / frosted 毛玻璃 / liquid 液态玻璃
+      shape: 'rounded',         // rounded / pill / circle / square（背景层圆角）
+      brightness: 100,          // 组件内容亮度 %（100 = 原样）
+      contrast: 100,            // 对比度 %
+      saturate: 100,            // 饱和度 %
       // 位置模型（v1.7.1）：posX/posY 为桌面拖动保存的自由位置（窗口中心相对
       // 工作区的比例，null = 未拖动过）；非 null 时优先于 pos 九宫格槽位。
       items: {
         clock:  { on: false, pos: 'tl', posX: null, posY: null, size: 'l' }, // 时钟（可点击切换12/24小时制）
-        cpu:    { on: false, pos: 'tr', posX: null, posY: null, size: 'm' },
-        gpu:    { on: false, pos: 'tc', posX: null, posY: null, size: 'm' },
-        mem:    { on: false, pos: 'mr', posX: null, posY: null, size: 'm' },
         volume: { on: false, pos: 'br', posX: null, posY: null, size: 'm' }, // 音量（可拖动调节/点击静音）
+        board:  { on: false, pos: 'ml', posX: null, posY: null, size: 'm' }, // 信息看板（日历/天气/待办，待办可桌面勾选）
+        // 系统状态监控：网速 + CPU/GPU/内存概览（独立的 CPU/GPU/内存组件已并入此处）
+        netmon: { on: false, pos: 'tr', posX: null, posY: null, size: 'm' },
       },
     },
     lastWindowBounds: null,     // 主窗口位置记忆
@@ -53,6 +58,17 @@ const DEFAULT_CONFIG = {
       fullscreenPause: true,    // 性能：全屏应用时自动暂停视频壁纸
       batteryPause: true,       // 性能：电池供电时自动暂停视频壁纸
       maximizedPause: false,    // 性能：其他窗口最大化时暂停视频壁纸（Wallpaper Engine 同款）
+      // ---- GPU 加速 / 帧率调节（v1.9.0）----
+      // tier 是「省电/均衡/性能」三档预设，一键写入下面全部字段；
+      // 用户手改任一细分项即置 null（= 自定义），档位高亮随之取消。
+      tier: 'balanced',         // eco | balanced | performance | null
+      avFps: 30,                // 音律动效帧率上限；0 = 跟随显示器刷新率
+      statsInterval: 1000,      // 组件数据刷新间隔 ms（250~10000）
+      hwdec: 'auto-safe',       // mpv 硬解：auto-safe | auto | auto-copy | no
+      videoFpsCap: 0,           // 视频壁纸帧率上限；0 = 不限
+      videoResCap: '1080p',     // 全局分辨率天花板：与每壁纸 resolution 取更严格的那个
+      videoCacheMb: 128,        // --demuxer-max-bytes；平滑循环开双槽 → 实际占用 ×2
+      gpuAccel: true,           // Chromium 硬件加速；改动需重启（app ready 前才能生效）
     },
     audioViz: {                 // 音律动效（系统声音频谱可视化）
       enabled: false,
@@ -64,8 +80,22 @@ const DEFAULT_CONFIG = {
       pos: 'bottom',            // 垂直预设 bottom / top（圆环忽略，居中）
       posX: null,               // 手动拖动位置（0~1 屏幕比例；null = 用 pos 预设）
       posY: null,
-      mirror: true,             // 频谱条垂直镜像倒影
+      mirror: true,             // 倒影总开关（频谱条垂直镜像）
+      mirrorMode: 'fade',       // 倒影形态：fade 渐隐 / mirror 镜面（清晰更长）/ water 水面（波纹扰动）
+      pauseOnOccult: true,      // 有窗口最大化 / 应用全屏时自动暂停动效绘制（被完全遮住，省 GPU）
       sensitivity: 1.2,         // 灵敏度 0.5~3
+      fps: 30,                  // 帧率上限（权威源是 performance.avFps，档位变化时同步写入）
+      brightness: 100,          // 动效亮度 %（100 = 原样）
+      contrast: 100,            // 对比度 %
+      saturate: 100,            // 饱和度 %
+      mirrorOpacity: 22,        // 镜像倒影强度 %（倒影与主体同层，自动继承全部调色）
+    },
+    board: {                    // 信息看板内容（几何/开关在 widgets.items.board）
+      sections: { calendar: true, weather: true, todo: true }, // 三块各自可关
+      rows: { events: 4, todo: 6 },   // 面板最多显示几行，窗口高度按此计算
+      weather: { cityName: '北京', lat: 39.9042, lon: 116.4074, tz: 'Asia/Shanghai' },
+      events: [],               // [{id,text,date:'2026-10-01',type:'event'|'anniversary'}]
+      todos: [],                // [{id,text,done}]
     },
   },
 };
@@ -108,7 +138,14 @@ class Store {
           widgets: {
             ...DEFAULT_CONFIG.settings.widgets,
             ...((raw.settings || {}).widgets || {}),
-            items: { ...DEFAULT_CONFIG.settings.widgets.items, ...(((raw.settings || {}).widgets || {}).items || {}) },
+            // 逐项字段级深合并：旧配置里的 item 缺新字段时不能把默认值整体抹掉
+            items: (() => {
+              const di = DEFAULT_CONFIG.settings.widgets.items;
+              const ri = ((raw.settings || {}).widgets || {}).items || {};
+              const out = { ...di };
+              for (const k of Object.keys(ri)) out[k] = { ...(di[k] || {}), ...(ri[k] || {}) };
+              return out;
+            })(),
           },
           launcher: {
             ...DEFAULT_CONFIG.settings.launcher,
@@ -123,6 +160,15 @@ class Store {
           },
           performance: { ...DEFAULT_CONFIG.settings.performance, ...((raw.settings || {}).performance || {}) },
           audioViz: { ...DEFAULT_CONFIG.settings.audioViz, ...((raw.settings || {}).audioViz || {}) },
+          board: {
+            ...DEFAULT_CONFIG.settings.board,
+            ...((raw.settings || {}).board || {}),
+            sections: { ...DEFAULT_CONFIG.settings.board.sections, ...(((raw.settings || {}).board || {}).sections || {}) },
+            rows: { ...DEFAULT_CONFIG.settings.board.rows, ...(((raw.settings || {}).board || {}).rows || {}) },
+            weather: { ...DEFAULT_CONFIG.settings.board.weather, ...(((raw.settings || {}).board || {}).weather || {}) },
+            events: (((raw.settings || {}).board || {}).events) || [],
+            todos: (((raw.settings || {}).board || {}).todos) || [],
+          },
         },
       };
     }

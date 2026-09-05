@@ -30,7 +30,14 @@ const DEFAULTS = {
   orientation: 'h',     // 排列方向：h 横向 / v 纵向
   bgOpacity: 0.32,      // 面板底色不透明度 0.1~0.85
   edgeFade: false,      // 边缘图标淡化（默认关闭：所有图标全亮度显示）
-  shortcuts: [], boxed: [],
+  mirror: true,         // 图标镜像倒影
+  mirrorOpacity: 30,    // 倒影强度 %
+  brightness: 100,      // 转盘亮度 %（100 = 原样）
+  contrast: 100,        // 对比度 %
+  saturate: 100,        // 饱和度 %
+  opacity: 100,         // 整体不透明度 %
+  collectMode: 'box',   // 收纳方式：box 移动到收纳目录 / hide 隐藏到壁纸后
+  shortcuts: [], boxed: [], hidden: [],
 };
 const ORIENTATIONS = ['h', 'v'];
 const CLAMP_KEEP_W = 56;  // 拖动出屏时至少保留的可视宽度（物理像素）
@@ -45,6 +52,8 @@ const SYSTEM_ITEMS = [
   { id: 'control',   name: '控制面板', launch: 'shell:ControlPanelFolder', clsid: '{26EE0668-A00A-44D7-9371-BEB064C98683}', aliases: ['控制面板', 'Control Panel'] },
   { id: 'network',   name: '网络',     launch: 'shell:NetworkPlacesFolder', clsid: '{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}', aliases: ['网络', 'Network'] },
   { id: 'thispc',    name: '此电脑',   launch: 'shell:MyComputerFolder',    clsid: '{20D04FE0-3AEA-1069-A2D8-08002B30309D}', aliases: ['此电脑', '这台电脑', '计算机', '我的电脑', 'This PC'] },
+  // 用户文件夹（个人目录）：桌面默认无此图标，故不带 clsid（隐藏/恢复自动跳过）
+  { id: 'userfiles', name: '用户文件夹', launch: 'shell:Personal',            clsid: '', aliases: ['用户文件夹', '个人文件夹', 'User Files'] },
 ];
 // 所有「可收纳」的扩展名（枚举桌面文件用：快捷方式 + 程序文件）
 const ALL_BOX_EXTS = [...SC_EXTS, ...APP_EXTS].map(e => e.toLowerCase());
@@ -199,6 +208,7 @@ class LauncherHost {
     if (ORIENTATIONS.includes(patch.orientation)) next.orientation = patch.orientation;
     if (patch.shortcuts === undefined) next.shortcuts = cur.shortcuts;
     if (patch.boxed === undefined) next.boxed = cur.boxed;
+    if (patch.hidden === undefined) next.hidden = cur.hidden;
     // 九宫格定位接管：清除自定义坐标（拖动保存的 x/y），后续由 grid 推导落位。
     // ★ 必须是「调用方显式传了 grid」才接管 —— 早期版本用 patch.grid !== undefined
     //   判断，而上游会把已存配置深合并进补丁（grid 恒有值，拖动后还是 null），
@@ -216,9 +226,16 @@ class LauncherHost {
       const boxedBefore = cur.boxed || [];
       const { remaining } = this._restoreAllBoxed();
       const failedSet = new Set(remaining.map(b => b.boxPath));
+      // 隐藏项（停放到视口外 / 注册表隐藏）同样恢复
+      const hiddenBefore = cur.hidden || [];
+      const hiddenRemaining = this._restoreAllHidden();
+      const hiddenFailed = new Set(hiddenRemaining.map(h => h.name));
+      const restoredHidden = new Set(hiddenBefore.filter((h) => !hiddenFailed.has(h.name)).map((h) => h.name));
+      next.hidden = hiddenRemaining;
       // 移出所有已恢复的收纳项；失败项保留（含其 shortcuts 条目，供下次重试）
       next.shortcuts = next.shortcuts.filter(s =>
-        !boxedBefore.some(b => b.boxPath === s.path) || failedSet.has(s.path));
+        (!boxedBefore.some(b => b.boxPath === s.path) || failedSet.has(s.path))
+        && (!restoredHidden.has(s.name) || hiddenFailed.has(s.name)));
       next.boxed = remaining;
     }
     this.store.updateSettings({ launcher: next });
@@ -363,11 +380,26 @@ class LauncherHost {
   /** 看门狗（主进程 4s 调用）：保活 + 层级校正 */
   watchdog() {
     if (!this.cfg.enabled) return;
+    this._reassertHidden();
     if (!this.win || this.win.isDestroyed()) {
       this._createAsync();
       return;
     }
     if (this.hwnd) desktop.ensureLauncherOverlay(this.hwnd);
+  }
+
+  /**
+   * 隐藏项被还原（用户在资源管理器里取消隐藏属性 / 同步盘回滚）→ 重新加回。
+   * 注册表模式由 explorer 自己持久化，无需重做。
+   */
+  _reassertHidden() {
+    const hidden = (this.cfg.hidden || []).filter((h) => h.mode === 'attr' && h.path);
+    if (!hidden.length) return;
+    const icons = desktop.getDesktopIcons();
+    if (!icons) return;
+    for (const h of hidden) {
+      if (icons.some((ic) => ic.name === h.name)) desktop.setFileHiddenAttr(h.path, true);
+    }
   }
 
   /** 强制重绘（主进程 1s 高频循环调用）：透明子窗口挂 Progman 后 DWM 可能停止合成 */
@@ -423,13 +455,18 @@ class LauncherHost {
     }
   }
 
-  async pushConfig() {
+  /** 推送转盘配置给渲染层。
+   *  pass：冷启动时 shell 命名空间 / GDI 偶发返回空图标句柄（同一调用稍后即成功），
+   *  因此首轮若有项取图失败就延迟重推补取，最多三轮。已成功的项走磁盘缓存，开销极小。 */
+  async pushConfig(pass = 1) {
     if (!this.win || this.win.isDestroyed()) return;
     const cfg = this.cfg;
     const shortcuts = [];
+    let missing = 0;
     for (const s of cfg.shortcuts || []) {
       const icon = await this._iconFor(s);
-      shortcuts.push({ name: s.name, path: s.path, icon, type: s.type, sysId: s.sysId });
+      if (!icon) missing++;
+      shortcuts.push({ name: s.name, path: s.path, icon, type: s.type, sysId: s.sysId, pinned: !!s.pinned });
     }
     try {
       this.win.webContents.send('launcher:config', {
@@ -439,9 +476,22 @@ class LauncherHost {
         orientation: cfg.orientation || 'h',
         bgOpacity: cfg.bgOpacity ?? 0.32,
         edgeFade: !!cfg.edgeFade,
+        mirror: cfg.mirror !== false,
+        mirrorOpacity: Number.isFinite(cfg.mirrorOpacity) ? cfg.mirrorOpacity : 30,
+        brightness: Number.isFinite(cfg.brightness) ? cfg.brightness : 100,
+        contrast: Number.isFinite(cfg.contrast) ? cfg.contrast : 100,
+        saturate: Number.isFinite(cfg.saturate) ? cfg.saturate : 100,
+        opacity: Number.isFinite(cfg.opacity) ? cfg.opacity : 100,
         shortcuts,
       });
     } catch (_) {}
+    if (missing && pass < 3) {
+      clearTimeout(this._iconRetryTimer);
+      this._iconRetryTimer = setTimeout(() => {
+        this._iconRetryTimer = null;
+        this.pushConfig(pass + 1);
+      }, 1200);
+    }
   }
 
   // ---------- 内部：尺寸/定位 ----------
@@ -604,27 +654,101 @@ class LauncherHost {
       ],
     });
     if (res.canceled || !res.filePaths.length) return 0;
+    return this._ingestPaths(res.filePaths);
+  }
+
+  /** 把一批路径登记为转盘项（文件对话框与桌面拖拽共用） */
+  async _ingestPaths(filePaths) {
     const cfg = this.cfg;
     const exist = new Set((cfg.shortcuts || []).map(s => s.path));
-    const added = res.filePaths
+    const added = (filePaths || [])
       .filter(p => !exist.has(p) && (SC_EXTS.includes(path.extname(p).toLowerCase()) || APP_EXTS.includes(path.extname(p).toLowerCase())))
       .map(p => {
         const ext = path.extname(p).toLowerCase();
         const type = APP_EXTS.includes(ext) ? 'app' : 'shortcut';
         return { name: path.basename(p, ext), path: p, type };
       });
-    if (added.length) this.applyPatch({ shortcuts: [...(cfg.shortcuts || []), ...added] });
+    if (added.length) this.applyPatch({ shortcuts: this._insertAfterPinned(cfg.shortcuts || [], added) });
     return added.length;
+  }
+
+  /**
+   * 桌面拖到转盘「＋」上松手：
+   * 来自桌面目录的项走与点选收纳同一条路（隐藏/移动到保管目录，桌面图标消失），
+   * 其它位置的项只登记为转盘项。
+   */
+  async _dropPaths(filePaths) {
+    const dirs = this._desktopDirs().map((d) => String(d).toLowerCase() + path.sep);
+    const names = [], others = [];
+    for (const p of filePaths || []) {
+      if (!p) continue;
+      const lp = String(p).toLowerCase();
+      if (dirs.some((d) => lp.startsWith(d))) names.push(path.basename(p, path.extname(p)));
+      else others.push(p);
+    }
+    let added = 0;
+    if (names.length) {
+      const skipped = { notFound: 0, noPerm: 0 };
+      const { done, shortcuts, boxed, hidden } = await this._boxNames(names, skipped);
+      if (done) {
+        this.applyPatch({ shortcuts, boxed, hidden });
+        desktop.notifyShellIconRefresh();
+      }
+      added += done;
+    }
+    if (others.length) added += await this._ingestPaths(others);
+    return added;
+  }
+
+  /** 常用在前重排（稳定：两组内部各自保持原顺序）。
+   *  ★ 渲染层按数组下标回传点击/移除，所以「常用优先」必须落成物理顺序，
+   *    不能在 pushConfig 里临时重排 —— 那样下标就和 shortcuts 对不上了。 */
+  _orderPinned(list) {
+    const pinned = list.filter((s) => s && s.pinned);
+    const rest = list.filter((s) => !s || !s.pinned);
+    return [...pinned, ...rest];
+  }
+
+  /** 新条目插到最后一条「常用」之后（没有常用项时等价于追加到末尾） */
+  _insertAfterPinned(list, added) {
+    const k = list.findIndex((s) => !s || !s.pinned);
+    return k < 0 ? [...list, ...added] : [...list.slice(0, k), ...added, ...list.slice(k)];
+  }
+
+  /** 设置/取消某条目的「常用」标记。取消时同样重排：失去标记的项退到常用区之后，
+   *  否则「常用项占据列表前部」这一不变量会被破坏（渲染层按下标回传，顺序即语义）。 */
+  setPinned(idx, on) {
+    const cfg = this.cfg;
+    const list = [...(cfg.shortcuts || [])];
+    if (idx < 0 || idx >= list.length) return false;
+    const next = !!on;
+    if (!!list[idx].pinned === next) return true;
+    list[idx] = { ...list[idx], pinned: next };
+    this.applyPatch({ shortcuts: this._orderPinned(list) });
+    return true;
   }
 
   _removeAt(idx) {
     const cfg = this.cfg;
     const list = [...(cfg.shortcuts || [])];
     const boxed = [...(cfg.boxed || [])];
+    const hidden = [...(cfg.hidden || [])];
     if (idx < 0 || idx >= list.length) return;
     const [removed] = list.splice(idx, 1);
-    // 收纳项移除 = 恢复到桌面原位置（失败则保留记录，"全部恢复"可重试）
+    // 隐藏项移除 = 恢复桌面图标（去隐藏属性 / 系统项删注册表值）
     if (removed) {
+      const hIdx = hidden.findIndex((h) =>
+        (removed.path && h.path && h.path === removed.path) || h.name === removed.name);
+      if (hIdx >= 0) {
+        const h = hidden[hIdx];
+        hidden.splice(hIdx, 1);
+        if (this._unhideOne(h)) {
+          console.log(`[launcher] 已恢复桌面图标: ${h.name}`);
+          desktop.notifyShellIconRefresh();
+        } else {
+          hidden.push(h); // 恢复失败保留记录，供"全部恢复"重试
+        }
+      }
       const bIdx = boxed.findIndex(b => b.boxPath === removed.path);
       if (bIdx >= 0) {
         const b = boxed[bIdx];
@@ -641,7 +765,7 @@ class LauncherHost {
         }
       }
     }
-    this.applyPatch({ shortcuts: list, boxed });
+    this.applyPatch({ shortcuts: list, boxed, hidden });
   }
 
   /**
@@ -787,9 +911,9 @@ class LauncherHost {
     this._closePicker();
     if (!Array.isArray(names) || !names.length) return { ok: true, boxed: 0, skipped: 0 };
     const skipped = { notFound: 0, noPerm: 0 };
-    const { done, shortcuts, boxed } = await this._boxNames(names, skipped);
+    const { done, shortcuts, boxed, hidden } = await this._boxNames(names, skipped);
     if (done) {
-      this.applyPatch({ shortcuts, boxed });
+      this.applyPatch({ shortcuts, boxed, hidden });
       desktop.notifyShellIconRefresh();
     }
     console.log(`[launcher] 桌面快捷方式收纳: ${done} 个（未匹配 ${skipped.notFound} / 无权限 ${skipped.noPerm}）`);
@@ -808,21 +932,34 @@ class LauncherHost {
     const cfg = this.cfg;
     const shortcuts = [...(cfg.shortcuts || [])];
     const boxed = [...(cfg.boxed || [])];
+    const hidden = [...(cfg.hidden || [])];
+    // 资源管理器开了「显示隐藏的文件」或「显示受保护的操作系统文件」时，
+    // 隐藏属性（HIDDEN|SYSTEM）藏不住图标 → 退回移动收纳
+    let hideMode = cfg.collectMode === 'hide' && !desktop.explorerHidingUnusable();
+    if (cfg.collectMode === 'hide' && !hideMode) {
+      console.warn('[launcher] 资源管理器开启了「显示隐藏的文件 / 受保护的操作系统文件」，隐藏属性无法让图标消失 → 本次按「移动到收纳目录」收纳');
+    }
     const existPaths = new Set(shortcuts.map(s => s.path));
     const existIds = new Set(shortcuts.map(s => s.sysId).filter(Boolean));
     let done = 0;
     for (const name of names) {
       await new Promise((r) => setImmediate(r));
       // ① 系统特殊项（回收站/控制面板/网络/此电脑）：无实体文件可移动，
-      //    显示名/别名命中即按虚拟项收纳（修复"系统图标点选收纳失败"）
+      //    显示名/别名命中即按虚拟项收纳（修复"系统图标点选收纳失败"）。
+      //    ★ 系统项恒走「隐藏到壁纸后」：注册表原生开关，恢复即在原位。
       const key = String(name).trim().toLowerCase();
       const sys = SYSTEM_ITEMS.find((it) =>
         [it.name, ...(it.aliases || [])].some((a) => String(a).toLowerCase() === key));
       if (sys) {
         if (!existIds.has(sys.id)) {
-          shortcuts.push({ name: sys.name, path: `shell:${sys.id}`, type: 'system', sysId: sys.id, launch: sys.launch, clsid: sys.clsid });
-          existIds.add(sys.id);
-          done++;
+          if (desktop.setSystemIconHidden(sys.id, true)) {
+            hidden.push({ name: sys.name, sysId: sys.id, clsid: sys.clsid, mode: 'registry' });
+            shortcuts.push({ name: sys.name, path: `shell:${sys.id}`, type: 'system', sysId: sys.id, launch: sys.launch, clsid: sys.clsid });
+            existIds.add(sys.id);
+            done++;
+          } else {
+            skipped.noPerm++;
+          }
         }
         continue;
       }
@@ -833,6 +970,34 @@ class LauncherHost {
         skipped.noPerm++;
         continue;
       }
+      if (hideMode) {
+        // 原地隐藏：加 HIDDEN|SYSTEM（只加 HIDDEN 视图不重排，见 desktop.js 注释）。
+        // ★ 仍要回读校验：这台机能成，别的机器（资源管理器设置不同、Win10 视图实现不同）
+        //   不保证 —— 试一次没真消失就撤销属性并把整批降级为「移动到收纳目录」，
+        //   绝不让用户看到「图标还在、却被记成已收纳」的假成功。
+        const ic = (desktop.getDesktopIcons() || []).find((x) => x.name === name);
+        let gone = false;
+        if (desktop.setFileHiddenAttr(found.file, true)) {
+          desktop.notifyShellIconRefresh([found.file]);
+          for (let t = 0; t < 1600 && !gone; t += 200) {
+            await new Promise((r) => setTimeout(r, 200));
+            gone = !(desktop.getDesktopIcons() || []).some((x) => x.name === name);
+          }
+        }
+        if (gone) {
+          const ext = path.extname(found.file).toLowerCase();
+          if (!existPaths.has(found.file)) {
+            shortcuts.push({ name, path: found.file, type: APP_EXTS.includes(ext) ? 'app' : 'shortcut' });
+            existPaths.add(found.file);
+          }
+          hidden.push({ name, path: found.file, x: ic ? ic.x : null, y: ic ? ic.y : null, mode: 'attr' });
+          done++;
+          continue;
+        }
+        desktop.setFileHiddenAttr(found.file, false);
+        hideMode = false;
+        console.warn('[launcher] 桌面视图未响应隐藏属性（多为资源管理器「显示隐藏/受保护文件」设置所致）→ 本次及后续按「移动到收纳目录」收纳');
+      }
       const boxPath = this._boxPathFor(path.basename(found.file));
       if (!this._moveFile(found.file, boxPath)) {
         console.warn(`[launcher] 移动失败: ${found.file} → ${boxPath}`);
@@ -840,13 +1005,32 @@ class LauncherHost {
         continue;
       }
       if (!existPaths.has(boxPath)) {
-        shortcuts.push({ name, path: boxPath });
+        // 与 _addShortcuts 同一规则补 type，否则收纳来的条目缺字段走错分支
+        const ext = path.extname(boxPath).toLowerCase();
+        shortcuts.push({ name, path: boxPath, type: APP_EXTS.includes(ext) ? 'app' : 'shortcut' });
         existPaths.add(boxPath);
       }
       boxed.push({ name, originPath: found.file, boxPath });
       done++;
     }
-    return { done, shortcuts, boxed };
+    return { done, shortcuts, boxed, hidden };
+  }
+
+  /** 恢复一条隐藏项（attr = 去隐藏属性并写回坐标；registry = 删注册表值） */
+  _unhideOne(h) {
+    if (h.mode === 'registry') return desktop.setSystemIconHidden(h.sysId, false);
+    if (!desktop.setFileHiddenAttr(h.path, false)) return false;
+    if (h.x != null && h.y != null) desktop.showDesktopIcon(h.name, h.x, h.y);
+    return true;
+  }
+
+  /** 恢复全部隐藏项；失败项保留在 remaining 供重试 */
+  _restoreAllHidden() {
+    const remaining = [];
+    for (const h of (this.cfg.hidden || [])) {
+      if (!this._unhideOne(h)) remaining.push(h);
+    }
+    return remaining;
   }
 
   /**
@@ -1090,6 +1274,11 @@ class LauncherHost {
       const n = await this._addShortcuts();
       return { ok: true, added: n };
     });
+    ipcMain.handle('launcher:drop-paths', async (_e, paths) => {
+      const arr = Array.isArray(paths) ? paths.filter((p) => typeof p === 'string' && p) : [];
+      const n = arr.length ? await this._dropPaths(arr) : 0;
+      return { ok: true, added: n };
+    });
     ipcMain.handle('launcher:pick', () => this.openPicker());
     ipcMain.on('picker:confirm', (_e, names) => this._confirmPick(names));
     ipcMain.on('picker:cancel', () => this._closePicker());
@@ -1099,6 +1288,10 @@ class LauncherHost {
       this._removeAt(idx);
       return { ok: true };
     });
+    ipcMain.handle('launcher:set-pinned', (_e, { idx, on } = {}) => {
+      const ok = this.setPinned(Number(idx) | 0, !!on);
+      return { ok };
+    });
     ipcMain.handle('launcher:restore-all', () => {
       const cfg = this.cfg;
       const { restored, failed, remaining } = this._restoreAllBoxed();
@@ -1107,10 +1300,16 @@ class LauncherHost {
       //   失败项(remaining)保留。否则 remaining 为空时 filter 恒真，shortcuts 残留
       //   指向已移回桌面的文件 → 转盘显示"幽灵"空白图标。
       const failedSet = new Set(remaining.map(b => b.boxPath));
+      const hiddenRemaining = this._restoreAllHidden();
+      const hiddenFailed = new Set(hiddenRemaining.map(h => h.name));
+      const restoredHidden = new Set((cfg.hidden || [])
+        .filter((h) => !hiddenFailed.has(h.name)).map((h) => h.name));
       this.applyPatch({
         shortcuts: (cfg.shortcuts || []).filter(s =>
-          !cfg.boxed.some(b => b.boxPath === s.path) || failedSet.has(s.path)),
+          (!cfg.boxed.some(b => b.boxPath === s.path) || failedSet.has(s.path))
+          && (!restoredHidden.has(s.name) || hiddenFailed.has(s.name))),
         boxed: remaining,
+        hidden: hiddenRemaining,
       });
       return { ok: true, restored, failed };
     });

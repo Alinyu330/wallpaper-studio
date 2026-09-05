@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld('api', {
   boxAllDesktopShortcuts: () => ipcRenderer.invoke('launcher:box-all'),
   boxPublicDesktopShortcuts: () => ipcRenderer.invoke('launcher:box-public'),
   removeLauncherAt: (idx) => ipcRenderer.invoke('launcher:remove-at', idx),
+  setLauncherPinned: (idx, on) => ipcRenderer.invoke('launcher:set-pinned', { idx, on }),
   restoreAllLauncher: () => ipcRenderer.invoke('launcher:restore-all'),
   // 桌面文件收纳区（从转盘拆分的普通文件/文件夹收纳）
   getFileboxConfig: () => ipcRenderer.invoke('filebox:get'),
@@ -53,6 +54,8 @@ contextBridge.exposeInMainWorld('api', {
   // 位置调整模式（客户端按钮进入 → 桌面按住拖动 → 松手自动保存）
   setWidgetsAdjust: (key, on) => ipcRenderer.invoke('widgets:set-adjust', key, on),
   setAvizAdjust: (on) => ipcRenderer.invoke('audioviz:set-adjust', on),
+  // 看板城市搜索（Open-Meteo geocoding，主进程代拉）
+  geocodeCity: (name) => ipcRenderer.invoke('board:geocode', name),
   setLauncherAdjust: (on) => ipcRenderer.invoke('launcher:set-adjust', on),
   setFileboxAdjust: (on) => ipcRenderer.invoke('filebox:set-adjust', on),
   // 检查更新（结果通过 update:status 事件与返回值提供；手动检查发现新版弹功能介绍窗口）
@@ -63,6 +66,8 @@ contextBridge.exposeInMainWorld('api', {
   cancelUpdateInstall: () => ipcRenderer.invoke('update:install-cancel'),
   // 客户端版本号（关于页动态显示）
   getAppVersion: () => ipcRenderer.invoke('app:get-version'),
+  // 硬件加速等「app ready 前才生效」的设置改完后立即重启（主进程会先 flushSync 落盘）
+  relaunchApp: () => ipcRenderer.invoke('app:relaunch'),
   // 窗口控制
   minimize: () => ipcRenderer.send('win:minimize'),
   maximize: () => ipcRenderer.send('win:maximize'),

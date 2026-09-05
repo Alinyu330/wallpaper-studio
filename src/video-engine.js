@@ -85,6 +85,7 @@ class VideoEngine {
 
   /** 设置平滑循环开关（即时生效：开启补建待命槽，关闭释放之） */
   setSmoothLoop(on) {
+    const changed = this.smoothLoop !== !!on;
     this.smoothLoop = !!on;
     console.log(`[engine] 平滑循环${this.smoothLoop ? '已开启' : '已关闭'}`);
     if (!this.file || this.stopping) return;
@@ -93,6 +94,14 @@ class VideoEngine {
     } else {
       this._dropFadeIfAny();
       this._dropStandby();
+    }
+    if (!changed) return;
+    // 运行中槽位同步 loop-file：关平滑循环后若仍为 no，视频播完会永久定格
+    const want = this.smoothLoop ? 'no' : (this.userLoop ? 'inf' : 'no');
+    for (const s of [this.front, this.standby]) {
+      if (s && s.isRunning && s.ipcReady) {
+        try { s.setProperty('loop-file', want); } catch (_) {}
+      }
     }
   }
 
@@ -110,7 +119,7 @@ class VideoEngine {
     //   否则引擎内部的 loop:false 会污染用户循环开关 → 重启后永不循环、
     //   结尾定格被当作预期行为无人修复（"播放一段时间后无法播放"的元凶之一）
     this.userParams = { ...params };
-    this.params = { ...params, loop: false };
+    this.params = this._slotParams(params);
     this.expectPause = !!params.paused;
     this.userLoop = params.loop !== false; // 用户循环开关（引擎内部固定不回绕）
     this.duration = 0;
@@ -148,6 +157,7 @@ class VideoEngine {
     this._transFade = null;
     this._clearFadeTimers();
     this._dropGhost();
+    this._dropPreheat();
     if (this._fadeOutTimer) { clearTimeout(this._fadeOutTimer); this._fadeOutTimer = null; }
     const done = this._fadeOutResolve;
     this._fadeOutResolve = null;
@@ -191,6 +201,40 @@ class VideoEngine {
     this.start(this.file, this.wid, this.userParams || this.params);
   }
 
+  // ---------- 轮换预热（v1.9.1：消除切换时的冷启动停顿） ----------
+
+  /**
+   * main.js 在轮换切换前 ~3s 调用：提前 spawn 暂停槽并完成首帧解码，
+   * 到点 transitionStart 直接复用 → 溶解立即开始，消除「停顿数秒再突然切换」。
+   * 预热槽就绪失败会被丢弃，到点回退正常冷启动，行为不退化。
+   */
+  preheat(file, wid, params) {
+    if (this.stopping || !file) return;
+    if (this._preheat && this._preheat.file === file
+      && this._preheat.slot && this._preheat.slot.isRunning) return;
+    this._dropPreheat();
+    const slot = this._makeSlot('preheat', { paused: true, file, wid, params: this._slotParams(params) });
+    slot.onExit = null;
+    this._preheat = { file, wid, params: { ...params }, slot };
+    const gen = this.gen;
+    this._waitForReady(slot, gen, 6000).then((ok) => {
+      if (gen !== this.gen) return;
+      if (!ok || !slot.isRunning) {
+        console.warn('[engine] 轮换预热失败，到点回退冷启动');
+        this._dropPreheat();
+      } else {
+        console.log(`[engine] 轮换预热就绪: ${String(file).split(/[\\/]/).pop()}`);
+      }
+    }).catch(() => this._dropPreheat());
+  }
+
+  _dropPreheat() {
+    if (!this._preheat) return;
+    const slot = this._preheat.slot;
+    this._preheat = null;
+    try { if (slot) slot.stop(); } catch (_) {}
+  }
+
   // ---------- 壁纸切换过渡（v1.7.0：跨壁纸无黑屏） ----------
   //
   // 与循环溶解同一套「淡入覆盖」数学：垫底层全程不透明，新层 alpha 0→255，
@@ -230,7 +274,7 @@ class VideoEngine {
     this.file = file;
     this.wid = wid;
     this.userParams = { ...params };
-    this.params = { ...params, loop: false };
+    this.params = this._slotParams(params);
     this.expectPause = !!params.paused;
     this.userLoop = params.loop !== false;
     this.duration = 0;
@@ -241,9 +285,20 @@ class VideoEngine {
     this.eofStuck = 0;
     this._prevHealthTp = undefined;
 
-    const fresh = this._makeSlot('front', { paused: true }); // 暂停在第 0 帧，出生定位无 seek
+    let fresh = null;
+    if (this._preheat && this._preheat.file === file
+      && this._preheat.slot && this._preheat.slot.isRunning) {
+      // 预热命中：解码器与子窗口已就绪，溶解立即开始（无冷启动空窗）
+      fresh = this._preheat.slot;
+      this._preheat = null;
+      console.log('[engine] 轮换预热命中：复用已解码槽');
+    } else {
+      this._dropPreheat();
+      fresh = this._makeSlot('front', { paused: true }); // 暂停在第 0 帧，出生定位无 seek
+    }
     fresh.onExit = null; // 切换期间退出一律走回滚逻辑，不触发崩溃修复
     this.front = fresh;
+    this._promoteAudible(fresh);
     this._ghost = ghost;
 
     const ok = await this._waitForReady(fresh, gen, 8000);
@@ -412,15 +467,40 @@ class VideoEngine {
     bind(25);
   }
 
-  _makeSlot(name, { startPos = 0, paused = true } = {}) {
+  /**
+   * 平滑循环开：循环交给「播完定格 + 待命槽交替」，不用 mpv 内部回绕（回绕等效 seek，
+   *   本机 D3D11 会随机冻结）。
+   * 平滑循环关：交回 mpv 内部回绕（硬切但绝不定格）—— 旧实现关平滑循环后
+   *   视频播一遍就永久冻在末帧，语义是坏的。
+   */
+  _slotParams(params = {}) {
+    return { ...params, loop: this.smoothLoop ? false : (params.loop !== false) };
+  }
+
+  /**
+   * 槽位升为前台 → 解除「强制静音」并套用用户当前音量。
+   * 待命/预热槽出生时带 forceMute（淡入期不能双声道），而 MpvController.applyParams
+   * 在 forceMute 下会跳过 volume/mute —— 顶替后不解除，播放一遍后设置页的壁纸
+   * 音量与静音就永久失效（冻在 0）。
+   */
+  _promoteAudible(slot) {
+    if (!slot || !slot.isRunning) return;
+    slot.applyParams({
+      forceMute: false,
+      volume: this.params ? this.params.volume : undefined,
+      mute: this.params ? this.params.mute : undefined,
+    });
+  }
+
+  _makeSlot(name, { startPos = 0, paused = true, file = this.file, wid = this.wid, params = this.params } = {}) {
     const c = new MpvController(name);
     c.onExit = (code) => this._onSlotExit(name, code);
     c.onReady = () => {
       this._bindChildWindow(c);
       this._onSlotReady(name);
     };
-    c.start(this.file, this.wid, {
-      ...this.params,
+    c.start(file, wid, {
+      ...params,
       startPos,
       paused,
       forceMute: name !== 'front', // 非前台槽一律静音，避免淡入期双声道
@@ -530,6 +610,7 @@ class VideoEngine {
     this.fading = null; // 顶替即完成过渡，清除淡入状态（防止残留标志阻断后续待命槽隐藏）
     this._clearFadeTimers();
     this.front = back;
+    this._promoteAudible(back);
     this.standby = null;
     if (old) old.stop(); // 已被完全遮盖，杀掉无黑屏
     console.log('[engine] 待命槽已顶替前台，全程无黑屏');
@@ -627,7 +708,12 @@ class VideoEngine {
         return;
       }
       const remaining = this.duration - tp;
-      if (remaining <= 1.2) this._startFastPoll();
+      if (remaining <= 1.2) {
+        this._startFastPoll();
+        // 待命槽缺席时立刻开始重建（而非等 EOF 定格后才建），
+        // 给 spawn + 首帧解码留出 ~1.2s 头寸，压缩交界处的定格停顿
+        if (!this.standby || !this.standby.isRunning) this._scheduleStandbyRebuild(0);
+      }
     }).catch(() => {});
   }
 
@@ -718,6 +804,7 @@ class VideoEngine {
     this._clearFadeTimers();
     this.fading = null;
     this.front = cur;
+    this._promoteAudible(cur);
     this.standby = null;
     this._applyFrontAlphaWhenFound(255);
     if (old) old.stop(); // 已被完全遮盖，无黑屏
@@ -726,7 +813,7 @@ class VideoEngine {
     this.unexpectedPauses = 0;
     this.eofStuck = 0;
     this._prevHealthTp = undefined;
-    this._scheduleStandbyRebuild(1200); // 稍等前台解码稳定再重建（避免瞬时双解码负载尖峰）
+    this._scheduleStandbyRebuild(400); // 尽快补上下一轮待命槽，降低下一轮 EOF 时未就绪的概率
   }
 
   // ---------- 内部：健康检查（渲染冻结 / 暂停状态脱节） ----------
@@ -902,6 +989,7 @@ class VideoEngine {
     // 收编为前台槽：接上崩溃自愈回调（否则替换后前台崩溃无人接管）
     rep.onExit = (code) => this._onSlotExit('front', code);
     this.front = rep;
+    this._promoteAudible(rep);
     this.standby = null;
     this.stallCount = 0;
     this.unexpectedPauses = 0;

@@ -25,9 +25,16 @@ const DEFAULTS = {
   enabled: false, x: null, y: null, grid: null,
   gridCols: 5,            // 网格列数（3~12）
   groupBy: 'kind',        // 分类排列：kind 类型分类 / name 名称 / mtime 时间 / manual 手动
+  style: 'frosted',       // 面板背景样式：frosted 毛玻璃 / liquid 液态玻璃 / none 半透明无模糊
   bgOpacity: 0.32,        // 面板底色不透明度（鼠标悬停展开时）
   idleOpacity: 0.28,      // 空闲（鼠标离开）时的整体不透明度（毛玻璃态）
   autoIdle: true,         // 空闲自动转半透明毛玻璃
+  mirror: true,           // 面板镜像倒影
+  mirrorOpacity: 25,      // 倒影强度 %
+  brightness: 100,        // 亮度 %（100 = 原样）
+  contrast: 100,          // 对比度 %
+  saturate: 100,          // 饱和度 %
+  opacity: 100,           // 整体不透明度 %
   items: [],              // [{name, path, type:'file'|'folder', originPath?, boxPath?}]
 };
 // 可收纳的文件扩展名（办公文档 + 媒体 + 归档等普通文件；
@@ -347,9 +354,16 @@ class FileBoxHost {
         enabled: cfg.enabled,
         gridCols: cfg.gridCols,
         groupBy: cfg.groupBy,
+        style: ['frosted', 'liquid', 'none'].includes(cfg.style) ? cfg.style : 'frosted',
         bgOpacity: cfg.bgOpacity ?? 0.32,
         idleOpacity: cfg.idleOpacity ?? 0.28,
         autoIdle: !!cfg.autoIdle,
+        mirror: cfg.mirror !== false,
+        mirrorOpacity: Number.isFinite(cfg.mirrorOpacity) ? cfg.mirrorOpacity : 25,
+        brightness: Number.isFinite(cfg.brightness) ? cfg.brightness : 100,
+        contrast: Number.isFinite(cfg.contrast) ? cfg.contrast : 100,
+        saturate: Number.isFinite(cfg.saturate) ? cfg.saturate : 100,
+        opacity: Number.isFinite(cfg.opacity) ? cfg.opacity : 100,
         items,
       });
     } catch (_) {}
@@ -498,11 +512,16 @@ class FileBoxHost {
       ],
     });
     if (res.canceled || !res.filePaths.length) return 0;
+    return this._ingestPaths(res.filePaths);
+  }
+
+  /** 把一批路径收纳进保管区（文件对话框与桌面拖拽共用） */
+  async _ingestPaths(filePaths) {
     const cfg = this.cfg;
     const exist = new Set((cfg.items || []).map((i) => i.path));
     const items = [...(cfg.items || [])];
     let added = 0;
-    for (const p of res.filePaths) {
+    for (const p of filePaths || []) {
       await new Promise((r) => setImmediate(r));
       if (exist.has(p)) continue;
       let st;
@@ -648,6 +667,11 @@ class FileBoxHost {
     ipcMain.on('filebox:remove', (_e, idx) => this._removeAt(idx));
     ipcMain.handle('filebox:add', async () => {
       const n = await this._addItems();
+      return { ok: true, added: n };
+    });
+    ipcMain.handle('filebox:drop-paths', async (_e, paths) => {
+      const arr = Array.isArray(paths) ? paths.filter((p) => typeof p === 'string' && p) : [];
+      const n = arr.length ? await this._ingestPaths(arr) : 0;
       return { ok: true, added: n };
     });
     ipcMain.handle('filebox:box-all', () => this.boxAll());

@@ -7,6 +7,17 @@ const path = require('path');
 const fs = require('fs');
 const { guardChild } = require('./job-guard');
 
+// ---------- 全局性能配置（设置页「省电/均衡/性能」档位 + 高级细分项） ----------
+// 用模块单例注入而不是塞进 params：params 会被 store.setCurrent 持久化到
+// config.json，全局档位不该污染每张壁纸自己的参数记录。
+let GLOBAL_PERF = {};
+function setGlobalPerf(p) { GLOBAL_PERF = p && typeof p === 'object' ? p : {}; }
+
+const HWDEC_MODES = ['auto', 'auto-safe', 'auto-copy', 'no'];
+// 分辨率 rank 越大越省：全局天花板与每壁纸值取更严格的那个（只往下压、不顶掉手选值）
+const RES_RANK = { source: 0, '1080p': 1, '720p': 2, '480p': 3 };
+const RES_VF = { '1080p': 'scale=-2:1080', '720p': 'scale=-2:720', '480p': 'scale=-2:480' };
+
 class MpvController {
   static _seq = 0; // 全局实例序号：保证 IPC 管道名唯一，避免同名多实例跨连
 
@@ -66,9 +77,16 @@ class MpvController {
     const scalerMap = { low: 'bilinear', medium: 'bicubic', high: 'lanczos' };
     const scaler = scalerMap[params.quality] || 'lanczos';
 
-    // 渲染分辨率限制（等比缩放，大幅降低解码与 GPU 负载）
-    const RES_VF = { '1080p': 'scale=-2:1080', '720p': 'scale=-2:720', '480p': 'scale=-2:480' };
-    const resVf = RES_VF[params.resolution] || null;
+    // 渲染分辨率：每壁纸 params.resolution 与全局天花板 videoResCap 取更严格的那个。
+    // 天花板只往下压，不会顶掉用户在「壁纸调节」面板里的手选值。
+    const rank = Math.max(RES_RANK[params.resolution] ?? 0, RES_RANK[GLOBAL_PERF.videoResCap] ?? 0);
+    const res = Object.keys(RES_RANK).find((k) => RES_RANK[k] === rank) || 'source';
+    // ★ mpv 的 --vf 是 list 选项：重复出现时后者覆盖前者（--vf-append 才是追加）。
+    //   分辨率缩放与帧率上限必须合并成一条逗号链，绝不能 push 两次 --vf。
+    const vfChain = [];
+    if (RES_VF[res]) vfChain.push(RES_VF[res]);
+    const fpsCap = Math.round(Number(GLOBAL_PERF.videoFpsCap) || 0);
+    if (fpsCap >= 10 && fpsCap <= 144) vfChain.push(`fps=${fpsCap}`);
 
     const args = [
       `--wid=${wid}`,
@@ -80,8 +98,8 @@ class MpvController {
       '--focus-on=never',           // 不抢焦点
       '--cursor-autohide=no',
       '--keep-open=yes',            // 播完不退出（配合循环）
-      '--hwdec=auto',               // 自动硬件解码（大幅降低 CPU 占用）
-      '--framedrop=decoder+vo',     // 丢帧策略，避免解码堆积
+      `--hwdec=${HWDEC_MODES.includes(GLOBAL_PERF.hwdec) ? GLOBAL_PERF.hwdec : 'auto-safe'}`, // 硬解模式（档位可调）
+      '--framedrop=vo',           // 只在显示节奏内丢帧；解码丢帧是可见卡顿的来源
       `--scale=${scaler}`,
       `--input-ipc-server=${this.pipeName}`,
       `--volume=${params.forceMute ? 0 : (params.volume ?? 0)}`,
@@ -91,8 +109,9 @@ class MpvController {
       `--contrast=${params.contrast ?? 0}`,
       `--saturation=${params.saturation ?? 0}`,
       params.loop === false ? '--loop-file=no' : '--loop-file=inf',
-      // 循环无缝：加大解复用缓存，整段视频常驻内存时循环点零停顿（消除交界处卡顿/闪黑）
-      '--demuxer-max-bytes=128MiB',
+      // 循环无缝：加大解复用缓存，整段视频常驻内存时循环点零停顿（消除交界处卡顿/闪黑）。
+      // 大小由全局档位控制 —— 平滑循环开双槽时实际占用是它的两倍，是最大的一块可控内存。
+      `--demuxer-max-bytes=${Math.max(16, Math.round(Number(GLOBAL_PERF.videoCacheMb) || 128))}MiB`,
       '--demuxer-readahead-secs=30',
       // 适配模式：cover=裁剪填充(panscan) contain=完整显示 stretch=拉伸(不保持比例)
       params.fit === 'cover' ? '--panscan=1' : '--panscan=0',
@@ -101,12 +120,14 @@ class MpvController {
       params.paused ? '--pause' : '--no-pause',
     ];
     if (params.startPos > 0) args.push(`--start=${params.startPos}`);
-    if (resVf) args.push(`--vf=${resVf}`);
+    if (vfChain.length) args.push(`--vf=${vfChain.join(',')}`);
     // 流畅模式：跳过 H.264 环路滤波 + 快速解码路径，进一步降低 CPU 占用
     if (params.quality === 'low') {
       args.push('--vd-lavc-skiploopfilter=all', '--vd-lavc-fast');
     }
     args.push('--', file);
+    // 落 engine.log：用户报障时据此核对是否只有一个 --vf token、硬解/缓存档位是否生效
+    console.log(`[mpv:${this.name}] argv: ${args.join(' ')}`);
 
     this.process = spawn(exe, args, { windowsHide: true });
     // 纳入孤儿守卫：主进程被强杀（如卸载器结束进程）时，系统自动终止 mpv，
@@ -270,4 +291,4 @@ class MpvController {
   }
 }
 
-module.exports = { MpvController, findMpv: MpvController.findMpv };
+module.exports = { MpvController, findMpv: MpvController.findMpv, setGlobalPerf };

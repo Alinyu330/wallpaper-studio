@@ -17,4 +17,5 @@ contextBridge.exposeInMainWorld('launcherHost', {
   launch: (idx) => ipcRenderer.send('launcher:launch', idx),
   remove: (idx) => ipcRenderer.send('launcher:remove', idx),
   addShortcuts: () => ipcRenderer.invoke('launcher:add'),
+  dropPaths: (paths) => ipcRenderer.invoke('launcher:drop-paths', paths),
 });

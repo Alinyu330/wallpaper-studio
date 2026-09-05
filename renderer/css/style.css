@@ -851,6 +851,23 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
   vertical-align: 1px;
 }
 .lc-item .icon-btn { flex: none; }
+.lc-pinned-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  color: #ffbe55;
+  background: rgba(255, 176, 32, .14);
+  vertical-align: 1px;
+}
+.icon-btn.star { color: var(--muted, rgba(255,255,255,.5)); opacity: .55; }
+.icon-btn.star:hover { opacity: 1; }
+.icon-btn.star.on {
+  color: #ffb020;
+  opacity: 1;
+  filter: drop-shadow(0 0 5px rgba(255, 176, 32, .45));
+}
 
 /* ---------- 定时轮换：队列实时预览 + 自定义选择网格 ---------- */
 .rot-queue {

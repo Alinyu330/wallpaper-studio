@@ -109,7 +109,12 @@ async function init() {
   // 防止界面下一次保存用旧 state 覆盖新值（enabled/posX 被抹掉的根源）
   window.api.on('settings:sync', (s) => {
     if (s && typeof s === 'object') state.settings = s;
+    syncAdjRows();
+    syncPerfTierUi();
+    maybeRenderBoardEditor();
   });
+  // 硬件加速等「app ready 前才生效」的设置改动 / GPU 崩溃自愈 → 提示重启
+  window.api.on('perf:restart-required', (info) => showRestartBanner(info));
   // 快捷方式转盘变化（收纳结果/移除/恢复）→ 刷新设置页
   window.api.on('launcher:changed', (result) => {
     renderLauncherSettings();
@@ -1118,10 +1123,9 @@ function renderRotationQueue() {
 // ---------- 桌面组件 ----------
 const WIDGET_META = {
   clock:  { name: '时钟', desc: '时间 + 日期，点击切换 12/24 小时制', interactive: true },
-  cpu:    { name: 'CPU 占用率', desc: '实时处理器占用 + 占用条', interactive: false },
-  gpu:    { name: 'GPU 占用率', desc: '实时显卡占用 + 占用条', interactive: false },
-  mem:    { name: '内存占用率', desc: '实时内存占用 + 占用条', interactive: false },
-  volume: { name: '音量', desc: '壁纸播放音量，桌面直接拖动调节，点击图标静音', interactive: true },
+  volume: { name: '音量', desc: '系统主音量，桌面直接拖动调节，点击图标静音（壁纸音量在播放参数中设置）', interactive: true },
+  netmon: { name: '系统状态监控', desc: '实时上/下行网速 + 迷你历史曲线 + CPU / GPU / 内存占用概览', interactive: false },
+  board:  { name: '信息看板', desc: '日历（日程/纪念日）+ 天气（实时/预报）+ 待办（桌面可勾选），三块可各自开关', interactive: true },
 };
 const POS_LABELS = {
   tl: '左上', tc: '上中', tr: '右上',
@@ -1148,6 +1152,25 @@ function saveWidgets(patch) {
 /** 组件当前是否为「自由摆放」（桌面拖动保存的位置，优先于九宫格槽位） */
 function isWidgetFree(item) {
   return !!(item && item.posX != null && item.posY != null);
+}
+
+const WIDGET_ITEM_DEFAULT = { on: false, pos: 'tl', posX: null, posY: null, size: 'm' };
+
+/**
+ * 读取组件项的「当前」配置。
+ * ★ 必须在点击时调用，绝不能在 render 时把结果缓存进闭包：
+ *   state.settings 会被 settings:sync 整体按引用替换（见 init 里的订阅），
+ *   任何缓存的 item 都会指向已脱离的对象。
+ * 这正是「调节参数后组件被异常关闭」的根因 —— 九宫格/大小按钮的闭包持有
+ * render 时的旧 item（on:false），点一下就把 on:false 回写覆盖了刚打开的开关。
+ */
+function liveWidgetItem(key) {
+  return { ...WIDGET_ITEM_DEFAULT, ...((state.settings.widgets?.items || {})[key] || {}) };
+}
+
+/** 单项写入：只碰本项字段，位置字段永不被顺带修改（widgets-host.js 头注释的硬约束） */
+function saveWidgetItem(key, patch) {
+  saveWidgets({ items: { [key]: { ...liveWidgetItem(key), ...patch } } });
 }
 
 // ---------- 设置页通用：数值输入 + 固定调整点 + 调整模式 ----------
@@ -1210,6 +1233,8 @@ function renderWidgetsSettings() {
   $('#wg-opacity').value = op;
   $('#wg-opacity-num').value = op;
   highlightPresetRow($('#wg-opacity-presets'), op);
+  $$('#wg-style button').forEach(b => b.classList.toggle('active', b.dataset.style === (w.style || 'none')));
+  $$('#wg-shape button').forEach(b => b.classList.toggle('active', b.dataset.shape === (w.shape || 'rounded')));
   // 组件卡片
   const wrap = $('#wg-items');
   wrap.innerHTML = '';
@@ -1248,7 +1273,8 @@ function renderWidgetsSettings() {
       pb.dataset.pos = pos;
       pb.addEventListener('click', () => {
         // 点九宫格 = 交回九宫格定位：清掉桌面拖动保存的自由位置
-        saveWidgets({ items: { [key]: { ...item, pos, posX: null, posY: null } } });
+        // ★ 点击时穿透读，不能展开上文 render 时捕获的 item（可能已失效）
+        saveWidgetItem(key, { pos, posX: null, posY: null });
         renderWidgetsSettings();
       });
       grid.appendChild(pb);
@@ -1274,7 +1300,8 @@ function renderWidgetsSettings() {
       sb.textContent = s[1];
       if ((item.size || 'm') === s[0]) sb.classList.add('active');
       sb.addEventListener('click', () => {
-        saveWidgets({ items: { [key]: { ...item, size: s[0] } } });
+        // ★ 同九宫格：点击时穿透读，避免把已失效的 on:false 一起回写
+        saveWidgetItem(key, { size: s[0] });
         renderWidgetsSettings();
       });
       seg.appendChild(sb);
@@ -1304,14 +1331,19 @@ function renderWidgetsSettings() {
   wrap.querySelectorAll('[data-wg-toggle]').forEach(t => {
     t.addEventListener('change', () => {
       const key = t.dataset.wgToggle;
-      const item = state.settings.widgets?.items?.[key] || { on: false, pos: 'tl', size: 'm' };
-      const patch = { items: { [key]: { ...item, on: t.checked } } };
+      const patch = { items: { [key]: { ...liveWidgetItem(key), on: t.checked } } };
       // 点亮单个组件时总开关没开 → 自动开启（否则"开了组件没效果"）
       if (t.checked && !(state.settings.widgets?.enabled)) {
         patch.enabled = true;
       }
       saveWidgets(patch);
-      if (patch.enabled) renderWidgetsSettings();
+      // ★ 无条件重渲染：卡片内九宫格/大小按钮的闭包必须重建。
+      //   此前只在 patch.enabled（总开关也被打开）时才重渲染 —— 总开关已开时
+      //   单独点亮某组件不重渲染，闭包里仍是 render 时的 on:false，
+      //   紧接着点位置/大小就把刚打开的组件关掉（用户报的"调节参数后开关被关"）。
+      //   卡片内没有文本输入框也没有滑杆（#wg-opacity 在 #wg-items 之外），
+      //   重渲染不会打断任何输入。
+      renderWidgetsSettings();
     });
   });
 }
@@ -1326,7 +1358,7 @@ function bindWidgetsSettings() {
       if (!anyOn) {
         saveWidgets({
           enabled: true,
-          items: { clock: { ...(items.clock || { pos: 'tl', size: 'l' }), on: true } },
+          items: { clock: { ...liveWidgetItem('clock'), on: true } },
         });
         renderWidgetsSettings();
         toast('桌面组件已开启（已默认添加时钟，回到桌面查看效果）');
@@ -1358,6 +1390,169 @@ function bindWidgetsSettings() {
     if (e.key === 'Enter') { applyOpacity(parseFloat(e.target.value)); e.target.blur(); }
   });
   renderPresetRow($('#wg-opacity-presets'), [30, 50, 72, 85, 100], applyOpacity);
+  $$('#wg-style button').forEach(b => b.addEventListener('click', () => {
+    saveWidgets({ style: b.dataset.style });
+    renderWidgetsSettings();
+  }));
+  $$('#wg-shape button').forEach(b => b.addEventListener('click', () => {
+    saveWidgets({ shape: b.dataset.shape });
+    renderWidgetsSettings();
+  }));
+  buildWidgetAdj($('#wg-adj'));
+}
+
+/** 组件全局调色三行：固定调节点 + 滑杆 + 自由输入（100 = 原样） */
+function buildWidgetAdj(host) {
+  host.innerHTML = '';
+  const row = (title, key, min, presets) => addAdjRow(host, {
+    title, sub: '（100 = 原样）', min, max: 200, step: 5, presets,
+    fmt: (v) => `${v}%`,
+    get: () => { const w = state.settings.widgets || {}; return Number.isFinite(w[key]) ? w[key] : 100; },
+    set: (v) => saveWidgets({ [key]: v }),
+  });
+  row('组件亮度', 'brightness', 20, [60, 80, 100, 120, 160]);
+  row('组件对比度', 'contrast', 20, [60, 80, 100, 120, 160]);
+  row('组件饱和度', 'saturate', 0, [0, 50, 100, 150, 200]);
+}
+
+// ---------- 信息看板编辑器 ----------
+const bdNow = () => ({ ...(state.settings.board || {}) });
+let bdRev = '';
+const bdRevision = () => {
+  const b = bdNow();
+  return JSON.stringify([b.sections, b.events, b.todos, b.weather]);
+};
+
+function saveBoard(patch) {
+  const cur = bdNow();
+  const b = {
+    ...cur, ...patch,
+    sections: { ...(cur.sections || {}), ...(patch.sections || {}) },
+    weather: { ...(cur.weather || {}), ...(patch.weather || {}) },
+  };
+  state.settings.board = b;
+  window.api.updateSettings({ board: b });
+  bdRev = bdRevision();
+}
+
+/** settings:sync 回写后按需重绘：修订号没变或用户正在输入则不动 */
+function maybeRenderBoardEditor() {
+  const rev = bdRevision();
+  if (rev === bdRev) return;
+  bdRev = rev;
+  const ae = document.activeElement;
+  if (ae && ae.id && ae.id.startsWith('bd-')) return;
+  renderBoardEditor();
+}
+
+function renderBoardEditor() {
+  const b = bdNow();
+  const s = b.sections || {};
+  $('#bd-sec-calendar').checked = s.calendar !== false;
+  $('#bd-sec-weather').checked = s.weather !== false;
+  $('#bd-sec-todo').checked = s.todo !== false;
+  const w = b.weather || {};
+  $('#bd-city-now').textContent = w.cityName ? `当前：${w.cityName}（${Number(w.lat).toFixed(2)}, ${Number(w.lon).toFixed(2)}）` : '未设置城市';
+
+  const evList = $('#bd-ev-list');
+  evList.innerHTML = '';
+  for (const e of (b.events || [])) {
+    const row = document.createElement('div');
+    row.className = 'lc-item';
+    row.innerHTML = `<span class="lc-name">${e.type === 'anniversary' ? '🎂 ' : '📅 '}${escHtml(e.text)} <span class="lc-boxed-tag">${escHtml(e.date || '')}</span></span>`;
+    const del = document.createElement('button');
+    del.className = 'icon-btn';
+    del.innerHTML = ICONS.trash;
+    del.addEventListener('click', () => saveBoard({ events: (b.events || []).filter((x) => x.id !== e.id) }));
+    row.appendChild(del);
+    evList.appendChild(row);
+  }
+  if (!(b.events || []).length) evList.innerHTML = '<p class="hint">还没有日程 / 纪念日</p>';
+
+  const tdList = $('#bd-todo-list');
+  tdList.innerHTML = '';
+  for (const t of (b.todos || [])) {
+    const row = document.createElement('div');
+    row.className = 'lc-item';
+    row.innerHTML = `<span class="lc-name" style="${t.done ? 'text-decoration:line-through;opacity:.55' : ''}">${escHtml(t.text)}</span>`;
+    const del = document.createElement('button');
+    del.className = 'icon-btn';
+    del.innerHTML = ICONS.trash;
+    del.addEventListener('click', () => saveBoard({ todos: (b.todos || []).filter((x) => x.id !== t.id) }));
+    row.appendChild(del);
+    tdList.appendChild(row);
+  }
+  if (!(b.todos || []).length) tdList.innerHTML = '<p class="hint">还没有待办</p>';
+  bdRev = bdRevision();
+}
+
+const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+let bdCityTimer = null;
+function bindBoardEditor() {
+  const sec = (key) => (e) => saveBoard({ sections: { [key]: e.target.checked } });
+  $('#bd-sec-calendar').addEventListener('change', sec('calendar'));
+  $('#bd-sec-weather').addEventListener('change', sec('weather'));
+  $('#bd-sec-todo').addEventListener('change', sec('todo'));
+
+  $('#bd-ev-add').addEventListener('click', () => {
+    const text = $('#bd-ev-text').value.trim();
+    const date = $('#bd-ev-date').value;
+    if (!text || !date) { toast('日程需要文本和日期', 'error'); return; }
+    const b = bdNow();
+    const events = [...(b.events || []), {
+      id: `e${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      text, date, type: $('#bd-ev-ann').checked ? 'anniversary' : 'event',
+    }];
+    saveBoard({ events });
+    $('#bd-ev-text').value = '';
+    toast('已添加日程');
+  });
+  $('#bd-todo-add').addEventListener('click', () => {
+    const text = $('#bd-todo-text').value.trim();
+    if (!text) { toast('待办内容不能为空', 'error'); return; }
+    const b = bdNow();
+    const todos = [...(b.todos || []), {
+      id: `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      text, done: false,
+    }];
+    saveBoard({ todos });
+    $('#bd-todo-text').value = '';
+    toast('已添加待办');
+  });
+  $('#bd-todo-clear').addEventListener('click', () => {
+    const b = bdNow();
+    saveBoard({ todos: (b.todos || []).filter((t) => !t.done) });
+    toast('已清除已完成待办');
+  });
+
+  // 城市搜索：400ms 防抖，主进程代拉 Open-Meteo geocoding
+  $('#bd-city-q').addEventListener('input', (e) => {
+    const q = e.target.value.trim();
+    if (bdCityTimer) clearTimeout(bdCityTimer);
+    const list = $('#bd-city-list');
+    if (!q) { list.innerHTML = ''; return; }
+    bdCityTimer = setTimeout(async () => {
+      const res = await window.api.geocodeCity(q);
+      list.innerHTML = '';
+      for (const r of (res || [])) {
+        const row = document.createElement('div');
+        row.className = 'lc-item';
+        row.style.cursor = 'pointer';
+        row.innerHTML = `<span class="lc-name">${escHtml(r.name)}</span>`;
+        row.addEventListener('click', () => {
+          saveBoard({ weather: { cityName: r.name, lat: r.lat, lon: r.lon, tz: r.tz } });
+          list.innerHTML = '';
+          $('#bd-city-q').value = '';
+          toast(`看板天气已切到 ${r.name}`);
+        });
+        list.appendChild(row);
+      }
+      if (!(res || []).length) list.innerHTML = '<p class="hint">没有匹配的城市</p>';
+    }, 400);
+  });
+  renderBoardEditor();
 }
 
 // ---------- 音律动效 ----------
@@ -1365,6 +1560,7 @@ const AV_DEFAULTS = {
   enabled: false, style: 'bars', color: '#7c5cff', gradient: true,
   opacity: 0.85, size: 1, pos: 'bottom', posX: null, posY: null,
   mirror: true, sensitivity: 1.2,
+  brightness: 100, contrast: 100, saturate: 100, mirrorOpacity: 22, fps: 30,
 };
 /* 常用配色（点击快速切换） */
 const AV_COLORS = [
@@ -1417,6 +1613,8 @@ function renderAudioVizSettings() {
   syncNum('#av-sens-num', Number(av.sensitivity).toFixed(1));
   highlightPresetRow($('#av-sens-presets'), Number(av.sensitivity));
   $('#av-mirror').checked = av.mirror !== false;
+  $$('#av-mirrormode button').forEach(b => b.classList.toggle('active', b.dataset.mirrormode === (av.mirrorMode || 'fade')));
+  $('#av-occult').checked = av.pauseOnOccult !== false;
   // 圆环/同心环固定居中（底部/顶部预设不适用，仍可进入调整模式摆位）
   const circular = av.style === 'circle' || av.style === 'rings';
   $('#av-pos-row').style.opacity = circular ? 0.45 : 1;
@@ -1636,12 +1834,38 @@ function bindAudioVizSettings() {
   bindAvSlider('#av-size', 'size', v => v.toFixed(1) + '×', $('#av-size-presets'), [0.5, 0.8, 1, 1.5, 2]);
   bindAvSlider('#av-sens', 'sensitivity', v => v.toFixed(1), $('#av-sens-presets'), [0.5, 1, 1.5, 2, 3]);
   $('#av-mirror').addEventListener('change', (e) => saveAudioViz({ mirror: e.target.checked }));
+  $$('#av-mirrormode button').forEach(b => {
+    b.addEventListener('click', () => {
+      $$('#av-mirrormode button').forEach(x => x.classList.toggle('active', x === b));
+      saveAudioViz({ mirrorMode: b.dataset.mirrormode });
+    });
+  });
+  buildAvAdj($('#av-adj'));
   // 调整位置：进入调整模式后桌面整窗可拖动（主进程回传状态同步按钮）
   $('#btn-av-adjust').addEventListener('click', async () => {
     const res = await window.api.setAvizAdjust(!avAdjusting);
     if (!res && !avAdjusting) toast('音律动效未启用，无法调整位置', 'error');
   });
   buildAvMeter();
+}
+
+/** 音律动效调色四行：固定调节点 + 滑杆 + 自由输入（100 = 原样） */
+function buildAvAdj(host) {
+  host.innerHTML = '';
+  const row = (title, key, min, presets) => addAdjRow(host, {
+    title, sub: key === 'mirrorOpacity' ? '（倒影与主体同层，自动继承上面三项调色）' : '（100 = 原样）',
+    min, max: 200, step: 5, presets,
+    fmt: (v) => `${v}%`,
+    get: () => {
+      const av = { ...AV_DEFAULTS, ...(state.settings.audioViz || {}) };
+      return Number.isFinite(av[key]) ? av[key] : 100;
+    },
+    set: (v) => saveAudioViz({ [key]: v }),
+  });
+  row('动效亮度', 'brightness', 20, [60, 80, 100, 120, 160]);
+  row('动效对比度', 'contrast', 20, [60, 80, 100, 120, 160]);
+  row('动效饱和度', 'saturate', 0, [0, 50, 100, 150, 200]);
+  row('镜像倒影强度', 'mirrorOpacity', 0, [0, 22, 40, 70, 100]);
 }
 
 // ---------- 桌面快捷方式转盘 ----------
@@ -1676,8 +1900,10 @@ async function renderLauncherSettings() {
   const lcCountNum = $('#lc-count-num');
   if (document.activeElement !== lcCountNum) lcCountNum.value = lc.count || 8;
   $('#lc-autocollapse').checked = lc.autoCollapse !== false;
+  $$('#lc-collect button').forEach(b => b.classList.toggle('active', b.dataset.collect === (lc.collectMode || 'box')));
   $$('#lc-orient button').forEach(b => b.classList.toggle('active', b.dataset.orient === (lc.orientation || 'h')));
   $('#lc-edgefade').checked = !!lc.edgeFade;
+  $('#lc-mirror').checked = lc.mirror !== false;
   syncLcGrid();
 
   const list = $('#lc-list');
@@ -1716,6 +1942,14 @@ async function renderLauncherSettings() {
       tag.title = '原桌面快捷方式已隐藏，移除后恢复到桌面原位置';
       name.appendChild(tag);
     }
+    if (s.pinned) {
+      item.classList.add('pinned');
+      const tag = document.createElement('span');
+      tag.className = 'lc-pinned-tag';
+      tag.textContent = '常用';
+      tag.title = '开机/重启后打开转盘时优先显示在最前';
+      name.appendChild(tag);
+    }
     const del = document.createElement('button');
     del.className = 'icon-btn';
     del.title = s.boxed ? '从转盘移除并恢复到桌面原位置' : '从列表移除';
@@ -1724,7 +1958,20 @@ async function renderLauncherSettings() {
       // 走主进程 removeAt：收纳项自动恢复到桌面原位置
       await window.api.removeLauncherAt(i);
     });
-    item.append(ico, name, del);
+    item.append(ico, name);
+    // 系统项位置固定，不参与「常用」置顶
+    if (s.type !== 'system') {
+      const star = document.createElement('button');
+      star.className = 'icon-btn star' + (s.pinned ? ' on' : '');
+      star.title = s.pinned ? '取消常用（回到原顺序位置）' : '设为常用（始终排在转盘最前）';
+      star.innerHTML = ICONS.star;
+      star.addEventListener('click', async () => {
+        await window.api.setLauncherPinned(i, !s.pinned);
+        await renderLauncherSettings();
+      });
+      item.append(star);
+    }
+    item.append(del);
     list.appendChild(item);
   });
 }
@@ -1733,6 +1980,32 @@ async function renderLauncherSettings() {
 function syncLcGrid() {
   $$('#lc-pos9 .pos-cell').forEach(b =>
     b.classList.toggle('active', !!launcherCfg && launcherCfg.grid === b.dataset.cell));
+}
+
+/** 转盘调色五行：固定调节点 + 滑杆 + 自由输入（100 = 原样） */
+function buildLcAdj(host) {
+  host.innerHTML = '';
+  const set = (key) => (v) => {
+    launcherCfg = { ...(launcherCfg || {}), [key]: v };
+    window.api.updateLauncherConfig({ [key]: v });
+  };
+  const get = (key, d) => () => {
+    const lc = launcherCfg || {};
+    return Number.isFinite(lc[key]) ? lc[key] : d;
+  };
+  const row = (title, key, min, presets) => addAdjRow(host, {
+    title, sub: '（100 = 原样）', min, max: 200, step: 5, presets,
+    fmt: (v) => `${v}%`, get: get(key, 100), set: set(key),
+  });
+  addAdjRow(host, {
+    title: '倒影强度', sub: '（0 = 几乎看不见，100 = 与图标等亮）',
+    min: 0, max: 100, step: 5, presets: [0, 30, 50, 80, 100],
+    fmt: (v) => `${v}%`, get: get('mirrorOpacity', 30), set: set('mirrorOpacity'),
+  });
+  row('转盘亮度', 'brightness', 20, [60, 80, 100, 120, 160]);
+  row('转盘对比度', 'contrast', 20, [60, 80, 100, 120, 160]);
+  row('转盘饱和度', 'saturate', 0, [0, 50, 100, 150, 200]);
+  row('转盘不透明度', 'opacity', 20, [40, 70, 100]);
 }
 
 function bindLauncherSettings() {
@@ -1759,6 +2032,14 @@ function bindLauncherSettings() {
     launcherCfg.autoCollapse = e.target.checked;
     window.api.updateLauncherConfig({ autoCollapse: e.target.checked });
   });
+  $$('#lc-collect button').forEach(b => b.addEventListener('click', () => {
+    launcherCfg.collectMode = b.dataset.collect;
+    window.api.updateLauncherConfig({ collectMode: b.dataset.collect });
+    $$('#lc-collect button').forEach(x => x.classList.toggle('active', x === b));
+    toast(b.dataset.collect === 'hide'
+      ? '已切换为「隐藏到壁纸后」：文件留在原地，恢复后回到原位'
+      : '已切换为「移动到收纳目录」：文件由程序保管');
+  }));
   $$('#lc-orient button').forEach(b => {
     b.addEventListener('click', async () => {
       $$('#lc-orient button').forEach(x => x.classList.toggle('active', x === b));
@@ -1796,6 +2077,11 @@ function bindLauncherSettings() {
     launcherCfg.edgeFade = e.target.checked;
     window.api.updateLauncherConfig({ edgeFade: e.target.checked });
   });
+  $('#lc-mirror').addEventListener('change', (e) => {
+    launcherCfg.mirror = e.target.checked;
+    window.api.updateLauncherConfig({ mirror: e.target.checked });
+  });
+  buildLcAdj($('#lc-adj'));
   $('#btn-lc-add').addEventListener('click', async () => {
     const res = await window.api.addLauncherShortcuts();
     if (res?.added) toast(`已添加 ${res.added} 个快捷方式`);
@@ -1858,8 +2144,10 @@ async function renderFileboxSettings() {
   const fbColsNum = $('#fb-cols-num');
   if (document.activeElement !== fbColsNum) fbColsNum.value = fb.gridCols || 5;
   $$('#fb-groupby button').forEach(b => b.classList.toggle('active', b.dataset.groupby === (fb.groupBy || 'kind')));
+  $$('#fb-style button').forEach(b => b.classList.toggle('active', b.dataset.style === (fb.style || 'frosted')));
   $$('#fb-bgop button').forEach(b => b.classList.toggle('active', Math.abs(+b.dataset.op - (fb.bgOpacity ?? 0.32)) < 0.01));
   $('#fb-autoidle').checked = fb.autoIdle !== false;
+  $('#fb-mirror').checked = fb.mirror !== false;
   syncFbGrid();
 
   const list = $('#fb-list');
@@ -1914,6 +2202,32 @@ function syncFbGrid() {
     b.classList.toggle('active', !!fileboxCfg && fileboxCfg.grid === b.dataset.cell));
 }
 
+/** 文件收纳区调色五行：固定调节点 + 滑杆 + 自由输入（100 = 原样） */
+function buildFbAdj(host) {
+  host.innerHTML = '';
+  const set = (key) => (v) => {
+    fileboxCfg = { ...(fileboxCfg || {}), [key]: v };
+    window.api.updateFileboxConfig({ [key]: v });
+  };
+  const get = (key, d) => () => {
+    const fb = fileboxCfg || {};
+    return Number.isFinite(fb[key]) ? fb[key] : d;
+  };
+  const row = (title, key, min, presets) => addAdjRow(host, {
+    title, sub: '（100 = 原样）', min, max: 200, step: 5, presets,
+    fmt: (v) => `${v}%`, get: get(key, 100), set: set(key),
+  });
+  addAdjRow(host, {
+    title: '倒影强度', sub: '（0 = 几乎看不见，100 = 与面板等亮）',
+    min: 0, max: 100, step: 5, presets: [0, 25, 45, 75, 100],
+    fmt: (v) => `${v}%`, get: get('mirrorOpacity', 25), set: set('mirrorOpacity'),
+  });
+  row('收纳区亮度', 'brightness', 20, [60, 80, 100, 120, 160]);
+  row('收纳区对比度', 'contrast', 20, [60, 80, 100, 120, 160]);
+  row('收纳区饱和度', 'saturate', 0, [0, 50, 100, 150, 200]);
+  row('收纳区不透明度', 'opacity', 20, [40, 70, 100]);
+}
+
 function bindFileboxSettings() {
   $('#fb-enabled').addEventListener('change', async (e) => {
     await window.api.updateFileboxConfig({ enabled: e.target.checked });
@@ -1941,6 +2255,13 @@ function bindFileboxSettings() {
       await window.api.updateFileboxConfig({ groupBy: b.dataset.groupby });
     });
   });
+  $$('#fb-style button').forEach(b => {
+    b.addEventListener('click', async () => {
+      $$('#fb-style button').forEach(x => x.classList.toggle('active', x === b));
+      fileboxCfg.style = b.dataset.style;
+      await window.api.updateFileboxConfig({ style: b.dataset.style });
+    });
+  });
   $$('#fb-bgop button').forEach(b => {
     b.addEventListener('click', async () => {
       $$('#fb-bgop button').forEach(x => x.classList.toggle('active', x === b));
@@ -1952,6 +2273,11 @@ function bindFileboxSettings() {
     fileboxCfg.autoIdle = e.target.checked;
     window.api.updateFileboxConfig({ autoIdle: e.target.checked });
   });
+  $('#fb-mirror').addEventListener('change', (e) => {
+    fileboxCfg.mirror = e.target.checked;
+    window.api.updateFileboxConfig({ mirror: e.target.checked });
+  });
+  buildFbAdj($('#fb-adj'));
   $('#btn-fb-adjust').addEventListener('click', async () => {
     const res = await window.api.setFileboxAdjust(!fbAdjusting);
     if (!res && !fbAdjusting) toast('文件收纳区未启用，无法调整位置', 'error');
@@ -2037,6 +2363,67 @@ function renderSites() {
 }
 
 // ---------- 设置页 ----------
+// ---------- 通用「固定调节点 + 滑杆 + 自由输入」调节行 ----------
+// 性能档位高级项、组件/音律/转盘/收纳区的亮度·透明度·对比度·饱和度等十几行调节
+// 全部复用它（模板取自 bindAvSlider + renderPresetRow），避免逐处复制。
+const ADJ_ROWS = [];
+
+/**
+ * 生成并绑定一行调节行（switch-row + preset-row）。
+ * @param {HTMLElement} host 容器
+ * @param {object} o { title, sub, min, max, step, presets, fmt, get(), set(v) }
+ * @returns {HTMLElement} 行元素
+ */
+function addAdjRow(host, o) {
+  const id = `adj-${Math.random().toString(36).slice(2, 8)}`;
+  const row = document.createElement('div');
+  row.className = 'switch-row';
+  row.innerHTML = `
+    <div>
+      <div class="row-title">${o.title} <span class="title-hint" id="${id}-val"></span></div>
+      <div class="row-sub"><input type="number" id="${id}-num" min="${o.min}" max="${o.max}" step="${o.step}" style="width:64px"> ${o.sub || ''}</div>
+    </div>
+    <input type="range" id="${id}" min="${o.min}" max="${o.max}" step="${o.step}" style="width:150px">`;
+  const pre = document.createElement('div');
+  pre.className = 'preset-row';
+  host.append(row, pre);
+  const slider = row.querySelector(`#${id}`);
+  const num = row.querySelector(`#${id}-num`);
+  const val = row.querySelector(`#${id}-val`);
+  const fmt = o.fmt || ((v) => String(v));
+  const paint = (v) => {
+    slider.value = v;
+    if (document.activeElement !== num) num.value = v;
+    val.textContent = fmt(v);
+    highlightPresetRow(pre, v);
+  };
+  const apply = (raw) => {
+    let v = parseFloat(raw);
+    if (!Number.isFinite(v)) return;
+    v = Math.min(o.max, Math.max(o.min, v));
+    slider.value = v; num.value = v; val.textContent = fmt(v);
+    highlightPresetRow(pre, v);
+    o.set(v);
+  };
+  slider.addEventListener('input', (e) => apply(e.target.value));
+  num.addEventListener('change', (e) => apply(e.target.value));
+  num.addEventListener('keydown', (e) => { if (e.key === 'Enter') { apply(e.target.value); e.target.blur(); } });
+  if (o.presets) renderPresetRow(pre, o.presets, (v) => apply(v));
+  row._adjSync = () => paint(o.get());
+  row._adjSync();
+  ADJ_ROWS.push(row);
+  return row;
+}
+
+/** 配置被主进程回写（settings:sync）后刷新所有仍挂在文档上的调节行 */
+function syncAdjRows() {
+  for (let i = ADJ_ROWS.length - 1; i >= 0; i--) {
+    const r = ADJ_ROWS[i];
+    if (!r.isConnected) { ADJ_ROWS.splice(i, 1); continue; }
+    try { r._adjSync(); } catch (_) {}
+  }
+}
+
 function renderSettingsPage() {
   $('#set-autostart').checked = !!state.settings.autoStart;
   $('#set-fs-pause').checked = state.settings.performance?.fullscreenPause !== false;
@@ -2044,6 +2431,8 @@ function renderSettingsPage() {
   $('#set-max-pause').checked = state.settings.performance?.maximizedPause === true;
   $('#set-hotkey').checked = state.settings.hotkeyPause !== false;
   $('#set-smooth-loop').checked = state.settings.smoothLoop !== false;
+  buildPerfAdv($('#perf-adv'));
+  syncPerfTierUi();
 }
 
 function bindSettings() {
@@ -2081,6 +2470,153 @@ function bindSettings() {
     toast('已恢复默认锁屏');
     refreshLockScreenDetail();
   });
+  bindPerfCard();
+}
+
+// ---------- 性能档位（省电/均衡/性能）+ 高级细分 ----------
+const PERF_TIERS = {
+  eco:         { avFps: 24, statsInterval: 2000, hwdec: 'auto-copy', videoFpsCap: 30, videoResCap: '720p',   videoCacheMb: 48 },
+  balanced:    { avFps: 30, statsInterval: 1000, hwdec: 'auto-safe', videoFpsCap: 0,  videoResCap: '1080p',  videoCacheMb: 128 },
+  performance: { avFps: 60, statsInterval: 500,  hwdec: 'auto',      videoFpsCap: 0,  videoResCap: 'source', videoCacheMb: 128 },
+};
+const TIER_LABEL = { eco: '省电', balanced: '均衡', performance: '性能' };
+
+const perfNow = () => ({ ...(state.settings?.performance || {}) });
+
+/**
+ * 写性能补丁。默认视为「手改细分项」→ tier 置 null 取消档位高亮；
+ * 点三档按钮时传 keepTier 并带上该档全部字段。
+ */
+function savePerf(patch, { keepTier = false, tier = null } = {}) {
+  if (!state.settings) return;
+  const perf = { ...perfNow(), ...patch };
+  perf.tier = keepTier ? tier : null;
+  const extra = {};
+  // 档位里的音律帧率要同步到 audioViz.fps（widgets 窗读的是 audioViz）
+  if (patch.avFps !== undefined) {
+    extra.audioViz = { ...(state.settings.audioViz || {}), fps: patch.avFps };
+    state.settings.audioViz = extra.audioViz;
+  }
+  state.settings.performance = perf;
+  window.api.updateSettings({ performance: perf, ...extra });
+  syncPerfTierUi();
+}
+
+/** 枚举型调节行（.seg），供 hwdec / 分辨率天花板等使用 */
+function addSegRow(host, o) {
+  const row = document.createElement('div');
+  row.className = 'switch-row';
+  row.innerHTML = `
+    <div>
+      <div class="row-title">${o.title}</div>
+      <div class="row-sub">${o.sub || ''}</div>
+    </div>
+    <div class="seg" style="flex-wrap:wrap; max-width:300px; justify-content:flex-end"></div>`;
+  const seg = row.querySelector('.seg');
+  for (const [val, label] of o.options) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.dataset.val = String(val);
+    b.addEventListener('click', () => o.set(val));
+    seg.appendChild(b);
+  }
+  row._adjSync = () => {
+    const cur = String(o.get());
+    seg.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.val === cur));
+  };
+  row._adjSync();
+  host.appendChild(row);
+  ADJ_ROWS.push(row);
+  return row;
+}
+
+function buildPerfAdv(host) {
+  host.innerHTML = '';
+  addAdjRow(host, {
+    title: '音律动效帧率', sub: '（0 = 跟随显示器刷新率）',
+    min: 0, max: 60, step: 1, presets: [15, 24, 30, 60, 0],
+    fmt: (v) => (v > 0 ? `${v} fps` : '不限'),
+    get: () => perfNow().avFps ?? 30,
+    set: (v) => savePerf({ avFps: v }),
+  });
+  addAdjRow(host, {
+    title: '组件刷新间隔', sub: 'CPU/GPU/内存/网速数据采集周期',
+    min: 250, max: 10000, step: 250, presets: [500, 1000, 2000, 5000],
+    fmt: (v) => (v >= 1000 ? `${v / 1000}s` : `${v}ms`),
+    get: () => perfNow().statsInterval ?? 1000,
+    set: (v) => savePerf({ statsInterval: v }),
+  });
+  addSegRow(host, {
+    title: '视频 GPU 解码', sub: 'auto-safe 只允许零拷贝白名单；auto 允许一切硬解；no = 纯 CPU',
+    options: [['auto-safe', 'auto-safe'], ['auto', 'auto'], ['auto-copy', 'auto-copy'], ['no', 'no']],
+    get: () => perfNow().hwdec ?? 'auto-safe',
+    set: (v) => savePerf({ hwdec: v }),
+  });
+  addAdjRow(host, {
+    title: '视频帧率上限', sub: '（0 = 不限；改动会重启视频引擎）',
+    min: 0, max: 144, step: 1, presets: [0, 30, 60],
+    fmt: (v) => (v > 0 ? `${v} fps` : '不限'),
+    get: () => perfNow().videoFpsCap ?? 0,
+    set: (v) => savePerf({ videoFpsCap: v }),
+  });
+  addSegRow(host, {
+    title: '视频分辨率天花板', sub: '与每张壁纸自己的「渲染分辨率」取更严格者，只往下压不顶掉手选值',
+    options: [['source', '原始'], ['1080p', '1080p'], ['720p', '720p'], ['480p', '480p']],
+    get: () => perfNow().videoResCap ?? '1080p',
+    set: (v) => savePerf({ videoResCap: v }),
+  });
+  addAdjRow(host, {
+    title: '视频解码缓存', sub: '（平滑循环开双槽时实际占用 ×2）',
+    min: 16, max: 512, step: 16, presets: [48, 128, 256],
+    fmt: (v) => `${v} MiB`,
+    get: () => perfNow().videoCacheMb ?? 128,
+    set: (v) => savePerf({ videoCacheMb: v }),
+  });
+}
+
+function syncPerfTierUi() {
+  const perf = perfNow();
+  $$('#perf-tier button').forEach((b) => {
+    const t = PERF_TIERS[b.dataset.tier];
+    const match = t && Object.entries(t).every(([k, v]) => perf[k] === v);
+    b.classList.toggle('active', !!match && perf.tier === b.dataset.tier);
+  });
+  const gpu = $('#set-gpu-accel');
+  if (gpu) gpu.checked = perf.gpuAccel !== false;
+  syncAdjRows();
+}
+
+function bindPerfCard() {
+  $$('#perf-tier button').forEach((b) => {
+    b.addEventListener('click', () => {
+      const t = PERF_TIERS[b.dataset.tier];
+      if (!t) return;
+      savePerf({ ...t }, { keepTier: true, tier: b.dataset.tier });
+      toast(`已切换到「${TIER_LABEL[b.dataset.tier]}」档`);
+    });
+  });
+  const gpu = $('#set-gpu-accel');
+  if (gpu) {
+    gpu.addEventListener('change', (e) => {
+      savePerf({ gpuAccel: e.target.checked }, { keepTier: true, tier: perfNow().tier ?? null });
+      showRestartBanner({ gpuAccel: e.target.checked, auto: false });
+    });
+  }
+  $('#btn-perf-relaunch').addEventListener('click', () => window.api.relaunchApp());
+  // 高级细分行需要 state.settings，构建放在 renderSettingsPage()
+}
+
+/** 硬件加速等「app ready 前才生效」的设置改动后提示重启 */
+function showRestartBanner(info) {
+  const card = $('#perf-restart-card');
+  if (!card) return;
+  card.classList.remove('hidden');
+  const sub = $('#perf-restart-sub');
+  if (sub) {
+    sub.textContent = info && info.auto
+      ? '检测到 GPU 进程反复崩溃，已自动改为软件渲染以保证稳定 —— 重启后生效'
+      : `硬件加速已改为「${info?.gpuAccel ? '开启' : '关闭'}」，该设置只在启动时生效 —— 重启后生效`;
+  }
 }
 
 // ---------- mpv 状态 ----------
@@ -2391,12 +2927,22 @@ function toast(msg, type = '') {
 }
 
 // ---------- 启动 ----------
-document.addEventListener('DOMContentLoaded', () => {
-  init();
-  bindRotation();
-  bindSettings();
-  bindWidgetsSettings(); // ★ v1.6.0 遗漏：组件设置页开关从未绑定 → 点总开关无任何效果
-  bindLauncherSettings();
-  bindFileboxSettings();
-  bindAudioVizSettings();
+/**
+ * 单个设置卡片的绑定失败不应连带后面所有 bind 一起跳过 ——
+ * v1.8.4「窗口可见但全区域点击无响应」正是这个连带效应，这里隔离并大声报错。
+ */
+function safeBind(name, fn) {
+  try { fn(); } catch (e) { console.error(`[bind] ${name} 失败:`, e && e.message); }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // 必须等 init() 拿到 settings 再绑定：多处 bind 会立刻构建 UI 并读 state.settings
+  try { await init(); } catch (e) { console.error('[bind] init 失败:', e && e.message); }
+  safeBind('bindRotation', bindRotation);
+  safeBind('bindSettings', bindSettings);
+  safeBind('bindWidgetsSettings', bindWidgetsSettings);
+  safeBind('bindBoardEditor', bindBoardEditor);
+  safeBind('bindLauncherSettings', bindLauncherSettings);
+  safeBind('bindFileboxSettings', bindFileboxSettings);
+  safeBind('bindAudioVizSettings', bindAudioVizSettings);
 });

@@ -6,14 +6,18 @@ contextBridge.exposeInMainWorld('wallpaperHost', {
   onConfig: (cb) => ipcRenderer.on('wallpaper-config', (_e, cfg) => cb(cfg)),
   onStats: (cb) => ipcRenderer.on('wallpaper-stats', (_e, s) => cb(s)),   // {cpu,gpu,mem,volume,mute}
   onAdjust: (cb) => ipcRenderer.on('widgets:adjust-mode', (_e, v) => cb(v)), // {on} 调整模式开关
+  onWeather: (cb) => ipcRenderer.on('wallpaper-weather', (_e, w) => cb(w)), // 看板天气（主进程 30min 刷新）
+  onPerfPause: (cb) => ipcRenderer.on('aviz:perf-pause', (_e, v) => cb(v)), // {on} 上层有最大化/全屏窗口
   // 页面 → 主进程
   // ★ ready：渲染页加载完、IPC 监听器已注册后主动通知主进程（launcher 同款双保险时序，
   //   防止主进程早发的配置丢失 → cfg=null → 组件不渲染）
   ready: () => ipcRenderer.send('wallpaper-widgets-ready'),
   reportRects: (rects) => ipcRenderer.send('wallpaper-report-rects', rects),
   setInteracting: (v) => ipcRenderer.send('wallpaper-set-interacting', v),
-  setVolume: (v) => ipcRenderer.send('wallpaper-set-volume', v),
-  toggleMute: () => ipcRenderer.send('wallpaper-toggle-mute'),
+  // 音量组件 = 系统主音量（默认播放设备），与壁纸自身音量是两条独立通道
+  setSysVolume: (v) => ipcRenderer.send('wallpaper-set-sys-volume', v),
+  toggleSysMute: () => ipcRenderer.send('wallpaper-toggle-sys-mute'),
+  toggleTodo: (id) => ipcRenderer.send('wallpaper-board-todo', id),
   reportAvStatus: (s) => ipcRenderer.send('wallpaper-av-status', s),
   // 拖动 = 移动整个窗口（主进程实现，launcher 同款 grabOff 方案）
   dragStart: () => ipcRenderer.send('wallpaper-drag-start'),

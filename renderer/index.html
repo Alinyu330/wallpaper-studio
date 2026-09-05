@@ -188,7 +188,7 @@
           <label class="switch-row">
             <div>
               <div class="row-title">启用桌面组件</div>
-              <div class="row-sub">在壁纸上叠加时钟、CPU/GPU 占用率、音量等小组件，自由搭配</div>
+              <div class="row-sub">在壁纸上叠加时钟、音量、系统状态监控、信息看板等小组件，自由搭配</div>
             </div>
             <span class="switch"><input type="checkbox" id="wg-enabled"><i></i></span>
           </label>
@@ -211,9 +211,92 @@
             <input type="range" id="wg-opacity" min="20" max="100" step="5" style="width:140px">
           </div>
           <div class="preset-row" id="wg-opacity-presets"></div>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">组件样式</div>
+              <div class="row-sub">毛玻璃 / 液态玻璃在组件后加一层模糊玻璃；无底色为最初的极简融入壁纸观感</div>
+            </div>
+            <div class="seg" id="wg-style">
+              <button data-style="none">无底色</button>
+              <button data-style="frosted">毛玻璃</button>
+              <button data-style="liquid">液态玻璃</button>
+            </div>
+          </div>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">组件形状</div>
+              <div class="row-sub">玻璃背景层的圆角形状</div>
+            </div>
+            <div class="seg" id="wg-shape">
+              <button data-shape="rounded">圆角</button>
+              <button data-shape="pill">胶囊</button>
+              <button data-shape="circle">圆形</button>
+              <button data-shape="square">方</button>
+            </div>
+          </div>
+          <div id="wg-adj"></div>
         </div>
         <div id="wg-items"></div>
-        <p class="hint">组件显示在壁纸之上、桌面图标之下，视频壁纸同样可见。时钟点击可切换 12/24 小时制；音量组件支持在桌面直接拖动调节、点击图标静音。位置选择九宫格对应屏幕九个区域；需要微调摆放时，点组件卡片上的「调整位置」按钮，然后在桌面上按住组件直接拖动，松开即保存。</p>
+        <div class="settings-card" id="bd-card">
+          <div class="card-title">信息看板内容</div>
+          <label class="switch-row">
+            <div>
+              <div class="row-title">日历块</div>
+              <div class="row-sub">今日日期 + 未来日程 + 纪念日倒计时（按每年重复计算）</div>
+            </div>
+            <span class="switch"><input type="checkbox" id="bd-sec-calendar"><i></i></span>
+          </label>
+          <label class="switch-row">
+            <div>
+              <div class="row-title">天气块</div>
+              <div class="row-sub">实时 + 逐时 + 七日预报（Open-Meteo，30 分钟自动刷新，离线用缓存）</div>
+            </div>
+            <span class="switch"><input type="checkbox" id="bd-sec-weather"><i></i></span>
+          </label>
+          <label class="switch-row">
+            <div>
+              <div class="row-title">待办块</div>
+              <div class="row-sub">在桌面上直接点勾选框即可打勾，客户端列表同步</div>
+            </div>
+            <span class="switch"><input type="checkbox" id="bd-sec-todo"><i></i></span>
+          </label>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">天气城市</div>
+              <div class="row-sub" id="bd-city-now"></div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:6px; align-items:stretch; min-width:220px">
+              <input type="text" id="bd-city-q" placeholder="搜索城市：苏州 / Suzhou" style="width:100%">
+              <div class="lc-list" id="bd-city-list" style="max-height:132px"></div>
+            </div>
+          </div>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">添加日程 / 纪念日</div>
+              <div class="row-sub">纪念日勾选后按每年重复显示「还有 N 天」</div>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-end">
+              <input type="text" id="bd-ev-text" placeholder="文本" style="width:130px">
+              <input type="date" id="bd-ev-date">
+              <label style="font-size:12px; display:flex; gap:4px; align-items:center"><input type="checkbox" id="bd-ev-ann">纪念日</label>
+              <button class="btn ghost small" id="bd-ev-add">添加</button>
+            </div>
+          </div>
+          <div class="lc-list" id="bd-ev-list" style="max-height:180px"></div>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">添加待办</div>
+              <div class="row-sub"></div>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center; justify-content:flex-end">
+              <input type="text" id="bd-todo-text" placeholder="待办内容" style="width:170px">
+              <button class="btn ghost small" id="bd-todo-add">添加</button>
+              <button class="btn ghost small" id="bd-todo-clear">清除已完成</button>
+            </div>
+          </div>
+          <div class="lc-list" id="bd-todo-list" style="max-height:180px"></div>
+        </div>
+        <p class="hint">组件显示在壁纸之上、桌面图标之下，视频壁纸同样可见。时钟点击可切换 12/24 小时制；音量组件在桌面直接拖动即调节系统主音量（等同任务栏音量），点击图标切换系统静音，壁纸自身音量仍在「播放参数」中设置。位置选择九宫格对应屏幕九个区域；需要微调摆放时，点组件卡片上的「调整位置」按钮，然后在桌面上按住组件直接拖动，松开即保存。</p>
       </section>
 
       <!-- 音律动效 -->
@@ -237,7 +320,7 @@
           <div class="switch-row">
             <div>
               <div class="row-title">动效样式</div>
-              <div class="row-sub">频谱条：能量柱 · 波浪：波形曲线 · 圆环：旋转放射环 · 山峦：填充山脉 · 圆点：点阵矩阵 · 同心环：三频同心 · LED块：复古电平块</div>
+              <div class="row-sub">频谱条：能量柱 · 波浪：波形曲线 · 圆环：旋转放射环 · 山峦：填充山脉 · 圆点：点阵矩阵 · 同心环：三频同心 · LED块：复古电平块 · 霓虹：强发光灯管</div>
             </div>
             <div class="seg" id="av-style" style="flex-wrap:wrap; max-width:300px; justify-content:flex-end">
               <button data-style="bars">频谱条</button>
@@ -247,6 +330,7 @@
               <button data-style="dots">圆点</button>
               <button data-style="rings">同心环</button>
               <button data-style="blocks">LED块</button>
+              <button data-style="neon">霓虹</button>
             </div>
           </div>
           <div class="switch-row" id="av-pos-row">
@@ -324,11 +408,30 @@
           <div class="preset-row" id="av-sens-presets"></div>
           <label class="switch-row">
             <div>
-              <div class="row-title">频谱条镜像倒影</div>
-              <div class="row-sub">在基线另一侧绘制低透明度倒影（仅频谱条样式）</div>
+              <div class="row-title">倒影</div>
+              <div class="row-sub">在基线另一侧叠加倒影，对全部动效样式生效；倒影与主体取自同一张发光层，动效变化完整复刻</div>
             </div>
             <span class="switch"><input type="checkbox" id="av-mirror"><i></i></span>
           </label>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">倒影形态</div>
+              <div class="row-sub">渐隐：柔和虚化快速淡出；镜面：清晰锐利、延伸最长；水面：横向波纹扰动，越远越晃</div>
+            </div>
+            <div class="seg" id="av-mirrormode">
+              <button data-mirrormode="fade">渐隐</button>
+              <button data-mirrormode="mirror">镜面</button>
+              <button data-mirrormode="water">水面</button>
+            </div>
+          </div>
+          <label class="switch-row">
+            <div>
+              <div class="row-title">被遮挡时自动暂停</div>
+              <div class="row-sub">有窗口最大化或应用全屏时暂停动效绘制（此时动效层被完全盖住，继续跑只是白耗 GPU/CPU），窗口恢复后自动继续</div>
+            </div>
+            <span class="switch"><input type="checkbox" id="av-occult"><i></i></span>
+          </label>
+          <div id="av-adj"></div>
         </div>
         <p class="hint">动效层与桌面组件同层：显示在壁纸与桌面图标之上、所有程序窗口之下，不影响任何操作。切换输出设备（外放 ⇄ 耳机）会自动跟随重新捕获。静音时频谱自然归零。捕获走系统音频环回（WASAPI loopback），不录制、不回放、不产生声音。</p>
       </section>
@@ -366,6 +469,20 @@
           </label>
           <div class="switch-row">
             <div>
+              <div class="row-title">收纳方式</div>
+              <div class="row-sub">
+                移动到收纳目录：文件真正离开桌面进入程序目录，关闭程序 / 卸载后可一键恢复；恢复后图标位置由资源管理器重排，不保证原位。<br>
+                隐藏到壁纸后：文件留在原地，仅把图标停到屏幕外（肉眼不可见、无法点选 / 框选）；恢复后精确回到原位；依赖资源管理器列表视图，其重启或「自动排列」可能复位（有看门狗自动重新隐藏）。<br>
+                系统图标（回收站 / 此电脑等）没有实体文件，恒走隐藏方式。
+              </div>
+            </div>
+            <div class="seg" id="lc-collect">
+              <button data-collect="box">移动到收纳目录</button>
+              <button data-collect="hide">隐藏到壁纸后</button>
+            </div>
+          </div>
+          <div class="switch-row">
+            <div>
               <div class="row-title">排列方向</div>
               <div class="row-sub">图标横向排成一行，或纵向排成一列；摆放位置用下方「调整位置」自由拖动</div>
             </div>
@@ -374,6 +491,14 @@
               <button data-orient="v">纵向</button>
             </div>
           </div>
+          <label class="switch-row">
+            <div>
+              <div class="row-title">图标镜像倒影</div>
+              <div class="row-sub">在图标远离转盘方向生成渐隐倒影；强度与整体亮度/对比/饱和/不透明度在下方调节</div>
+            </div>
+            <span class="switch"><input type="checkbox" id="lc-mirror"><i></i></span>
+          </label>
+          <div id="lc-adj"></div>
           <div class="switch-row">
             <div>
               <div class="row-title">调整位置</div>
@@ -453,6 +578,17 @@
           </div>
           <div class="switch-row">
             <div>
+              <div class="row-title">面板背景样式</div>
+              <div class="row-sub">与桌面组件同一套玻璃语言：毛玻璃柔和模糊，液态玻璃更厚的模糊 + 高光描边，半透明则不做实时模糊（性能最省）</div>
+            </div>
+            <div class="seg" id="fb-style">
+              <button data-style="frosted">毛玻璃</button>
+              <button data-style="liquid">液态玻璃</button>
+              <button data-style="none">半透明</button>
+            </div>
+          </div>
+          <div class="switch-row">
+            <div>
               <div class="row-title">面板透明度</div>
               <div class="row-sub">收纳区面板底色不透明度（鼠标悬停展开时的清晰度）</div>
             </div>
@@ -465,11 +601,19 @@
           </div>
           <label class="switch-row">
             <div>
-              <div class="row-title">空闲毛玻璃</div>
-              <div class="row-sub">鼠标离开数秒后整体转为半透明毛玻璃（不打扰壁纸观看，与壁纸协调）</div>
+              <div class="row-title">空闲自动收起</div>
+              <div class="row-sub">鼠标离开后先转为半透明毛玻璃，再收缩为单个文件图标；悬停自动展开，点击图标弹出收纳的文件 / 文件夹</div>
             </div>
             <span class="switch"><input type="checkbox" id="fb-autoidle"><i></i></span>
           </label>
+          <label class="switch-row">
+            <div>
+              <div class="row-title">面板镜像倒影</div>
+              <div class="row-sub">在面板下方生成渐隐倒影；强度与整体亮度/对比/饱和/不透明度在下方调节</div>
+            </div>
+            <span class="switch"><input type="checkbox" id="fb-mirror"><i></i></span>
+          </label>
+          <div id="fb-adj"></div>
           <div class="switch-row">
             <div>
               <div class="row-title">调整位置</div>
@@ -522,8 +666,36 @@
             <span class="switch"><input type="checkbox" id="set-autostart"><i></i></span>
           </label>
         </div>
+        <div class="settings-card hidden" id="perf-restart-card">
+          <div class="switch-row">
+            <div>
+              <div class="row-title">需要重启以生效</div>
+              <div class="row-sub" id="perf-restart-sub"></div>
+            </div>
+            <button class="btn primary small" id="btn-perf-relaunch">立即重启</button>
+          </div>
+        </div>
         <div class="settings-card">
           <div class="card-title">性能优化</div>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">性能档位</div>
+              <div class="row-sub">一键设定音律帧率 / 组件刷新间隔 / 硬解模式 / 视频帧率上限与解码缓存；下方细分项可单独微调，微调后档位高亮取消</div>
+            </div>
+            <div class="seg" id="perf-tier">
+              <button data-tier="eco">省电</button>
+              <button data-tier="balanced">均衡</button>
+              <button data-tier="performance">性能</button>
+            </div>
+          </div>
+          <label class="switch-row">
+            <div>
+              <div class="row-title">Chromium 硬件加速</div>
+              <div class="row-sub">界面与桌面组件窗口的 GPU 合成；关闭后回退软件渲染（驱动异常的老显卡更稳）。<b>改动需重启应用</b></div>
+            </div>
+            <span class="switch"><input type="checkbox" id="set-gpu-accel"><i></i></span>
+          </label>
+          <div id="perf-adv"></div>
           <label class="switch-row">
             <div>
               <div class="row-title">全屏应用时自动暂停</div>
@@ -552,7 +724,7 @@
           <label class="switch-row">
             <div>
               <div class="row-title">平滑循环过渡</div>
-              <div class="row-sub">视频循环交界处新画面柔和淡入覆盖（亮度恒定、无黑变无重影），消除画面跳变（多占用约 60MB 内存）</div>
+              <div class="row-sub">开启：视频循环交界处新画面柔和淡入覆盖（亮度恒定、无黑变无重影），消除画面跳变（多占用约 60MB 内存）。关闭：改为硬切循环（画面直接跳回开头，但不会停播）</div>
             </div>
             <span class="switch"><input type="checkbox" id="set-smooth-loop"><i></i></span>
           </label>
