@@ -1050,6 +1050,7 @@ const SYSTEM_ICON_CLSIDS = {
   thispc: '{20D04FE0-3AEA-1069-A2D8-08002B30309D}',
   network: '{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}',
   control: '{5399E694-6CE5-4D6C-8FCE-1D8870FDCBA0}',
+  userfiles: '{59031A47-3F72-44A7-89C5-5595FE6B30EE}',
 };
 const HIDE_ICONS_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\HideDesktopIcons\\NewStartPanel';
 

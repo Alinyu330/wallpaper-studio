@@ -122,6 +122,24 @@
     .bd-todo.done .box { background: rgba(124,92,255,.9); border-color: transparent; }
     .bd-todo.done .tx { text-decoration: line-through; opacity: .5; }
     .bd-stale { font-size: 9.5px; opacity: .5; letter-spacing: .5px; }
+    /* —— 看板桌面编辑：悬停 ✕ 删除、＋ 行添加、城市名点开搜索 —— */
+    .bd-del { flex: none; opacity: 0; cursor: pointer; font-size: 10.5px; line-height: 1.2; padding: 0 4px; border-radius: 4px; transition: opacity .12s; }
+    .bd-todo:hover .bd-del, .bd-line:hover .bd-del { opacity: .7; }
+    .bd-del:hover { opacity: 1; }
+    .bd-add { font-size: 10.5px; opacity: .5; cursor: pointer; padding: 2px 0 0; letter-spacing: .5px; }
+    .bd-add:hover { opacity: .95; }
+    .bd-city { cursor: pointer; border-bottom: 1px dotted currentColor; }
+    .bd-inrow { display: flex; gap: 4px; align-items: center; margin-top: 3px; }
+    .bd-input { min-width: 0; flex: 1; background: rgba(255,255,255,.12); color: inherit; border: 1px solid rgba(255,255,255,.35); border-radius: 6px; font-size: 11px; font-family: inherit; padding: 2px 6px; outline: none; }
+    .bd-input::placeholder { color: inherit; opacity: .45; }
+    body.theme-light .bd-input { background: rgba(0,0,0,.06); border-color: rgba(0,0,0,.3); }
+    .bd-inrow .fixed { flex: none; width: 78px; }
+    .bd-ann { flex: none; cursor: pointer; font-size: 11px; opacity: .4; user-select: none; }
+    .bd-ann.on { opacity: 1; }
+    .bd-citylist { margin-top: 3px; }
+    .bd-ci { font-size: 11px; padding: 2px 5px; margin: 1px 0; cursor: pointer; border-radius: 4px; opacity: .85; }
+    .bd-ci:hover { background: rgba(255,255,255,.16); }
+    body.theme-light .bd-ci:hover { background: rgba(0,0,0,.1); }
 
     /* ---------- 音律动效（独立小窗：画布填满窗口） ---------- */
     #av-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: none; }
@@ -323,13 +341,14 @@
     };
 
     function buildBoard() {
+      if (editing) return;               // 编辑中不整树重建，避免输入框被打掉
       weather = (cfg && cfg.weather) || weather;
       const b = (cfg && cfg.board) || {};
       const s = b.sections || {};
       let html = '';
-      if (s.calendar !== false) html += '<div class="bd-head">日历</div><div class="bd-date" id="bd-date"></div><div id="bd-ev"></div>';
+      if (s.calendar !== false) html += '<div class="bd-head">日历</div><div class="bd-date" id="bd-date"></div><div id="bd-ev"></div><div class="bd-add" id="bd-add-ev">＋ 添加日程 / 纪念日</div>';
       if (s.weather !== false) html += '<div class="bd-head">天气 <span class="bd-stale" id="bd-stale"></span></div><div id="bd-wx"></div>';
-      if (s.todo !== false) html += '<div class="bd-head">待办</div><div id="bd-todo"></div>';
+      if (s.todo !== false) html += '<div class="bd-head">待办</div><div id="bd-todo"></div><div class="bd-add" id="bd-add-todo">＋ 添加待办</div>';
       root.innerHTML = html || '<div class="bd-head">看板三块内容均已关闭</div>';
       renderBoard();
     }
@@ -337,7 +356,7 @@
     function renderBoard() {
       const b = (cfg && cfg.board) || {};
       const s = b.sections || {};
-      if (s.calendar !== false) {
+      if (s.calendar !== false && !(editing && editing.kind === 'event')) {
         const d = new Date();
         const week = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
         const de = document.getElementById('bd-date');
@@ -356,12 +375,12 @@
             .sort((x, y) => x.n - y.n)
             .slice(0, 3);
           let html = '';
-          for (const e of rows) html += `<div class="bd-line"><span class="t">${esc(String(e.date || '').slice(5).replace('-', '/'))}</span><span class="x">${esc(e.text)}</span></div>`;
-          for (const { e, n } of ans) html += `<div class="bd-line"><span class="t">🎂</span><span class="x">${esc(e.text)}</span><span class="d">${n === 0 ? '今天' : `还有 ${n} 天`}</span></div>`;
+          for (const e of rows) html += `<div class="bd-line"><span class="t">${esc(String(e.date || '').slice(5).replace('-', '/'))}</span><span class="x">${esc(e.text)}</span><span class="bd-del" data-del-ev="${esc(e.id)}">✕</span></div>`;
+          for (const { e, n } of ans) html += `<div class="bd-line"><span class="t">🎂</span><span class="x">${esc(e.text)}</span><span class="d">${n === 0 ? '今天' : `还有 ${n} 天`}</span><span class="bd-del" data-del-ev="${esc(e.id)}">✕</span></div>`;
           ev.innerHTML = html || '<div class="bd-line"><span class="x" style="opacity:.5">暂无日程 / 纪念日</span></div>';
         }
       }
-      if (s.weather !== false) {
+      if (s.weather !== false && !(editing && editing.kind === 'city')) {
         const st = document.getElementById('bd-stale');
         if (st) st.textContent = weather && weather.stale ? '· 缓存' : '';
         const wx = document.getElementById('bd-wx');
@@ -371,7 +390,7 @@
           } else {
             const c = weather.current;
             let html = `<div class="bd-wx"><span class="tmp">${c.temp ?? '--'}°</span>` +
-              `<span class="meta">${c.emoji} ${esc(c.label)} · 体感 ${c.feels ?? '--'}° · 湿 ${c.humidity ?? '--'}% · 风 ${c.wind ?? '--'}km/h</span></div>`;
+              `<span class="meta"><span class="bd-city" id="bd-city" title="点击更换城市">${esc(weather.city || '')}</span> · ${c.emoji} ${esc(c.label)} · 体感 ${c.feels ?? '--'}°</span></div>`;
             if ((weather.hourly || []).length) {
               html += '<div class="bd-hours">' + weather.hourly.slice(0, 6).map((h) =>
                 `<div><div>${esc(h.t)}</div><div class="e">${h.emoji}</div><div>${h.temp ?? '--'}°</div></div>`).join('') + '</div>';
@@ -384,21 +403,184 @@
           }
         }
       }
-      if (s.todo !== false) {
+      if (s.todo !== false && !(editing && editing.kind === 'todo')) {
         const td = document.getElementById('bd-todo');
         if (td) {
           const todos = (b.todos || []).slice(0, b.rows?.todo ?? 6);
           td.innerHTML = todos.length
-            ? todos.map((t) => `<div class="bd-todo${t.done ? ' done' : ''}" data-id="${esc(t.id)}"><span class="box"></span><span class="tx">${esc(t.text)}</span></div>`).join('')
+            ? todos.map((t) => `<div class="bd-todo${t.done ? ' done' : ''}" data-id="${esc(t.id)}"><span class="box"></span><span class="tx">${esc(t.text)}</span><span class="bd-del" data-del-todo="${esc(t.id)}">✕</span></div>`).join('')
             : '<div class="bd-line"><span class="x" style="opacity:.5">暂无待办</span></div>';
           td.querySelectorAll('.bd-todo').forEach((el) => {
-            el.addEventListener('click', () => {
+            el.addEventListener('click', (e) => {
+              if (e.target.closest('[data-del-todo]')) return; // 删除走根委托，不触发勾选
               if (el.dataset.id) window.wallpaperHost.toggleTodo(el.dataset.id);
             });
           });
         }
       }
       scheduleRects(); // 待办行数变化 → 交互矩形要重报
+    }
+
+    // ---------- 看板桌面编辑（新增/删除待办与日程、更换天气城市） ----------
+    let editing = null; // null | {kind:'todo'|'event'|'city', token}
+    let cityTimer = null;
+    let edSeq = 0; // 编辑器令牌：提交回包晚到时只作用于自己那个编辑器
+
+    function editCommit(token, res) {
+      // boardEdit invoke 回包是 {ok, board}；兼容直接传 board 对象
+      const nb = res && res.board ? res.board : res;
+      if (nb) { cfg = { ...(cfg || {}), board: nb }; }
+      if (editing && editing.token !== token) return; // 期间已打开别的编辑器，别把它关掉
+      closeEditor(true);
+    }
+    function closeEditor(keepInteractive) {
+      // 不做 editing 空值守卫：提交的 IPC 回包可能晚于一次意外 close（焦点抖动/
+      // 误触）到达，此时仍必须用回包里的 board 重建，否则新内容不上屏
+      editing = null;
+      if (cityTimer) { clearTimeout(cityTimer); cityTimer = null; }
+      window.wallpaperHost.boardHeight(null);
+      buildBoard();
+      if (!keepInteractive) window.wallpaperHost.setInteracting(false);
+      scheduleRects();
+    }
+    function editKeydown(inp, commit) {
+      inp.addEventListener('keydown', (ev) => {
+        ev.stopPropagation();
+        if (ev.key === 'Enter') commit();
+        else if (ev.key === 'Escape') closeEditor();
+      });
+    }
+
+    function openTodoEditor() {
+      closeEditor(true);
+      editing = { kind: 'todo', token: ++edSeq };
+      const token = editing.token;
+      const add = document.getElementById('bd-add-todo');
+      if (!add) return;
+      add.innerHTML = '<input class="bd-input" placeholder="待办内容，回车添加 · Esc 取消">';
+      const inp = add.querySelector('input');
+      window.wallpaperHost.setInteracting(true);
+      window.wallpaperHost.boardFocus();
+      inp.focus();
+      editKeydown(inp, () => {
+        const v = inp.value.trim();
+        if (!v) { closeEditor(); return; }
+        window.wallpaperHost.boardEdit({ op: 'todo-add', text: v }).then((b) => editCommit(token, b)).catch(() => closeEditor());
+      });
+      scheduleRects();
+    }
+
+    function openEventEditor() {
+      closeEditor(true);
+      editing = { kind: 'event', ann: false, token: ++edSeq };
+      const token = editing.token;
+      const add = document.getElementById('bd-add-ev');
+      if (!add) return;
+      add.innerHTML = '<div class="bd-inrow"><input class="bd-input fixed" placeholder="2026-09-05">' +
+        '<input class="bd-input" placeholder="标题，回车添加">' +
+        '<span class="bd-ann" title="切为纪念日">🎂</span></div>';
+      const [dInp, tInp] = add.querySelectorAll('input');
+      const ann = add.querySelector('.bd-ann');
+      window.wallpaperHost.setInteracting(true);
+      window.wallpaperHost.boardFocus();
+      dInp.focus();
+      ann.addEventListener('click', () => {
+        editing.ann = !editing.ann;
+        ann.classList.toggle('on', editing.ann);
+        tInp.focus();
+      });
+      const commit = () => {
+        const date = dInp.value.trim();
+        const text = tInp.value.trim();
+        if (!text || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+        window.wallpaperHost.boardEdit({ op: 'event-add', text, date, type: editing.ann ? 'anniversary' : 'event' })
+          .then((b) => editCommit(token, b)).catch(() => closeEditor());
+      };
+      editKeydown(dInp, commit);
+      editKeydown(tInp, commit);
+      scheduleRects();
+    }
+
+    function openCityEditor() {
+      closeEditor(true);
+      editing = { kind: 'city', token: ++edSeq };
+      const token = editing.token;
+      const wx = document.getElementById('bd-wx');
+      if (!wx) return;
+      window.wallpaperHost.boardHeight(window.innerHeight + 96);
+      wx.innerHTML = '<input class="bd-input" placeholder="输入城市名搜索，Esc 取消"><div class="bd-citylist"></div>';
+      const inp = wx.querySelector('input');
+      const list = wx.querySelector('.bd-citylist');
+      window.wallpaperHost.setInteracting(true);
+      window.wallpaperHost.boardFocus();
+      inp.focus();
+      editKeydown(inp, () => {});
+      inp.addEventListener('input', () => {
+        const q = inp.value.trim();
+        if (cityTimer) clearTimeout(cityTimer);
+        if (!q) { list.innerHTML = ''; return; }
+        cityTimer = setTimeout(async () => {
+          cityTimer = null;
+          let res = [];
+          try { res = (await window.wallpaperHost.boardGeocode(q)) || []; } catch (_) {}
+          if (!editing || editing.kind !== 'city') return;
+          list.innerHTML = (res || []).slice(0, 6).map((r, i) =>
+            `<div class="bd-ci" data-ci="${i}">${esc(r.name)}</div>`).join('') || '<div class="bd-ci" style="opacity:.5;cursor:default">没有匹配的城市</div>';
+          list.querySelectorAll('[data-ci]').forEach((el) => {
+            el.addEventListener('click', () => {
+              const r = (res || [])[Number(el.dataset.ci)];
+              if (!r) return;
+              window.wallpaperHost.boardEdit({ op: 'city-set', cityName: r.name, lat: r.lat, lon: r.lon, tz: r.tz })
+                .then((b) => editCommit(token, b)).catch(() => closeEditor());
+            });
+          });
+        }, 400);
+      });
+      scheduleRects();
+    }
+
+    // 删除与编辑器入口（根委托；勾选待办已在行监听里排除 ✕）
+    if (PART === 'board') {
+      root.addEventListener('click', (e) => {
+        const dt = e.target.closest('[data-del-todo]');
+        if (dt) {
+          window.wallpaperHost.boardEdit({ op: 'todo-del', id: dt.dataset.delTodo })
+            .then((b) => editCommit(0, b)).catch(() => {});
+          return;
+        }
+        const de = e.target.closest('[data-del-ev]');
+        if (de) {
+          window.wallpaperHost.boardEdit({ op: 'event-del', id: de.dataset.delEv })
+            .then((b) => editCommit(0, b)).catch(() => {});
+          return;
+        }
+        // 点击落在「当前编辑器」内部时交给编辑器自己的监听（输入框/🎂/搜索结果），
+        // 绝不能再走 openXxx 重建 —— 那会清掉已输入的内容（切到另一个编辑器除外）
+        if (editing) {
+          const inEditor = e.target.closest('.bd-inrow') || e.target.closest('.bd-citylist')
+            || (editing.kind === 'city' && e.target.closest('#bd-wx'))
+            || (editing.kind === 'todo' && e.target.closest('#bd-add-todo'))
+            || (editing.kind === 'event' && e.target.closest('#bd-add-ev'));
+          if (inEditor) return;
+        }
+        if (e.target.closest('#bd-add-todo')) { openTodoEditor(); return; }
+        if (e.target.closest('#bd-add-ev')) { openEventEditor(); return; }
+        if (e.target.closest('#bd-city')) { openCityEditor(); return; }
+        // 点在看板其它地方 =「点外面」，收起编辑器（窗口外点击看不到，这是最近似的替代）
+        if (editing) closeEditor();
+      });
+      root.addEventListener('mousedown', () => window.wallpaperHost.setInteracting(true));
+      // 焦点抖动处理：NOACTIVATE 小窗的程序化焦点会被系统随时回收（环境 blur 每
+      // 几秒一次），不能拿 blur 当「用户离开」信号关编辑器 —— 只需重新拉焦点，
+      // 保证打字不中断。真正离开靠 Esc / 点看板其它位置 / 提交成功收尾。
+      window.addEventListener('blur', () => {
+        if (!editing) return;
+        if (closeEditor.refocusTimer) clearTimeout(closeEditor.refocusTimer);
+        closeEditor.refocusTimer = setTimeout(() => {
+          closeEditor.refocusTimer = null;
+          if (editing) window.wallpaperHost.boardFocus();
+        }, 120);
+      });
     }
 
     // ---------- 交互 ----------
@@ -504,8 +686,10 @@
         // 组件窗：上报内容矩形（音量拖动/时钟点击用）；
         // 音律动效与网速监控纯展示不上报 —— 否则会吞掉组件后方桌面图标的点击
         if (PART === 'board') {
-          // 看板只上报待办行（唯一交互目标），外扩 6px 便于命中
-          root.querySelectorAll('.bd-todo').forEach((el) => {
+          // 看板交互目标：待办行 / 含 ✕ 的日程行 / ＋ 添加行 / 城市切换 / 编辑器输入，外扩 6px 便于命中
+          root.querySelectorAll(
+            '.bd-todo, .bd-add, .bd-city, .bd-input, .bd-ann, .bd-ci, .bd-line:has([data-del-ev])'
+          ).forEach((el) => {
             const r = el.getBoundingClientRect();
             if (r.width > 0) rects.push({ x: (r.left - 6) * sf, y: (r.top - 6) * sf, w: (r.width + 12) * sf, h: (r.height + 12) * sf });
           });

@@ -18,6 +18,11 @@ contextBridge.exposeInMainWorld('wallpaperHost', {
   setSysVolume: (v) => ipcRenderer.send('wallpaper-set-sys-volume', v),
   toggleSysMute: () => ipcRenderer.send('wallpaper-toggle-sys-mute'),
   toggleTodo: (id) => ipcRenderer.send('wallpaper-board-todo', id),
+  // 桌面看板编辑：新增/删除待办与日程、切换天气城市（invoke 返回最新 board）
+  boardEdit: (payload) => ipcRenderer.invoke('wallpaper-board-edit', payload),
+  boardGeocode: (q) => ipcRenderer.invoke('wallpaper-board-geocode', q),
+  boardFocus: () => ipcRenderer.send('wallpaper-board-focus'),
+  boardHeight: (h) => ipcRenderer.send('wallpaper-board-height', h),
   reportAvStatus: (s) => ipcRenderer.send('wallpaper-av-status', s),
   // 拖动 = 移动整个窗口（主进程实现，launcher 同款 grabOff 方案）
   dragStart: () => ipcRenderer.send('wallpaper-drag-start'),

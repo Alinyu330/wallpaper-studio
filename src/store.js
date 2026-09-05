@@ -34,6 +34,7 @@ const DEFAULT_CONFIG = {
       },
     },
     lastWindowBounds: null,     // 主窗口位置记忆
+    builtinSeeded: false,       // 内置壁纸是否已入库（防止用户清空库后被反复塞回）
     hotkeyPause: true,          // 全局快捷键 Ctrl+Alt+W 暂停/恢复壁纸
     smoothLoop: true,           // 平滑循环（双引擎淡入覆盖，消除循环交界跳变）
     launcher: {                 // 桌面快捷方式转盘
@@ -46,10 +47,10 @@ const DEFAULT_CONFIG = {
     },
     filebox: {                  // 桌面文件收纳区（从转盘拆分的普通文件/文件夹收纳）
       enabled: false,
-      x: null, y: null, grid: null, // 收纳区窗口位置；grid 九宫格槽位
+      x: null, y: null, grid: 'bl', // 收纳区窗口位置；grid 九宫格槽位（默认左下角）
       gridCols: 5,             // 网格列数（3~12）
       groupBy: 'kind',         // 分类排列：kind 类型分类 / name 名称 / mtime 时间 / manual 手动
-      bgOpacity: 0.32,         // 面板底色不透明度（鼠标悬停展开时）
+      bgOpacity: 0.45,         // 面板底色不透明度（鼠标悬停展开时）
       idleOpacity: 0.28,       // 空闲（鼠标离开）时整体不透明度（毛玻璃态）
       autoIdle: true,          // 空闲自动转半透明毛玻璃
       items: [],               // [{name, path, type:'file'|'folder', originPath?, boxPath?}]
@@ -76,24 +77,24 @@ const DEFAULT_CONFIG = {
       color: '#7c5cff',         // 主色
       gradient: true,           // 渐变色（主色 → 辅色）
       opacity: 0.85,            // 不透明度 0.2~1
-      size: 1,                  // 大小缩放 0.5~2
+      size: 0.6,                // 大小缩放 0.5~2
       pos: 'bottom',            // 垂直预设 bottom / top（圆环忽略，居中）
-      posX: null,               // 手动拖动位置（0~1 屏幕比例；null = 用 pos 预设）
-      posY: null,
+      posX: 0.5,                // 手动拖动位置（0~1 屏幕比例；null = 用 pos 预设）
+      posY: 0.61,
       mirror: true,             // 倒影总开关（频谱条垂直镜像）
-      mirrorMode: 'fade',       // 倒影形态：fade 渐隐 / mirror 镜面（清晰更长）/ water 水面（波纹扰动）
+      mirrorMode: 'mirror',     // 倒影形态：fade 渐隐 / mirror 镜面（清晰更长）/ water 水面（波纹扰动）
       pauseOnOccult: true,      // 有窗口最大化 / 应用全屏时自动暂停动效绘制（被完全遮住，省 GPU）
       sensitivity: 1.2,         // 灵敏度 0.5~3
       fps: 30,                  // 帧率上限（权威源是 performance.avFps，档位变化时同步写入）
       brightness: 100,          // 动效亮度 %（100 = 原样）
       contrast: 100,            // 对比度 %
       saturate: 100,            // 饱和度 %
-      mirrorOpacity: 22,        // 镜像倒影强度 %（倒影与主体同层，自动继承全部调色）
+      mirrorOpacity: 40,        // 镜像倒影强度 %（倒影与主体同层，自动继承全部调色）
     },
     board: {                    // 信息看板内容（几何/开关在 widgets.items.board）
       sections: { calendar: true, weather: true, todo: true }, // 三块各自可关
       rows: { events: 4, todo: 6 },   // 面板最多显示几行，窗口高度按此计算
-      weather: { cityName: '北京', lat: 39.9042, lon: 116.4074, tz: 'Asia/Shanghai' },
+      weather: { cityName: '广州 · 广东 · 中国', lat: 23.11667, lon: 113.25, tz: 'Asia/Shanghai' },
       events: [],               // [{id,text,date:'2026-10-01',type:'event'|'anniversary'}]
       todos: [],                // [{id,text,done}]
     },

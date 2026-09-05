@@ -573,7 +573,13 @@
       if (!dt) return [];
       const out = [];
       try {
-        for (const f of dt.files || []) if (f.path) out.push(f.path);
+        for (const f of dt.files || []) {
+          // Electron ≥32 无 File.path，优先走 preload 的 webUtils 解析
+          let p = '';
+          try { p = H.getPathForFile ? H.getPathForFile(f) : ''; } catch (_) {}
+          if (!p) { try { p = f.path || ''; } catch (_) {} }
+          if (p) out.push(p);
+        }
       } catch (_) {}
       if (!out.length) {
         try {

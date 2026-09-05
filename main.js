@@ -1471,6 +1471,50 @@ function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+/**
+ * 内置壁纸入库：安装包 assets/builtin-wallpapers 里的视频（随 build.files 分发，
+ * asar:false → 开发态与安装态路径一致）。新装用户首次启动（库为空且从未入库过）
+ * 直接登记为库项并把第一个设为当前壁纸 —— 下载装完即有可用壁纸，无需自己找视频。
+ * 老用户（库非空或已入库过）一律不动，绝不覆盖现有库与当前选择。
+ */
+function seedBuiltinWallpapers() {
+  try {
+    if (store.settings.builtinSeeded) return;
+    if ((store.wallpapers || []).length) {
+      store.updateSettings({ builtinSeeded: true });
+      return;
+    }
+    const dir = path.join(__dirname, 'assets', 'builtin-wallpapers');
+    if (!fs.existsSync(dir)) return;
+    const exts = ['.mp4', '.webm', '.mkv', '.mov', '.m4v', '.avi'];
+    const files = fs.readdirSync(dir)
+      .filter((f) => exts.includes(path.extname(f).toLowerCase()))
+      .sort()
+      .reverse(); // addWallpaper 是 unshift，倒序灌入后库里仍是文件名升序
+    if (!files.length) return;
+    const now = Date.now();
+    let first = null;
+    for (let i = files.length - 1; i >= 0; i--) {
+      const wp = store.addWallpaper({
+        id: genId(),
+        name: files[i],
+        path: path.join(dir, files[i]),
+        type: 'video',
+        addedAt: now + i,
+        favorite: false,
+        params: {},
+      });
+      if (!wp) continue;
+      first = first || wp;
+    }
+    if (first) store.setCurrent(first.id, {});
+    store.updateSettings({ builtinSeeded: true });
+    console.log(`[main] 内置壁纸已入库 ${files.length} 个，当前：${first && first.name}`);
+  } catch (e) {
+    console.warn('[main] 内置壁纸入库失败:', e.message);
+  }
+}
+
 // ---------- 应用生命周期 ----------
 // 单实例锁防护（v1.8.3）：仅主实例注册 whenReady 初始化与生命周期事件。
 // 未获锁（第二实例）已在上面 app.quit() —— 若这里仍注册 whenReady，
@@ -1480,6 +1524,7 @@ if (gotLock) {
   app.whenReady().then(() => {
     console.log(`[main] 壁纸工坊引擎启动 v${app.getVersion()} (electron ${process.versions.electron})`);
     store = new Store();
+    seedBuiltinWallpapers();
     // 首帧视频 spawn 前就要拿到档位（hwdec / 帧率上限 / 分辨率天花板 / demuxer 缓存）
     setGlobalPerf(store.settings.performance || {});
     try {
@@ -1512,6 +1557,9 @@ if (gotLock) {
         sysVolume.setMute(next).then((ok) => { if (!ok) pollSysVolume(); });
       },
       onConfigChanged: () => notifyMain('settings:sync', store.settings),
+      // 桌面看板编辑：城市搜索与切换后立刻重拉天气
+      geocodeCity: (q) => { const svc = ensureWeatherService(); return svc ? svc.geocode(q) : Promise.resolve([]); },
+      onWeatherReload: () => { syncWeatherService(); if (weatherService) weatherService.reload(); },
       // 调整模式状态变化 → 主界面按钮复位（拖动落位自动退出时）
       onAdjustState: (key, on) => notifyMain('widgets:adjust-state', { key, on }),
     });

@@ -337,16 +337,17 @@ class WidgetsHost {
       const item = ((this.store.settings.widgets || {}).items || {})[key] || {};
       const k = { s: 0.85, m: 1, l: 1.18 }[item.size] ?? 1;
       const rowH = 22 * k, headH = 20 * k, gap = 10 * k;
+      const addH = 18 * k; // ＋ 添加行（日程/待办常驻，桌面可直接新增）
       let h = 28 * k;
       const w = 300 * k;
       if (s.calendar !== false) {
         const ev = (b.events || []).filter((e) => e.type !== 'anniversary');
         const an = (b.events || []).filter((e) => e.type === 'anniversary');
         h += headH + 30 * k + Math.min(ev.length, b.rows?.events ?? 4) * rowH
-          + Math.min(an.length, 3) * rowH + gap;
+          + Math.min(an.length, 3) * rowH + addH + gap;
       }
       if (s.weather !== false) h += headH + 64 * k + 7 * rowH * 0.9 + gap;
-      if (s.todo !== false) h += headH + Math.min((b.todos || []).length, b.rows?.todo ?? 6) * rowH + gap;
+      if (s.todo !== false) h += headH + Math.min((b.todos || []).length, b.rows?.todo ?? 6) * rowH + addH + gap;
       const wa = screen.getPrimaryDisplay().workArea;
       return {
         w: Math.round(Math.min(420, Math.max(240, w))),
@@ -704,6 +705,81 @@ class WidgetsHost {
       this.store.updateSettings({ board: { ...b, todos } });
       this._pushTo(p); // 幂等回推，确认最终状态
       if (this.hooks.onConfigChanged) this.hooks.onConfigChanged();
+    });
+
+    // 桌面看板编辑：新增/删除待办与日程、切换天气城市（客户端设置页同款数据模型）
+    ipcMain.handle('wallpaper-board-edit', (e, payload) => {
+      const p = partOf(e);
+      if (!p || p.key !== 'board' || !payload || typeof payload !== 'object') return { ok: false };
+      const b = { ...(this.store.settings.board || {}) };
+      const events = [...(b.events || [])];
+      const todos = [...(b.todos || [])];
+      const genId = (c) => `${c}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      switch (payload.op) {
+        case 'todo-add': {
+          const text = String(payload.text || '').trim();
+          if (text) todos.push({ id: genId('t'), text, done: false });
+          break;
+        }
+        case 'todo-del': {
+          const i = todos.findIndex((t) => t.id === payload.id);
+          if (i >= 0) todos.splice(i, 1);
+          break;
+        }
+        case 'event-add': {
+          const text = String(payload.text || '').trim();
+          const date = String(payload.date || '').trim();
+          if (text && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            events.push({ id: genId('e'), text, date, type: payload.type === 'anniversary' ? 'anniversary' : 'event' });
+          }
+          break;
+        }
+        case 'event-del': {
+          const i = events.findIndex((x) => x.id === payload.id);
+          if (i >= 0) events.splice(i, 1);
+          break;
+        }
+        case 'city-set': {
+          const cityName = String(payload.cityName || '').trim();
+          const lat = Number(payload.lat);
+          const lon = Number(payload.lon);
+          if (cityName && Number.isFinite(lat) && Number.isFinite(lon)) {
+            b.weather = { ...(b.weather || {}), cityName, lat, lon, tz: payload.tz || 'auto' };
+          }
+          break;
+        }
+        default:
+          return { ok: false };
+      }
+      b.events = events;
+      b.todos = todos;
+      this.store.updateSettings({ board: b });
+      this._pushTo(p);
+      if (this.hooks.onConfigChanged) this.hooks.onConfigChanged();
+      if (payload.op === 'city-set' && this.hooks.onWeatherReload) this.hooks.onWeatherReload();
+      return { ok: true, board: b };
+    });
+    ipcMain.handle('wallpaper-board-geocode', (_e, q) =>
+      (this.hooks.geocodeCity ? this.hooks.geocodeCity(String(q || '')) : Promise.resolve([])));
+    // 编辑器需要键盘输入：窗口是 WS_EX_NOACTIVATE，鼠标点击不激活窗口，
+    // 键击仍会派发给此前的前台窗口 → 渲染页在聚焦输入框时请求主进程拉前台。
+    // 用户刚在本窗口点击（最近输入事件在本进程）→ SetForegroundWindow 放行。
+    ipcMain.on('wallpaper-board-focus', (e) => {
+      const p = partOf(e);
+      if (p && p.win && !p.win.isDestroyed()) { try { p.win.focus(); } catch (_) {} }
+    });
+    // 城市编辑器临时加高窗口（null = 恢复配置尺寸并按落位重挂）
+    ipcMain.on('wallpaper-board-height', (e, h) => {
+      const p = partOf(e);
+      if (!p || p.key !== 'board' || !p.hwnd) return;
+      try {
+        if (h == null) { this._placePart(p); return; }
+        const r = desktop.getWindowRectScreen(p.hwnd);
+        if (!r) return;
+        const sf = screen.getDisplayNearestPoint({ x: r.x, y: r.y }).scaleFactor || 1;
+        const ph = Math.round(Math.min(1400, Math.max(90, Number(h) || 0)) * sf);
+        desktop.resizeWindowToScreen(p.hwnd, r.x, r.y, r.w, ph);
+      } catch (_) {}
     });
   }
 }

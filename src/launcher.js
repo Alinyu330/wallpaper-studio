@@ -52,8 +52,9 @@ const SYSTEM_ITEMS = [
   { id: 'control',   name: '控制面板', launch: 'shell:ControlPanelFolder', clsid: '{26EE0668-A00A-44D7-9371-BEB064C98683}', aliases: ['控制面板', 'Control Panel'] },
   { id: 'network',   name: '网络',     launch: 'shell:NetworkPlacesFolder', clsid: '{F02C1A0D-BE21-4350-88B0-7367FC96EF3C}', aliases: ['网络', 'Network'] },
   { id: 'thispc',    name: '此电脑',   launch: 'shell:MyComputerFolder',    clsid: '{20D04FE0-3AEA-1069-A2D8-08002B30309D}', aliases: ['此电脑', '这台电脑', '计算机', '我的电脑', 'This PC'] },
-  // 用户文件夹（个人目录）：桌面默认无此图标，故不带 clsid（隐藏/恢复自动跳过）
-  { id: 'userfiles', name: '用户文件夹', launch: 'shell:Personal',            clsid: '', aliases: ['用户文件夹', '个人文件夹', 'User Files'] },
+  // 用户文件夹（个人目录）：桌面图标默认关闭，开启后显示名可能是
+  // 「用户的文件 / 主文件夹 / 用户名」，隐藏与恢复走注册表 CLSID。
+  { id: 'userfiles', name: '用户文件夹', launch: 'shell:Personal',    clsid: '{59031A47-3F72-44A7-89C5-5595FE6B30EE}', aliases: ['用户文件夹', '个人文件夹', '用户的文件', '主文件夹', '主目录', 'User Files'] },
 ];
 // 所有「可收纳」的扩展名（枚举桌面文件用：快捷方式 + 程序文件）
 const ALL_BOX_EXTS = [...SC_EXTS, ...APP_EXTS].map(e => e.toLowerCase());
@@ -675,9 +676,11 @@ class LauncherHost {
   /**
    * 桌面拖到转盘「＋」上松手：
    * 来自桌面目录的项走与点选收纳同一条路（隐藏/移动到保管目录，桌面图标消失），
-   * 其它位置的项只登记为转盘项。
+   * 其它位置的项只登记为转盘项；
+   * 系统图标（回收站/此电脑/主文件夹等命名空间项）拖动不产生文件路径，
+   * 用落点反查桌面图标名，走与点选收纳同一条管线。
    */
-  async _dropPaths(filePaths) {
+  async _dropPaths(filePaths, dropPos) {
     const dirs = this._desktopDirs().map((d) => String(d).toLowerCase() + path.sep);
     const names = [], others = [];
     for (const p of filePaths || []) {
@@ -697,7 +700,37 @@ class LauncherHost {
       added += done;
     }
     if (others.length) added += await this._ingestPaths(others);
+    if ((!filePaths || !filePaths.length) && dropPos) {
+      const iconName = this._iconNameAtDrop(dropPos);
+      if (iconName) {
+        const skipped = { notFound: 0, noPerm: 0 };
+        const r = await this._boxNames([iconName], skipped);
+        if (r.done) {
+          this.applyPatch({ shortcuts: r.shortcuts, boxed: r.boxed, hidden: r.hidden });
+          desktop.notifyShellIconRefresh();
+        }
+        added += r.done;
+      }
+    }
     return added;
+  }
+
+  /** 窗口内 CSS 坐标 → 屏幕物理坐标 → 命中的桌面图标显示名 */
+  _iconNameAtDrop(dropPos) {
+    try {
+      if (!dropPos || !this.hwnd) return null;
+      if (!Number.isFinite(dropPos.x) || !Number.isFinite(dropPos.y)) return null;
+      const r = desktop.getWindowRectScreen(this.hwnd);
+      if (!r) return null;
+      const sf = screen.getDisplayNearestPoint({ x: r.x, y: r.y }).scaleFactor || 1;
+      const sx = r.x + Math.round(dropPos.x * sf);
+      const sy = r.y + Math.round(dropPos.y * sf);
+      const hit = (desktop.getDesktopIcons() || []).find((ic) =>
+        sx >= ic.x && sx <= ic.x + ic.w && sy >= ic.y && sy <= ic.y + ic.h);
+      return hit ? hit.name : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /** 常用在前重排（稳定：两组内部各自保持原顺序）。
@@ -946,10 +979,15 @@ class LauncherHost {
       await new Promise((r) => setImmediate(r));
       // ① 系统特殊项（回收站/控制面板/网络/此电脑）：无实体文件可移动，
       //    显示名/别名命中即按虚拟项收纳（修复"系统图标点选收纳失败"）。
+      //    「用户的文件」图标显示名可能是账户名，动态补一条别名。
       //    ★ 系统项恒走「隐藏到壁纸后」：注册表原生开关，恢复即在原位。
       const key = String(name).trim().toLowerCase();
+      const homeName = path.basename(app.getPath('home') || '').toLowerCase();
       const sys = SYSTEM_ITEMS.find((it) =>
-        [it.name, ...(it.aliases || [])].some((a) => String(a).toLowerCase() === key));
+        [it.name, ...(it.aliases || [])].some((a) => String(a).toLowerCase() === key))
+        || (homeName && key === homeName
+          ? SYSTEM_ITEMS.find((it) => it.id === 'userfiles')
+          : null);
       if (sys) {
         if (!existIds.has(sys.id)) {
           if (desktop.setSystemIconHidden(sys.id, true)) {
@@ -1274,9 +1312,9 @@ class LauncherHost {
       const n = await this._addShortcuts();
       return { ok: true, added: n };
     });
-    ipcMain.handle('launcher:drop-paths', async (_e, paths) => {
+    ipcMain.handle('launcher:drop-paths', async (_e, paths, dropPos) => {
       const arr = Array.isArray(paths) ? paths.filter((p) => typeof p === 'string' && p) : [];
-      const n = arr.length ? await this._dropPaths(arr) : 0;
+      const n = (arr.length || dropPos) ? await this._dropPaths(arr, dropPos) : 0;
       return { ok: true, added: n };
     });
     ipcMain.handle('launcher:pick', () => this.openPicker());
