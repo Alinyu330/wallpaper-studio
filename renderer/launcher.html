@@ -289,7 +289,7 @@
         <span id="empty-hint" style="display:none">右键或点 ＋ 添加常用 App 快捷方式</span>
         <button id="add-btn" title="添加快捷方式">＋</button>
       </div>
-      <div id="dragbar" title="按住拖动 · 像转盘一样轮换图标"><span class="bar-hint">⟨ 拖动轮换 ⟩</span></div>
+      <div id="dragbar" title="按住拖动轮换 · 连点三次回到最前方"><span class="bar-hint">⟨ 拖动轮换 · 三连击回最前 ⟩</span></div>
     </div>
     <div id="pill" title="展开快捷方式转盘">
       <span class="pill-ico">⊞</span>
@@ -456,6 +456,19 @@
       animId = requestAnimationFrame(step);
     }
 
+    /** 平滑滚动到指定 head 值（三连击回最前方用：行程更长，缓动更久） */
+    function snapTo(target, dur = 420) {
+      stopAnim();
+      const from = head, t0 = performance.now();
+      const step = (now) => {
+        const p = Math.min(1, (now - t0) / dur);
+        head = from + (target - from) * (1 - Math.pow(1 - p, 3));
+        layout();
+        animId = p < 1 ? requestAnimationFrame(step) : null;
+      };
+      animId = requestAnimationFrame(step);
+    }
+
     function momentum() {
       stopAnim();
       let last = performance.now();
@@ -473,7 +486,9 @@
       animId = requestAnimationFrame(step);
     }
 
-    function bindRotate(el) {
+    let barClickTimes = []; // 拖动条三连击检测（700ms 内连点三次 → 回到转盘最前方）
+
+    function bindRotate(el, isBar = false) {
       el.addEventListener('pointerdown', (e) => {
         if (e.button !== 0) return;
         rotating = true;
@@ -517,6 +532,21 @@
           snapToNearest();
           return;
         }
+        if (rotMoved < 6 && isBar) {
+          // 拖动条连点（非拖动）：700ms 内三连击 → 回到转盘最前方
+          //（就近回绕到条目 0：target 取 N 的最近整数倍，行程最短不倒转一圈）
+          const now = performance.now();
+          barClickTimes = barClickTimes.filter((t) => now - t < 700);
+          barClickTimes.push(now);
+          if (barClickTimes.length >= 3) {
+            barClickTimes = [];
+            const n = Math.max(1, N);
+            snapTo(Math.round(head / n) * n, 420);
+            return;
+          }
+          snapToNearest();
+          return;
+        }
         if (Math.abs(vel) > 1.2) momentum();
         else snapToNearest();
       };
@@ -524,7 +554,7 @@
       el.addEventListener('pointercancel', up);
     }
     bindRotate(strip);
-    bindRotate(document.getElementById('dragbar'));
+    bindRotate(document.getElementById('dragbar'), true);
 
     function pulseLaunch() {
       expandedEl.style.transform = 'scale(0.94)';
@@ -710,7 +740,7 @@
         barHint.textContent = '拖动调整位置';
         hideCtx();
       } else {
-        barHint.textContent = '⟨ 拖动轮换 ⟩';
+        barHint.textContent = '⟨ 拖动轮换 · 三连击回最前 ⟩';
         scheduleCollapse();
       }
       setTimeout(reportRects, 80);

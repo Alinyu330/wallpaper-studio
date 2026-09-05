@@ -13,10 +13,10 @@
 
 ## 下载
 
-**最新版 v1.12.0 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · 更新数据三重保护）：
+**最新版 v1.12.1 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · 更新数据三重保护 + 转盘三连击回最前）：
 
-- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.0/WallpaperStudio-Setup-1.12.0.exe)
-- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.0/WallpaperStudio-Setup-1.12.0.exe)
+- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.1/WallpaperStudio-Setup-1.12.1.exe)
+- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.1/WallpaperStudio-Setup-1.12.1.exe)
 - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
 > 已安装旧版？客户端「设置 → 检查更新」即可应用内一键更新，无需重新下载安装包。
@@ -25,6 +25,7 @@
 
 | 版本 | 国内加速下载 | GitHub 直连 |
 |---|---|---|
+| v1.12.1 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.1/WallpaperStudio-Setup-1.12.1.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.1/WallpaperStudio-Setup-1.12.1.exe) |
 | v1.12.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.0/WallpaperStudio-Setup-1.12.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.0/WallpaperStudio-Setup-1.12.0.exe) |
 | v1.11.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.11.0/WallpaperStudio-Setup-1.11.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.11.0/WallpaperStudio-Setup-1.11.0.exe) |
 | v1.10.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.10.0/WallpaperStudio-Setup-1.10.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.10.0/WallpaperStudio-Setup-1.10.0.exe) |
@@ -48,6 +49,12 @@
 | v1.1.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) |
 
 > 各版本更新内容见下方「新增功能与修复问题」分节与 [官网更新日志](https://wallpaper-studio.pages.dev/#changelog)；更早版本（v1.0.0）见 [Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)。
+
+## v1.12.1 新增功能与修复问题
+
+**新增功能**
+
+- **转盘拖动条三连击回到最前方**：在快捷方式转盘的拖动旋转条上 700ms 内连点三次，转盘以最短路径平滑回绕到条目 0（最左 / 最上槽位）——轮换多了想回开头，不用一路拖回去；单击仍是就近吸附、不误触发，拖动条悬停提示同步更新
 
 ## v1.12.0 新增功能与修复问题
 
