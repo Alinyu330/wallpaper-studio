@@ -4,7 +4,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Version](https://img.shields.io/badge/version-1.11.0-7c5cff)
+![Version](https://img.shields.io/badge/version-1.12.0-7c5cff)
 
 ## 官网
 
@@ -13,13 +13,26 @@
 
 ## 下载
 
-**最新版 v1.11.0 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸）：
+**最新版 v1.12.0 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · 更新数据三重保护）：
 
-- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.11.0/WallpaperStudio-Setup-1.11.0.exe)
-- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.11.0/WallpaperStudio-Setup-1.11.0.exe)
+- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.0/WallpaperStudio-Setup-1.12.0.exe)
+- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.0/WallpaperStudio-Setup-1.12.0.exe)
 - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
 > 已安装旧版？客户端「设置 → 检查更新」即可应用内一键更新，无需重新下载安装包。
+
+## v1.12.0 新增功能与修复问题
+
+**新增功能**
+
+- **更新数据三重保护**：升级 / 重装不再丢失任何用户数据 — 升级时自动跳过数据清理（--updated 守卫）、安装前自动备份配置与收纳内容、首次启动数据自愈核对；壁纸库、全部功能开关与数值参数、收纳的文件与快捷方式完整保留
+- **收纳存储可见文件夹**：收纳的文件与快捷方式存放在应用根目录的「收纳快捷方式(卸载恢复)」「收纳文件(卸载恢复)」文件夹（默认为空、收纳时移入），位置公开透明、随时可查；设置页展示主存储 / 备用存储路径（点击直达所在文件夹）
+- **收纳内容双保险镜像**：数据目录「收纳备份」实时镜像收纳内容 — 收纳时自动备份、恢复 / 移除时同步清理；主存储意外受损时，下次启动自动从镜像恢复，收纳与恢复功能不因单点受损失效
+
+**修复问题**
+
+- 修复更新版本后客户端收纳的快捷方式、文件无法恢复到桌面的问题（根因：NSIS 覆盖安装会静默运行旧版卸载器，旧逻辑误删全部数据目录；此后的每次升级均受保护）
+- 修复更新版本后上传的壁纸从壁纸库消失、无法使用的问题（壁纸库索引随数据目录被误删所致，现完整保留）
 
 ## v1.10.0 新增功能与修复问题
 
