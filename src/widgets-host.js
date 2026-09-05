@@ -206,6 +206,33 @@ class WidgetsHost {
     try { if (p.win && !p.win.isDestroyed()) p.win.close(); } catch (_) {}
   }
 
+  /**
+   * 编辑焦点守卫（看板编辑期间）。
+   * 背景：壁纸引擎循环交界（杀旧 mpv、新槽接替）等动作会让 Windows 把前台
+   * 「重新分配」给本进程其它覆盖层窗口（FileBox/转盘等），打字被静默劫走。
+   * 守卫周期性检查：焦点不在编辑窗口、且前台属于本进程（自己人误抢）→
+   * 立即抢回；前台在外部进程 = 用户主动切走，尊重不抢（渲染侧 blur 会
+   * 收尾关编辑器）。
+   */
+  _startEditGuard(p) {
+    this._stopEditGuard(p);
+    p.editGuardTimer = setInterval(() => {
+      if (!p.editingFocus || !p.win || p.win.isDestroyed()) { this._stopEditGuard(p); return; }
+      try {
+        if (p.win.isFocused()) return;
+        if (desktop.getForegroundPid() === process.pid) {
+          desktop.forceForeground(p.hwnd);
+          p.win.webContents.focus();
+        }
+      } catch (_) {}
+    }, 150);
+    if (p.editGuardTimer.unref) p.editGuardTimer.unref();
+  }
+
+  _stopEditGuard(p) {
+    if (p && p.editGuardTimer) { clearInterval(p.editGuardTimer); p.editGuardTimer = null; }
+  }
+
   destroyAll() {
     for (const key of [...this.parts.keys()]) this._destroyPart(key);
     this.parts.clear();

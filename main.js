@@ -18,6 +18,9 @@ const { detectType, DIALOG_FILTERS } = require('./src/file-types');
 const lockscreen = require('./src/lockscreen');
 const updater = require('./src/updater');
 const { dispose: jobGuardDispose } = require('./src/job-guard');
+const { repairUserData } = require('./src/repair');
+const { getAppRoot, LAUNCHER_BOX_DIRNAME, FILEBOX_BOX_DIRNAME } = require('./src/app-root');
+const { MIRROR_DIRNAME } = require('./src/box-mirror');
 
 // ---------- 渲染策略 ----------
 // 组件覆盖层/转盘窗口常驻桌面且从不获得焦点：Chromium 自动播放策略会把
@@ -1353,6 +1356,22 @@ function setupIpc() {
   });
   // 客户端版本号（关于页动态显示，避免硬编码过期）
   ipcMain.handle('app:get-version', () => app.getVersion());
+  // 收纳存储路径（主存储 = 应用根目录收纳文件夹；备用 = 数据目录镜像备份）。
+  // 主界面收纳设置页展示文字提示，点击可在资源管理器中打开。
+  ipcMain.handle('app:storage-paths', () => {
+    const root = getAppRoot(app);
+    const mirrorRoot = path.join(app.getPath('userData'), MIRROR_DIRNAME);
+    return {
+      launcher: {
+        primary: path.join(root, LAUNCHER_BOX_DIRNAME),
+        mirror: path.join(mirrorRoot, LAUNCHER_BOX_DIRNAME),
+      },
+      filebox: {
+        primary: path.join(root, FILEBOX_BOX_DIRNAME),
+        mirror: path.join(mirrorRoot, FILEBOX_BOX_DIRNAME),
+      },
+    };
+  });
   // 硬件加速等「app ready 前才生效」的设置改完后，客户端点「立即重启」走这里。
   // ★ 必须先 flushSync：updateSettings 是 250ms 防抖异步落盘，relaunch 会把它丢掉
   ipcMain.handle('app:relaunch', () => {
@@ -1543,6 +1562,15 @@ function seedBuiltinWallpapers() {
 if (gotLock) {
   app.whenReady().then(() => {
     console.log(`[main] 壁纸工坊引擎启动 v${app.getVersion()} (electron ${process.versions.electron})`);
+    // 数据自愈（v1.12.0）：还原升级预备份 / 桌面「卸载恢复」文件夹回迁 / 保管目录
+    // 孤儿文件恢复 —— 必须在 Store 构造前执行（会写回 config.json）。
+    // 摘要在主窗口创建后推给界面提示一次。
+    let repairSummary = null;
+    try {
+      repairSummary = repairUserData(app);
+    } catch (err) {
+      console.error('[main] 数据自愈调用异常:', err && err.message);
+    }
     store = new Store();
     seedBuiltinWallpapers();
     // 首帧视频 spawn 前就要拿到档位（hwdec / 帧率上限 / 分辨率天花板 / demuxer 缓存）
@@ -1599,6 +1627,11 @@ if (gotLock) {
     createMainWindow();
     setupIpc();
     createTray();
+
+    // 数据自愈有实际动作时推给主界面提示（无动作不打扰）
+    if (repairSummary && (repairSummary.backupRestored || repairSummary.desktopRescued || repairSummary.orphansRestored)) {
+      notifyMain('repair:done', repairSummary);
+    }
 
     // 开机自启自愈：设置已开启但登录项缺失/损坏（旧版本注册的坏项）时重写一次
     if (store.settings.autoStart) applyAutoStartSetting(true);

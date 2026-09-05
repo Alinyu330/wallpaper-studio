@@ -20,6 +20,8 @@ const path = require('path');
 const fs = require('fs');
 const desktop = require('./desktop');
 const icons = require('./icons');
+const { getAppRoot, FILEBOX_BOX_DIRNAME } = require('./app-root');
+const { scheduleMirrorSync } = require('./box-mirror');
 
 const DEFAULTS = {
   enabled: false, x: null, y: null, grid: null,
@@ -64,8 +66,10 @@ class FileBoxHost {
     this.onAdjustState = null;
     this.onCreateJob = null;
     this._ipcRegistered = false;
-    // 文件保管目录（普通文件收纳后移入此处，文件夹仅登记路径不移动）
-    this.boxDir = path.join(app.getPath('userData'), 'filebox-box');
+    // 文件保管目录（普通文件收纳后移入此处，文件夹仅登记路径不移动）。
+    // v1.12.0 起位于应用根目录的可见文件夹（开发态=项目根，安装态=安装目录），
+    // 默认为空、收纳时文件才移入；升级/卸载保护见 build/installer.nsh。
+    this.boxDir = path.join(getAppRoot(app), FILEBOX_BOX_DIRNAME);
     try { fs.mkdirSync(this.boxDir, { recursive: true }); } catch (_) {}
     console.log(`[filebox] 文件收纳目录: ${this.boxDir} · 桌面目录: ${app.getPath('desktop')}`);
     try { icons.init(app.getPath('userData')); } catch (_) {}
@@ -184,6 +188,8 @@ class FileBoxHost {
       this._applyGrid(next.grid);
     }
     if (this.onChanged) this.onChanged();
+    // 收纳内容镜像备份（双保险）：任何收纳/恢复/移除落定后防抖同步
+    scheduleMirrorSync(app);
   }
 
   setEnabled(on) { this.applyPatch({ enabled: !!on }); }

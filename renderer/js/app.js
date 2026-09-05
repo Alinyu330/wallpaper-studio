@@ -60,6 +60,7 @@ async function init() {
   bindWindowControls();
   bindUpdateCheck();
   renderAboutVersion();
+  renderStorageHints();
 
   // 全局暂停状态恢复
   state.pausedAll = !!state.settings.wallpaperPaused;
@@ -2895,6 +2896,36 @@ async function renderAboutVersion() {
     if (el && v) {
       el.innerHTML = `壁纸工坊 <b>v${v}</b> — 静态 / 动态 / 网页 / EXE 壁纸 · 平滑轮换过渡 · 音律动效 · 桌面组件 · 快捷方式收纳转盘 · 桌面与锁屏`;
     }
+  } catch (_) { /* 静态兜底文本已在 HTML 中 */ }
+}
+
+// ---------- 收纳存储路径提示（主存储 + 备用镜像，点击打开所在文件夹） ----------
+async function renderStorageHints() {
+  try {
+    const sp = await window.api.getStoragePaths();
+    if (!sp) return;
+    const mkLink = (p) => {
+      const a = document.createElement('a');
+      a.href = '#';
+      a.className = 'storage-link';
+      a.textContent = p;
+      a.title = '点击在资源管理器中打开';
+      a.addEventListener('click', (e) => { e.preventDefault(); window.api.showInFolder(p); });
+      return a;
+    };
+    const fill = (el, box, label) => {
+      if (!el) return;
+      el.textContent = '';
+      const b = document.createElement('b');
+      b.textContent = `${label}存放位置`;
+      el.appendChild(b);
+      el.appendChild(document.createTextNode('：主存储 '));
+      el.appendChild(mkLink(box.primary));
+      el.appendChild(document.createTextNode('（收纳时文件移入此处） · 备用存储（镜像备份，主存储受损时自动恢复） '));
+      el.appendChild(mkLink(box.mirror));
+    };
+    fill($('#lc-storage-hint'), sp.launcher, '快捷方式');
+    fill($('#fb-storage-hint'), sp.filebox, '收纳文件');
   } catch (_) { /* 静态兜底文本已在 HTML 中 */ }
 }
 

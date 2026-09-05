@@ -24,6 +24,8 @@ const path = require('path');
 const fs = require('fs');
 const desktop = require('./desktop');
 const icons = require('./icons');
+const { getAppRoot, LAUNCHER_BOX_DIRNAME } = require('./app-root');
+const { scheduleMirrorSync } = require('./box-mirror');
 
 const DEFAULTS = {
   enabled: false, x: null, y: null, count: 8, autoCollapse: true,
@@ -74,8 +76,10 @@ class LauncherHost {
     this.pickerWin = null;    // 桌面图标点选/框选窗口
     this.onChanged = null;    // 配置变化通知（主界面刷新设置页）
     this._ipcRegistered = false;
-    // 收纳保管目录（快捷方式文件在「桌面 ⇄ 保管目录」之间移动）
-    this.boxDir = path.join(app.getPath('userData'), 'launcher-box');
+    // 收纳保管目录（快捷方式文件在「桌面 ⇄ 保管目录」之间移动）。
+    // v1.12.0 起位于应用根目录的可见文件夹（开发态=项目根，安装态=安装目录），
+    // 默认为空、收纳时文件才移入；升级/卸载保护见 build/installer.nsh。
+    this.boxDir = path.join(getAppRoot(app), LAUNCHER_BOX_DIRNAME);
     try { fs.mkdirSync(this.boxDir, { recursive: true }); } catch (_) {}
     console.log(`[launcher] 收纳目录: ${this.boxDir} · 桌面目录: ${app.getPath('desktop')}`);
     // Shell 图标提取（SHGetFileInfoW，支持 shell: 虚拟项），图标 PNG 落盘缓存
@@ -252,6 +256,8 @@ class LauncherHost {
       this._applyGrid(next.grid);
     }
     if (this.onChanged) this.onChanged();
+    // 收纳内容镜像备份（双保险）：任何收纳/恢复/移除落定后防抖同步
+    scheduleMirrorSync(app);
   }
 
   setEnabled(on) { this.applyPatch({ enabled: !!on }); }

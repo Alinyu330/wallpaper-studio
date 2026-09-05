@@ -345,6 +345,10 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 11.5px; color: var(--text-dim);
   padding: 0 0 12px; line-height: 1.7;
 }
+/* 收纳存储路径提示里的可点击路径（主存储 / 备用镜像） */
+.hint .storage-link { color: var(--accent); text-decoration: none; word-break: break-all; }
+.hint .storage-link:hover { text-decoration: underline; }
+.hint b { color: var(--text); font-weight: 600; }
 input[type="number"] {
   background: var(--bg); border: 1px solid var(--border);
   color: var(--text); border-radius: 6px;

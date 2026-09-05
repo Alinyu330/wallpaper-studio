@@ -1,785 +1,787 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data: blob:; media-src 'self' file:; style-src 'self' 'unsafe-inline'; frame-src http: https: file:;">
+<html lang="zh-CN" data-page-node-id="raUco3f1hr6F8YVFXwnbuc">
+<head data-page-node-id="P5eYYOfklJ2pvVhsEEiiml">
+  <meta charset="UTF-8" data-page-node-id="hvOWxZ3mmCeWI6LB0bEBIk">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' file: data: blob:; media-src 'self' file:; style-src 'self' 'unsafe-inline'; frame-src http: https: file:;" data-page-node-id="xorYhrjdn3YlWPVXw1PTt2">
   <title>壁纸工坊</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css" data-page-node-id="5W5YyAGKbcw7EFYbxDhww1">
 </head>
-<body>
+<body data-page-node-id="xO4yBTV7iI57Kv8LuLkiu1">
   <!-- 自定义标题栏 -->
-  <header id="titlebar">
-    <div class="tb-left">
-      <div class="logo-mark"></div>
-      <span class="app-name">壁纸工坊</span>
-      <span class="app-ver">Wallpaper Studio</span>
-      <button class="update-dot hidden" id="update-dot" title="发现新版本，点击查看"></button>
+  <header id="titlebar" data-page-node-id="xYywLCR3R2z5GyZsvXbWCa">
+    <div class="tb-left" data-page-node-id="7PZtOEwxPpb9ypYcz7Cu9r">
+      <div class="logo-mark" data-page-node-id="zNcGIZnWRkERxuQRwqup3d"></div>
+      <span class="app-name" data-page-node-id="9oTS4TB8359Z7g51UciriL">壁纸工坊</span>
+      <span class="app-ver" data-page-node-id="tIkaWx6tYlaSKZ4YeKiis4">Wallpaper Studio</span>
+      <button class="update-dot hidden" id="update-dot" title="发现新版本，点击查看" data-page-node-id="r7Ro4rXnG16oMES0HwGwzO"></button>
     </div>
-    <div class="tb-right">
-      <button class="win-btn" id="btn-min" title="最小化">
-        <svg viewBox="0 0 10 10"><path d="M1 5h8" stroke="currentColor" stroke-width="1.2"/></svg>
+    <div class="tb-right" data-page-node-id="KLV15VaEgAYLoEKBYZ4XqA">
+      <button class="win-btn" id="btn-min" title="最小化" data-page-node-id="r9IbUYfJJYItXomVxP3FFE">
+        <svg viewBox="0 0 10 10" data-page-node-id="gcRLCFUR2nAvVdruHc8HDP"><path d="M1 5h8" stroke="currentColor" stroke-width="1.2" data-page-node-id="27WLrHlgaVE3AKpT0iYlhu"/></svg>
       </button>
-      <button class="win-btn" id="btn-max" title="最大化">
-        <svg viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+      <button class="win-btn" id="btn-max" title="最大化" data-page-node-id="ez8wtEa0GxuyPNajnUDwzG">
+        <svg viewBox="0 0 10 10" data-page-node-id="tbKsHwLTI8ACMDELS1D4DS"><rect x="1.5" y="1.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.2" data-page-node-id="yPnwHthxH3IHZssHCMPtNA"/></svg>
       </button>
-      <button class="win-btn close" id="btn-close" title="关闭（最小化到托盘）">
-        <svg viewBox="0 0 10 10"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.2"/></svg>
+      <button class="win-btn close" id="btn-close" title="关闭（最小化到托盘）" data-page-node-id="zID553NLNvGYWjsp222ZXN">
+        <svg viewBox="0 0 10 10" data-page-node-id="yyMV5V8LqxCICVlliGqwKl"><path d="M1.5 1.5l7 7M8.5 1.5l-7 7" stroke="currentColor" stroke-width="1.2" data-page-node-id="ssrYgCfy9ac1RdzuKRD9ZB"/></svg>
       </button>
     </div>
   </header>
 
-  <div id="layout">
+  <div id="layout" data-page-node-id="CEC0wVkZNRfQdKItff2Xki">
     <!-- 侧边导航 -->
-    <aside id="sidebar">
-      <nav>
-        <button class="nav-item active" data-page="library">
-          <svg viewBox="0 0 24 24"><path d="M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1zm0 3v10h16V8H4z" fill="currentColor"/><path d="M7 16l4-5 3 3.5L16 12l2 2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span>壁纸库</span>
+    <aside id="sidebar" data-page-node-id="cPv7tjqQGbal4EHZ8ccDSz">
+      <nav data-page-node-id="FxQOxAAroIPb3FpfIIbb17">
+        <button class="nav-item active" data-page="library" data-page-node-id="5UaTvV04FJKyq1kqiCcbbY">
+          <svg viewBox="0 0 24 24" data-page-node-id="W7mNlKskGWdYANYY2XrcAm"><path d="M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1zm0 3v10h16V8H4z" fill="currentColor" data-page-node-id="CyDXDrD24WbfoGOSbuseQA"/><path d="M7 16l4-5 3 3.5L16 12l2 2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="1AYJSlL6TOgAi7aGrXWknb"/></svg>
+          <span data-page-node-id="nnHgbrtO9J2yoNkiXIx46c">壁纸库</span>
         </button>
-        <button class="nav-item" data-page="rotation">
-          <svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 018 8h-2a6 6 0 10-6 6v2a8 8 0 110-16z" fill="currentColor"/><path d="M12 12l5-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-          <span>定时轮换</span>
+        <button class="nav-item" data-page="rotation" data-page-node-id="e2JTlHVJLCqZ7M40QkUdEE">
+          <svg viewBox="0 0 24 24" data-page-node-id="1b0UQjBtT8pE6D7oSG5kFg"><path d="M12 4a8 8 0 018 8h-2a6 6 0 10-6 6v2a8 8 0 110-16z" fill="currentColor" data-page-node-id="GuAagDmw19dv13TTFQPTdu"/><path d="M12 12l5-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" data-page-node-id="DW00nIA2y7s6pDWohYqB0x"/></svg>
+          <span data-page-node-id="sNdDCeqVJzgaSv5qDCaGmS">定时轮换</span>
         </button>
-        <button class="nav-item" data-page="widgets">
-          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M7.5 12.5l3-3.5 2.5 2.5 4-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span>桌面组件</span>
+        <button class="nav-item" data-page="widgets" data-page-node-id="XTXBBAIsFzIyArDxvk6kS6">
+          <svg viewBox="0 0 24 24" data-page-node-id="02C4XJfnmFdmYPFQKRNPWQ"><rect x="3" y="4" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.6" data-page-node-id="IJoKEoLdz3Qz6hZ9YSf57i"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" data-page-node-id="ZLCngiWCzwVvZ92BPh2NAx"/><path d="M7.5 12.5l3-3.5 2.5 2.5 4-4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="DuobuAuruewRv9JQoP0Gl9"/></svg>
+          <span data-page-node-id="6GhSyepH8puleKeChDTZMe">桌面组件</span>
         </button>
-        <button class="nav-item" data-page="audio">
-          <svg viewBox="0 0 24 24"><path d="M4 10v4h3l5 4V6l-5 4H4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 010 7M18 6a8.5 8.5 0 010 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-          <span>音律动效</span>
+        <button class="nav-item" data-page="audio" data-page-node-id="ecUDIu45LJWw4mFd3vXpSL">
+          <svg viewBox="0 0 24 24" data-page-node-id="b4zLf3R7e6VcRZhGNzxuHF"><path d="M4 10v4h3l5 4V6l-5 4H4z" fill="currentColor" data-page-node-id="tQad13T22HZhygCcMgCSUm"/><path d="M15.5 8.5a5 5 0 010 7M18 6a8.5 8.5 0 010 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" data-page-node-id="OmvBCluEOu35Wd4UvEibGU"/></svg>
+          <span data-page-node-id="BM0dqKpEY2j7wbWz3CgGTo">音律动效</span>
         </button>
-        <button class="nav-item" data-page="launcher">
-          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="14" y="3" width="7.5" height="7.5" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="14" width="7.5" height="7.5" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M17.75 14.5v7M14.25 18h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-          <span>快捷方式</span>
+        <button class="nav-item" data-page="launcher" data-page-node-id="I3VxdJuycEPVQ9dJdKVr5r">
+          <svg viewBox="0 0 24 24" data-page-node-id="Oh8RgrtSYn2IiwLy5vazT2"><rect x="3" y="3" width="7.5" height="7.5" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.6" data-page-node-id="GZi817eFCVqhv2G0F4TihK"/><rect x="14" y="3" width="7.5" height="7.5" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.6" data-page-node-id="Cxg7L1FzoITTe02dsnHxT2"/><rect x="3" y="14" width="7.5" height="7.5" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.6" data-page-node-id="vt2AartGk9ZuJt9wIyese5"/><path d="M17.75 14.5v7M14.25 18h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" data-page-node-id="VWTbmt4F96uooWNnRq2saN"/></svg>
+          <span data-page-node-id="tOPTDReGama1DLbYPgavVF">快捷方式</span>
         </button>
-        <button class="nav-item" data-page="filebox">
-          <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 9h18" stroke="currentColor" stroke-width="1.4"/></svg>
-          <span>文件收纳</span>
+        <button class="nav-item" data-page="filebox" data-page-node-id="29yr41qcGkIaLBhgftptis">
+          <svg viewBox="0 0 24 24" data-page-node-id="ljU2UaqTxZHbEfKcIFJz2d"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" fill="none" stroke="currentColor" stroke-width="1.6" data-page-node-id="iH1li9QDhXP9xvx0xBq6cD"/><path d="M3 9h18" stroke="currentColor" stroke-width="1.4" data-page-node-id="dUXga8EOptxj0xiU8SMR0f"/></svg>
+          <span data-page-node-id="gI4YGhNoi57nA5GNAfAOj7">文件收纳</span>
         </button>
-        <button class="nav-item" data-page="sites">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 12h17M12 3.5c2.5 2.3 3.8 5.3 3.8 8.5S14.5 18.2 12 20.5c-2.5-2.3-3.8-5.3-3.8-8.5S9.5 5.8 12 3.5z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
-          <span>壁纸站点</span>
+        <button class="nav-item" data-page="sites" data-page-node-id="mltrcrjNxfQPuPswG9Yobg">
+          <svg viewBox="0 0 24 24" data-page-node-id="gza8gGEBHH6fAsvAdZlICX"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6" data-page-node-id="iH9gIeUKzvdbdCepDxfIaR"/><path d="M3.5 12h17M12 3.5c2.5 2.3 3.8 5.3 3.8 8.5S14.5 18.2 12 20.5c-2.5-2.3-3.8-5.3-3.8-8.5S9.5 5.8 12 3.5z" fill="none" stroke="currentColor" stroke-width="1.4" data-page-node-id="uWDjUuBqrwsgEPTZXl0KH5"/></svg>
+          <span data-page-node-id="jQP8lqY9H7UU0ibtTEnOMZ">壁纸站点</span>
         </button>
-        <button class="nav-item" data-page="settings">
-          <svg viewBox="0 0 24 24"><path d="M12 8.5A3.5 3.5 0 1112 15.5 3.5 3.5 0 0112 8.5zm0 2a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" fill="currentColor"/><path d="M10.6 3h2.8l.4 2.3 1.9 1.1 2.2-.8 1.4 2.4-1.7 1.6v2.2l1.7 1.6-1.4 2.4-2.2-.8-1.9 1.1-.4 2.3h-2.8l-.4-2.3-1.9-1.1-2.2.8-1.4-2.4 1.7-1.6v-2.2L4.3 8.4l1.4-2.4 2.2.8 1.9-1.1.4-2.3z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
-          <span>设置</span>
+        <button class="nav-item" data-page="settings" data-page-node-id="cx2CQ8AlTe1nshsKwxUj1P">
+          <svg viewBox="0 0 24 24" data-page-node-id="5NRBvswS6ePq0vNf5xZD35"><path d="M12 8.5A3.5 3.5 0 1112 15.5 3.5 3.5 0 0112 8.5zm0 2a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" fill="currentColor" data-page-node-id="1hHVjV2roHYklSgUxD4CJc"/><path d="M10.6 3h2.8l.4 2.3 1.9 1.1 2.2-.8 1.4 2.4-1.7 1.6v2.2l1.7 1.6-1.4 2.4-2.2-.8-1.9 1.1-.4 2.3h-2.8l-.4-2.3-1.9-1.1-2.2.8-1.4-2.4 1.7-1.6v-2.2L4.3 8.4l1.4-2.4 2.2.8 1.9-1.1.4-2.3z" fill="none" stroke="currentColor" stroke-width="1.4" data-page-node-id="OjZ48KYnkrtLPAKELKa8mF"/></svg>
+          <span data-page-node-id="3BfDYp8yWP9O7ICTkSk7BV">设置</span>
         </button>
       </nav>
-      <div class="sidebar-footer">
-        <div id="mpv-status" class="mpv-status">mpv 检测中…</div>
+      <div class="sidebar-footer" data-page-node-id="aP3tUjIAx9h8iwpYIeCikV">
+        <div id="mpv-status" class="mpv-status" data-page-node-id="CQdFZfqIGAFG6A4DqqaD0j">mpv 检测中…</div>
       </div>
     </aside>
 
     <!-- 内容区 -->
-    <main id="content">
+    <main id="content" data-page-node-id="7fYsm3DMnUInETHqeO6kcs">
       <!-- 壁纸库 -->
-      <section id="page-library" class="page active">
-        <div class="page-head">
-          <h2>壁纸库</h2>
-          <div class="head-actions">
-            <button class="btn ghost" id="btn-pause-all" title="暂停视频播放与轮换，恢复桌面清爽">
-              <svg viewBox="0 0 24 24"><path d="M9 5v14M15 5v14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-              <span>暂停壁纸</span>
+      <section id="page-library" class="page active" data-page-node-id="FlZm65FIgGE5RrtNgDUDSJ">
+        <div class="page-head" data-page-node-id="VfxHS6eEHupG4V1p4RUuXh">
+          <h2 data-page-node-id="h5vLlGyarAqT4PZfCAeZo7">壁纸库</h2>
+          <div class="head-actions" data-page-node-id="k6AmqEEkWVU6Qb9WF2JB4M">
+            <button class="btn ghost" id="btn-pause-all" title="暂停视频播放与轮换，恢复桌面清爽" data-page-node-id="AbXWrJS1KjAK8M2iq5AC9Q">
+              <svg viewBox="0 0 24 24" data-page-node-id="AmH1s8hOX5wLGwqx4WmTBZ"><path d="M9 5v14M15 5v14" stroke="currentColor" stroke-width="2" stroke-linecap="round" data-page-node-id="gxqdGSHeQo0Yr4PkPwMlPQ"/></svg>
+              <span data-page-node-id="5AC0jSlMfqODQy0zBIKxwR">暂停壁纸</span>
             </button>
-            <button class="btn ghost" id="btn-rotation-next" title="立即切换到下一张壁纸">
-              <svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 018-8 8 8 0 017 4h-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M19.5 4v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <span>下一张</span>
+            <button class="btn ghost" id="btn-rotation-next" title="立即切换到下一张壁纸" data-page-node-id="USwVpmQ2aUBElvnaWQUq0w">
+              <svg viewBox="0 0 24 24" data-page-node-id="adZnCELFisoG854BjgFSBl"><path d="M4 12a8 8 0 018-8 8 8 0 017 4h-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" data-page-node-id="dYHDHHfblf36r9oLm9CvmE"/><path d="M19.5 4v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="r013uF7hORINMB3AEL1ezM"/></svg>
+              <span data-page-node-id="CCT8PXYntzMnsAEcqDdQIw">下一张</span>
             </button>
-            <button class="btn ghost" id="btn-stop-wallpaper" title="停止使用当前壁纸，桌面恢复系统默认（壁纸保留在库中）" disabled>
-              <svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor"/></svg>
-              <span>停止使用</span>
+            <button class="btn ghost" id="btn-stop-wallpaper" title="停止使用当前壁纸，桌面恢复系统默认（壁纸保留在库中）" disabled data-page-node-id="y5AtbjCfyrPzgeo40jOQHK">
+              <svg viewBox="0 0 24 24" data-page-node-id="YWlQlmg8ajqH4UgHlfUKGG"><rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" data-page-node-id="RhT2C1ukpBwnwiGBKGaybi"/></svg>
+              <span data-page-node-id="VaeSC4LNHbAf5C5qzLDwKH">停止使用</span>
             </button>
-            <button class="btn primary" id="btn-add-files">
-              <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <button class="btn primary" id="btn-add-files" data-page-node-id="ecB7MGV2ci7seCgMYdmxzS">
+              <svg viewBox="0 0 24 24" data-page-node-id="UoZXBp84B5Mun6KtHaqkeP"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" data-page-node-id="pNv1QPNLk8SLoEyQxQ6FHP"/></svg>
               添加壁纸文件
             </button>
-            <button class="btn ghost" id="btn-add-web">
-              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 12h17M12 3.5c2.5 2.3 3.8 5.3 3.8 8.5S14.5 18.2 12 20.5c-2.5-2.3-3.8-5.3-3.8-8.5S9.5 5.8 12 3.5z" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+            <button class="btn ghost" id="btn-add-web" data-page-node-id="4HtshgjpHidy6OqwNf4heg">
+              <svg viewBox="0 0 24 24" data-page-node-id="4f75jfA4WwDsBxJpmocHWo"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6" data-page-node-id="wikiDsK2Pjs6nolbkM7Roz"/><path d="M3.5 12h17M12 3.5c2.5 2.3 3.8 5.3 3.8 8.5S14.5 18.2 12 20.5c-2.5-2.3-3.8-5.3-3.8-8.5S9.5 5.8 12 3.5z" fill="none" stroke="currentColor" stroke-width="1.4" data-page-node-id="l2D9JYs7CkICOT8MCAklaw"/></svg>
               添加网页壁纸
             </button>
           </div>
         </div>
 
-        <div class="filter-bar" id="filter-bar">
-          <button class="chip active" data-filter="all">全部</button>
-          <button class="chip" data-filter="image">图片</button>
-          <button class="chip" data-filter="video">视频</button>
-          <button class="chip" data-filter="exe">程序</button>
-          <button class="chip" data-filter="web">网页</button>
-          <button class="chip" data-filter="favorite">收藏</button>
-          <div class="search-box">
-            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-            <input type="text" id="search-input" placeholder="搜索壁纸…" spellcheck="false">
+        <div class="filter-bar" id="filter-bar" data-page-node-id="3OFJ2shQNPSuGqIMxT4XLi">
+          <button class="chip active" data-filter="all" data-page-node-id="o86RqGBtcLuQOXBk1LwX99">全部</button>
+          <button class="chip" data-filter="image" data-page-node-id="TptXmtoLof4Awfkzj64SrO">图片</button>
+          <button class="chip" data-filter="video" data-page-node-id="KvhLwcrkQkbuAtDJ4EakRg">视频</button>
+          <button class="chip" data-filter="exe" data-page-node-id="QBjhElaGFzCtF32st40sxv">程序</button>
+          <button class="chip" data-filter="web" data-page-node-id="TOPwz5y3ExZVQBG9yY6KW9">网页</button>
+          <button class="chip" data-filter="favorite" data-page-node-id="vVmebJL228LD7TIsiC8A9e">收藏</button>
+          <div class="search-box" data-page-node-id="U64NCyhzAxJFOxFzy4mU9N">
+            <svg viewBox="0 0 24 24" data-page-node-id="yLEQRX2DaFiVLJH8ShCXKz"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6" data-page-node-id="DJ9RfVfSE2B3X7I8bGQjvm"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" data-page-node-id="jP49PnMzFLNNziIxSeOtwl"/></svg>
+            <input type="text" id="search-input" placeholder="搜索壁纸…" spellcheck="false" data-page-node-id="uBByXFs9xmK5ioAv9VzWri">
           </div>
         </div>
 
-        <div id="drop-hint" class="drop-hint hidden">
-          <p>松开鼠标，导入为壁纸</p>
-          <p class="sub">支持图片 / 视频 / EXE / 网页文件</p>
+        <div id="drop-hint" class="drop-hint hidden" data-page-node-id="kgcbj35QoFsvQlF0JdVHjW">
+          <p data-page-node-id="8BaUEhPA3IBfEDYXOpQf3y">松开鼠标，导入为壁纸</p>
+          <p class="sub" data-page-node-id="Lvrmw6fZhbbxIYlbHA9vFk">支持图片 / 视频 / EXE / 网页文件</p>
         </div>
 
-        <div id="grid" class="grid"></div>
-        <div id="empty-state" class="empty-state hidden">
-          <div class="empty-icon">
-            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 14l5-5 4 4 3-3 6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div id="grid" class="grid" data-page-node-id="VTSK8fMTganiE0bCu1rj2c"></div>
+        <div id="empty-state" class="empty-state hidden" data-page-node-id="FYEno5wpnIwVeIEVCkDpuI">
+          <div class="empty-icon" data-page-node-id="dCBIB3SEjvbEiwMe8Q9rxm">
+            <svg viewBox="0 0 24 24" data-page-node-id="ZJhDjYzvMFFjpjLCBUDVFV"><rect x="3" y="4" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6" data-page-node-id="cC3DjWYbP6Ddd7jhGbVCIi"/><path d="M3 14l5-5 4 4 3-3 6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="c8u6fnG7qbHr1PskaNBtPs"/></svg>
           </div>
-          <p class="empty-title">还没有壁纸</p>
-          <p class="empty-sub">点击「添加壁纸文件」或将文件拖入窗口<br>支持 JPG / PNG / GIF / MP4 / AVI / MKV / EXE / HTML 等格式</p>
+          <p class="empty-title" data-page-node-id="8uZL0WStqD0gIVLMjugFkP">还没有壁纸</p>
+          <p class="empty-sub" data-page-node-id="sviJWMzXHcZn1acgilJd1b">点击「添加壁纸文件」或将文件拖入窗口<br data-page-node-id="DPM3YwrQM3WhljARQa6iFb">支持 JPG / PNG / GIF / MP4 / AVI / MKV / EXE / HTML 等格式</p>
         </div>
       </section>
 
       <!-- 定时轮换 -->
-      <section id="page-rotation" class="page">
-        <div class="page-head"><h2>定时轮换</h2></div>
-        <div class="settings-card">
-          <div class="card-title">轮换队列 <span class="title-hint" id="rot-queue-count"></span></div>
-          <div class="row-sub" style="margin-bottom:12px">当前参与轮换的壁纸实时预览（视频壁纸直接播放）· 点击任意一张立即切换 · 自定义范围可点 ✕ 移出</div>
-          <div id="rot-queue" class="rot-queue"></div>
-          <p class="hint" id="rot-queue-empty" style="display:none">轮换队列为空：请在下方启用轮换并选择范围（至少两张壁纸）。</p>
+      <section id="page-rotation" class="page" data-page-node-id="kvirEJRcgotDWpBQVi1eon">
+        <div class="page-head" data-page-node-id="rXW1zgka5Cx0g4SIS9l7vN"><h2 data-page-node-id="XDFdLOqSjKPsvRbwQUoEIE">定时轮换</h2></div>
+        <div class="settings-card" data-page-node-id="U69ig903rGdUCjTDPJzbfC">
+          <div class="card-title" data-page-node-id="XeYg2DRHUDDIhLZD0yisJY">轮换队列 <span class="title-hint" id="rot-queue-count" data-page-node-id="tqTwWEfmFh4VqY3VJ4DfO1"></span></div>
+          <div class="row-sub" style="margin-bottom:12px" data-page-node-id="Hq0nNb4Q4cMmBcYCEAOFh0">当前参与轮换的壁纸实时预览（视频壁纸直接播放）· 点击任意一张立即切换 · 自定义范围可点 ✕ 移出</div>
+          <div id="rot-queue" class="rot-queue" data-page-node-id="cxatEHLg5eBsR9CP1oA7o1"></div>
+          <p class="hint" id="rot-queue-empty" style="display:none" data-page-node-id="GYyoruy8oP5BePZ8W1hxCJ">轮换队列为空：请在下方启用轮换并选择范围（至少两张壁纸）。</p>
         </div>
-        <div class="settings-card">
-          <label class="switch-row">
-            <div>
-              <div class="row-title">启用定时轮换</div>
-              <div class="row-sub">多张壁纸按设定间隔自动切换，让桌面常换常新</div>
+        <div class="settings-card" data-page-node-id="gb1V3DvrS8mE3CQQ9dV2fM">
+          <label class="switch-row" data-page-node-id="8TWty1UVE9F2QpuNMbofD6">
+            <div data-page-node-id="iN8IRzszpTbSo0JfoIvvaz">
+              <div class="row-title" data-page-node-id="DQKL6h21Vew7WyJoNtE8pF">启用定时轮换</div>
+              <div class="row-sub" data-page-node-id="EqUa8cp4t0otXeP60vFpEI">多张壁纸按设定间隔自动切换，让桌面常换常新</div>
             </div>
-            <span class="switch"><input type="checkbox" id="rot-enabled"><i></i></span>
+            <span class="switch" data-page-node-id="gGlbD7GFdw0sczJ8b4GW67"><input type="checkbox" id="rot-enabled" data-page-node-id="dA8Ad75FJIgEzaEu57Aohx"><i data-page-node-id="HC2HbVBrSHpxbxKJ7MFdXY"></i></span>
           </label>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">切换间隔</div>
-              <div class="row-sub">每 <input type="number" id="rot-interval" min="1" max="1440" style="width:70px"> 分钟切换一次</div>
+          <div class="switch-row" data-page-node-id="PG34YHE914HNaAEQhZiH81">
+            <div data-page-node-id="noNzCAKkuLvgtHe6F2liVk">
+              <div class="row-title" data-page-node-id="OlUJwUntSGdejyOpSYWFk6">切换间隔</div>
+              <div class="row-sub" data-page-node-id="hMhUr2wwIDltTJerXC8YAX">每 <input type="number" id="rot-interval" min="1" max="1440" style="width:70px" data-page-node-id="RcEUrGhm2q44SU09DZP6Bb"> 分钟切换一次</div>
             </div>
           </div>
-          <div class="preset-row" id="rot-interval-presets"></div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">切换顺序</div>
-              <div class="row-sub">随机切换或按列表顺序循环</div>
+          <div class="preset-row" id="rot-interval-presets" data-page-node-id="bfmslw1pEOyomxK2onNKsE"></div>
+          <div class="switch-row" data-page-node-id="uH1nzQnbNIDh6TmyqVrsKD">
+            <div data-page-node-id="zP4gApPpqz0FVjuDBLmuZH">
+              <div class="row-title" data-page-node-id="mbcg8GpEBS6kyWWuoIxFDn">切换顺序</div>
+              <div class="row-sub" data-page-node-id="ewJY4IH4Bsq1kQs953IARh">随机切换或按列表顺序循环</div>
             </div>
-            <div class="seg" id="rot-order">
-              <button data-order="random">随机</button>
-              <button data-order="sequential">顺序</button>
+            <div class="seg" id="rot-order" data-page-node-id="Hajzeqo2Sc68a0nvX63PDd">
+              <button data-order="random" data-page-node-id="gniXQKtUA5j7HDCdcDRa5i">随机</button>
+              <button data-order="sequential" data-page-node-id="hGUDCkX4GVo2vmG2wfwvw3">顺序</button>
             </div>
           </div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">轮换范围</div>
-              <div class="row-sub">从哪些壁纸中切换</div>
+          <div class="switch-row" data-page-node-id="HV69akwUA9uNx3FSKsZFtD">
+            <div data-page-node-id="bi9hgqOHNqkMZHtUsJGjQP">
+              <div class="row-title" data-page-node-id="osQjNWd4KDdBHglcD9d072">轮换范围</div>
+              <div class="row-sub" data-page-node-id="zA2dBOad6lWhdYyCDXGP9B">从哪些壁纸中切换</div>
             </div>
-            <div class="seg" id="rot-scope">
-              <button class="active" data-scope="all">全部壁纸</button>
-              <button data-scope="favorite">仅收藏</button>
-              <button data-scope="custom">自定义</button>
+            <div class="seg" id="rot-scope" data-page-node-id="VsFDt7Sa168eQGhVezhkI7">
+              <button class="active" data-scope="all" data-page-node-id="y0cteuHD8FQLBiJNCWoOgB">全部壁纸</button>
+              <button data-scope="favorite" data-page-node-id="ktthlnRTsXBZcalJ8y5GKC">仅收藏</button>
+              <button data-scope="custom" data-page-node-id="QTbIq55cRgqSfmiQqnfE6G">自定义</button>
             </div>
           </div>
         </div>
-        <div class="settings-card" id="rot-custom-card" style="display:none">
-          <div class="card-title">自定义轮换列表 <span class="title-hint" id="rot-custom-count"></span></div>
-          <div class="row-sub" style="margin-bottom:12px">勾选要加入轮换的壁纸（至少两张）</div>
-          <div id="rot-pick-grid" class="rot-pick-grid"></div>
+        <div class="settings-card" id="rot-custom-card" style="display:none" data-page-node-id="KdLCmXJz3OfnNQB4CUEXxn">
+          <div class="card-title" data-page-node-id="Lje9tLpOePlVAGJT3r3JJq">自定义轮换列表 <span class="title-hint" id="rot-custom-count" data-page-node-id="Y4XiquuT5YEGIQmgBgcg42"></span></div>
+          <div class="row-sub" style="margin-bottom:12px" data-page-node-id="kOuR6upfyJe6vFBz04NNFF">勾选要加入轮换的壁纸（至少两张）</div>
+          <div id="rot-pick-grid" class="rot-pick-grid" data-page-node-id="kJ7PDT6Ly0xksnAdsFzOo2"></div>
         </div>
       </section>
 
       <!-- 桌面组件 -->
-      <section id="page-widgets" class="page">
-        <div class="page-head"><h2>桌面组件</h2></div>
-        <div class="settings-card">
-          <label class="switch-row">
-            <div>
-              <div class="row-title">启用桌面组件</div>
-              <div class="row-sub">在壁纸上叠加时钟、音量、系统状态监控、信息看板等小组件，自由搭配</div>
+      <section id="page-widgets" class="page" data-page-node-id="9BFTZg67NSGGiRdD4KEOnp">
+        <div class="page-head" data-page-node-id="GfJBoRDf1GpyhvYx22zRsg"><h2 data-page-node-id="syMnifYpdvNwt4MQGsS3hP">桌面组件</h2></div>
+        <div class="settings-card" data-page-node-id="yck2qKlLLMWaZJ2V6xQS8v">
+          <label class="switch-row" data-page-node-id="5lnynb6C2EEIPOByjJe5ZF">
+            <div data-page-node-id="fSX1eNEFbHT9GCQFaSegSd">
+              <div class="row-title" data-page-node-id="oMoP5UHJFp5HAYgjnn9mns">启用桌面组件</div>
+              <div class="row-sub" data-page-node-id="Bsj9rLilFh1osBNRTUK18Q">在壁纸上叠加时钟、音量、系统状态监控、信息看板等小组件，自由搭配</div>
             </div>
-            <span class="switch"><input type="checkbox" id="wg-enabled"><i></i></span>
+            <span class="switch" data-page-node-id="LB2sGRt3T0pKoYxy2OTOWC"><input type="checkbox" id="wg-enabled" data-page-node-id="p3NP3gwZCYEOZzAQ9qv5PU"><i data-page-node-id="bElGyFeg5lSCFBcYcNO2Ap"></i></span>
           </label>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">组件主题</div>
-              <div class="row-sub">自动 = 深色毛玻璃；亮色适合浅色壁纸</div>
+          <div class="switch-row" data-page-node-id="MqctOUPDFgw1EMgntUbSTC">
+            <div data-page-node-id="pDZ1rkbgOgshBPCQMm23GT">
+              <div class="row-title" data-page-node-id="0EDsM25ic01twAK2ibwcdz">组件主题</div>
+              <div class="row-sub" data-page-node-id="DaEHVGn6Lv8Aiwd6DG3WJb">自动 = 深色毛玻璃；亮色适合浅色壁纸</div>
             </div>
-            <div class="seg" id="wg-theme">
-              <button data-theme="auto">自动</button>
-              <button data-theme="dark">深色</button>
-              <button data-theme="light">亮色</button>
-            </div>
-          </div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">面板不透明度</div>
-              <div class="row-sub"><input type="number" id="wg-opacity-num" min="20" max="100" step="5" style="width:64px"> %（20~100，可直接输入）</div>
-            </div>
-            <input type="range" id="wg-opacity" min="20" max="100" step="5" style="width:140px">
-          </div>
-          <div class="preset-row" id="wg-opacity-presets"></div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">组件样式</div>
-              <div class="row-sub">毛玻璃 / 液态玻璃在组件后加一层模糊玻璃；无底色为最初的极简融入壁纸观感</div>
-            </div>
-            <div class="seg" id="wg-style">
-              <button data-style="none">无底色</button>
-              <button data-style="frosted">毛玻璃</button>
-              <button data-style="liquid">液态玻璃</button>
+            <div class="seg" id="wg-theme" data-page-node-id="3Vf3R8wTHpuIasjDwVBD77">
+              <button data-theme="auto" data-page-node-id="aaSxI2V8NCefDCXmt03sg7">自动</button>
+              <button data-theme="dark" data-page-node-id="g0RTToFFJAPXF6CHaWMeQF">深色</button>
+              <button data-theme="light" data-page-node-id="LacJJLoKxzK1C6gr2aUKuh">亮色</button>
             </div>
           </div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">组件形状</div>
-              <div class="row-sub">玻璃背景层的圆角形状</div>
+          <div class="switch-row" data-page-node-id="FPJ5TTa8UO2q3RjdBENVt2">
+            <div data-page-node-id="7PYUmrwflQZEcPKhJg05N6">
+              <div class="row-title" data-page-node-id="IjdzNBOxvR3DUrAAhJNr1n">面板不透明度</div>
+              <div class="row-sub" data-page-node-id="G1GHMG6aHRRy2EFX7IXTef"><input type="number" id="wg-opacity-num" min="20" max="100" step="5" style="width:64px" data-page-node-id="s6inTYrjDjH2rssg3w0Gw4"> %（20~100，可直接输入）</div>
             </div>
-            <div class="seg" id="wg-shape">
-              <button data-shape="rounded">圆角</button>
-              <button data-shape="pill">胶囊</button>
-              <button data-shape="circle">圆形</button>
-              <button data-shape="square">方</button>
+            <input type="range" id="wg-opacity" min="20" max="100" step="5" style="width:140px" data-page-node-id="SxF1D6PF1brDmEJljAJHoP">
+          </div>
+          <div class="preset-row" id="wg-opacity-presets" data-page-node-id="yQs3vnp4HNuD0xIqtqMWKe"></div>
+          <div class="switch-row" data-page-node-id="0yzfZqodlRPugTxG91ZUhB">
+            <div data-page-node-id="i00fujT2A1D4SEYRrYab0X">
+              <div class="row-title" data-page-node-id="NCIAJtnengAdx1Blxk7n7g">组件样式</div>
+              <div class="row-sub" data-page-node-id="oNwPGiAVA7hIcMC1fe8Pdw">毛玻璃 / 液态玻璃在组件后加一层模糊玻璃；无底色为最初的极简融入壁纸观感</div>
+            </div>
+            <div class="seg" id="wg-style" data-page-node-id="BgCbcy5N36GDUSq3hoV1RF">
+              <button data-style="none" data-page-node-id="OoyKw6TyPCTLUZtMB8b39V">无底色</button>
+              <button data-style="frosted" data-page-node-id="tNp3Wz3C4e0VhjloYRipVz">毛玻璃</button>
+              <button data-style="liquid" data-page-node-id="z77F0xBpr01MqYObIprACf">液态玻璃</button>
             </div>
           </div>
-          <div id="wg-adj"></div>
+          <div class="switch-row" data-page-node-id="M1S66hX0Lrz3klqQeASSaw">
+            <div data-page-node-id="FFcQAC2wTbUKMHg5Pcwxiw">
+              <div class="row-title" data-page-node-id="j07S3uBba6Dmh7peKJPgTj">组件形状</div>
+              <div class="row-sub" data-page-node-id="0225suVWeL4c9qKw9yvzEG">玻璃背景层的圆角形状</div>
+            </div>
+            <div class="seg" id="wg-shape" data-page-node-id="xgKf4Sy1sF1Tv1kgQSDBfE">
+              <button data-shape="rounded" data-page-node-id="qXTW2oRUiCF8dSAmS9WcnI">圆角</button>
+              <button data-shape="pill" data-page-node-id="sCO4NhagHKRH54oLFeZ9ZT">胶囊</button>
+              <button data-shape="circle" data-page-node-id="LK1qXiVJrRyioBupd4bGA8">圆形</button>
+              <button data-shape="square" data-page-node-id="kcSOWQ4NbpkMhWXTkPP6IT">方</button>
+            </div>
+          </div>
+          <div id="wg-adj" data-page-node-id="HjeBBKrlD2gVt6z9CZfejR"></div>
         </div>
-        <div id="wg-items"></div>
-        <div class="settings-card" id="bd-card">
-          <div class="card-title">信息看板内容</div>
-          <label class="switch-row">
-            <div>
-              <div class="row-title">日历块</div>
-              <div class="row-sub">今日日期 + 未来日程 + 纪念日倒计时（按每年重复计算）</div>
+        <div id="wg-items" data-page-node-id="uoPPN5o9H0brv1X3XF9dgQ"></div>
+        <div class="settings-card" id="bd-card" data-page-node-id="7tshMocR0DMR0UCiBpaoUU">
+          <div class="card-title" data-page-node-id="k8NQNDLjaK0MTgD3QWoZfR">信息看板内容</div>
+          <label class="switch-row" data-page-node-id="Ws4BSXFV2l2hgogEEA3mO5">
+            <div data-page-node-id="e2mEjcYa4Ocg1VyOGCaEHw">
+              <div class="row-title" data-page-node-id="O78jec3NJwGWOV8CR3Izya">日历块</div>
+              <div class="row-sub" data-page-node-id="0aLHOp0vLXnq1U0wtnrdFV">今日日期 + 未来日程 + 纪念日倒计时（按每年重复计算）</div>
             </div>
-            <span class="switch"><input type="checkbox" id="bd-sec-calendar"><i></i></span>
+            <span class="switch" data-page-node-id="VOKBcwuSBNM9zO4PBmkyFF"><input type="checkbox" id="bd-sec-calendar" data-page-node-id="BVpbq3z0SDC6bfIxbE3HIl"><i data-page-node-id="6lFeIVHkQGxPsDoKp7AQxx"></i></span>
           </label>
-          <label class="switch-row">
-            <div>
-              <div class="row-title">天气块</div>
-              <div class="row-sub">实时 + 逐时 + 七日预报（Open-Meteo，30 分钟自动刷新，离线用缓存）</div>
+          <label class="switch-row" data-page-node-id="JxQCS0V4TNGq8ZL8NJ9Cki">
+            <div data-page-node-id="PqlEBpbeljEDaIL7zaBQFR">
+              <div class="row-title" data-page-node-id="xEe8DB9Z6vAMWK3MFVo8Pf">天气块</div>
+              <div class="row-sub" data-page-node-id="5cH4IXIHSvfYeZBHRXNGgA">实时 + 逐时 + 七日预报（Open-Meteo，30 分钟自动刷新，离线用缓存）</div>
             </div>
-            <span class="switch"><input type="checkbox" id="bd-sec-weather"><i></i></span>
+            <span class="switch" data-page-node-id="ua7eYSvksMQMrTQCtsI8H1"><input type="checkbox" id="bd-sec-weather" data-page-node-id="sX3DmdDc9GLSMEuTphkFC5"><i data-page-node-id="PXpigGucwLh2Rwq9BrMJfw"></i></span>
           </label>
-          <label class="switch-row">
-            <div>
-              <div class="row-title">待办块</div>
-              <div class="row-sub">在桌面上直接点勾选框即可打勾，客户端列表同步</div>
+          <label class="switch-row" data-page-node-id="zr4L7DRCkSqh5NvefufHd1">
+            <div data-page-node-id="zCJ6H6H62XGoZ6M14QEvYg">
+              <div class="row-title" data-page-node-id="rHLgZCn0PHt2ApZY6vbeww">待办块</div>
+              <div class="row-sub" data-page-node-id="WCqibFriecTiCmOhR1b7BX">在桌面上直接点勾选框即可打勾，客户端列表同步</div>
             </div>
-            <span class="switch"><input type="checkbox" id="bd-sec-todo"><i></i></span>
+            <span class="switch" data-page-node-id="nuXlRUttVr1tir2Wq5PCHF"><input type="checkbox" id="bd-sec-todo" data-page-node-id="4yOpl05ExvckAJ7bYyfLyg"><i data-page-node-id="B9e3gKAPayfbQlv1MZojfa"></i></span>
           </label>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">天气城市</div>
-              <div class="row-sub" id="bd-city-now"></div>
+          <div class="switch-row" data-page-node-id="YNKHsWZ1qbAq2iBCatuRN9">
+            <div data-page-node-id="VXHektc71kOD4ZJdtrTkqy">
+              <div class="row-title" data-page-node-id="0e4tgcWdaOBTCUApBMf82F">天气城市</div>
+              <div class="row-sub" id="bd-city-now" data-page-node-id="fdq1xoayC0fCAJ9ziEirfL"></div>
             </div>
-            <div style="display:flex; flex-direction:column; gap:6px; align-items:stretch; min-width:220px">
-              <input type="text" id="bd-city-q" placeholder="搜索城市：苏州 / Suzhou" style="width:100%">
-              <div class="lc-list" id="bd-city-list" style="max-height:132px"></div>
-              <button class="btn ghost small" id="bd-city-auto">📍 恢复自动定位（按 IP）</button>
+            <div style="display:flex; flex-direction:column; gap:6px; align-items:stretch; min-width:220px" data-page-node-id="0lSjw77MZT1CFDIuQueeFK">
+              <input type="text" id="bd-city-q" placeholder="搜索城市：苏州 / Suzhou" style="width:100%" data-page-node-id="m125EKC2F3H32paSBc7eGz">
+              <div class="lc-list" id="bd-city-list" style="max-height:132px" data-page-node-id="EbX5mULSkwHlJt6AX3qWtR"></div>
+              <button class="btn ghost small" id="bd-city-auto" data-page-node-id="FHb43HoWGPXZsUCVGOhOwO">📍 恢复自动定位（按 IP）</button>
             </div>
           </div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">添加日程 / 纪念日</div>
-              <div class="row-sub">纪念日勾选后按每年重复显示「还有 N 天」</div>
+          <div class="switch-row" data-page-node-id="I3BBRaWFu3NI6ptk3WJ5E6">
+            <div data-page-node-id="a5U8CItl8mHlr8jkvARNNj">
+              <div class="row-title" data-page-node-id="7jEQFRsBOSzczFgCE294Fz">添加日程 / 纪念日</div>
+              <div class="row-sub" data-page-node-id="pFffFzA3RR96Rl6SVLynId">纪念日勾选后按每年重复显示「还有 N 天」</div>
             </div>
-            <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-end">
-              <input type="text" id="bd-ev-text" placeholder="文本" style="width:130px">
-              <input type="date" id="bd-ev-date">
-              <label style="font-size:12px; display:flex; gap:4px; align-items:center"><input type="checkbox" id="bd-ev-ann">纪念日</label>
-              <button class="btn ghost small" id="bd-ev-add">添加</button>
-            </div>
-          </div>
-          <div class="lc-list" id="bd-ev-list" style="max-height:180px"></div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">添加待办</div>
-              <div class="row-sub"></div>
-            </div>
-            <div style="display:flex; gap:6px; align-items:center; justify-content:flex-end">
-              <input type="text" id="bd-todo-text" placeholder="待办内容" style="width:170px">
-              <button class="btn ghost small" id="bd-todo-add">添加</button>
-              <button class="btn ghost small" id="bd-todo-clear">清除已完成</button>
+            <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-end" data-page-node-id="vYYblnLtQvuKTU1tYH4PLJ">
+              <input type="text" id="bd-ev-text" placeholder="文本" style="width:130px" data-page-node-id="v5UWNHCHwV11EtL0NUgkP2">
+              <input type="date" id="bd-ev-date" data-page-node-id="1HBainBju1qjm4MZaehCm6">
+              <label style="font-size:12px; display:flex; gap:4px; align-items:center" data-page-node-id="hQsuP4AFYoBXhMYb00heZL"><input type="checkbox" id="bd-ev-ann" data-page-node-id="ZEisqHGvNoOQTaOvKdZg32">纪念日</label>
+              <button class="btn ghost small" id="bd-ev-add" data-page-node-id="NBa1UlNiNmNw8zan0viSxD">添加</button>
             </div>
           </div>
-          <div class="lc-list" id="bd-todo-list" style="max-height:180px"></div>
+          <div class="lc-list" id="bd-ev-list" style="max-height:180px" data-page-node-id="xx0ADMu81wWd0PcKErtkYG"></div>
+          <div class="switch-row" data-page-node-id="Jzvhjy9OvkJx7axVU68lWd">
+            <div data-page-node-id="dfGTi3zvxHstJVc3KzALO7">
+              <div class="row-title" data-page-node-id="YPZwagxTA2Ez71r7Nt9I0x">添加待办</div>
+              <div class="row-sub" data-page-node-id="taRZydOGKSxxOF2iVicBBt"></div>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center; justify-content:flex-end" data-page-node-id="4oulIVEE5RnikWsoizF9wo">
+              <input type="text" id="bd-todo-text" placeholder="待办内容" style="width:170px" data-page-node-id="PpaNbvLFEEql6D4YUyT4lO">
+              <button class="btn ghost small" id="bd-todo-add" data-page-node-id="lhEdFeIypX8WaFpAk7Q2NB">添加</button>
+              <button class="btn ghost small" id="bd-todo-clear" data-page-node-id="jbiqBx5omASx3VEL1LAG1z">清除已完成</button>
+            </div>
+          </div>
+          <div class="lc-list" id="bd-todo-list" style="max-height:180px" data-page-node-id="TnrE2TsMa3rEtao3kHMo9W"></div>
         </div>
-        <p class="hint">组件显示在壁纸之上、桌面图标之下，视频壁纸同样可见。时钟点击可切换 12/24 小时制；音量组件在桌面直接拖动即调节系统主音量（等同任务栏音量），点击图标切换系统静音，壁纸自身音量仍在「播放参数」中设置。位置选择九宫格对应屏幕九个区域；需要微调摆放时，点组件卡片上的「调整位置」按钮，然后在桌面上按住组件直接拖动，松开即保存。</p>
+        <p class="hint" data-page-node-id="FQlWyeJgPjf4WTWGRo8yOI">组件显示在壁纸之上、桌面图标之下，视频壁纸同样可见。时钟点击可切换 12/24 小时制；音量组件在桌面直接拖动即调节系统主音量（等同任务栏音量），点击图标切换系统静音，壁纸自身音量仍在「播放参数」中设置。位置选择九宫格对应屏幕九个区域；需要微调摆放时，点组件卡片上的「调整位置」按钮，然后在桌面上按住组件直接拖动，松开即保存。</p>
       </section>
 
       <!-- 音律动效 -->
-      <section id="page-audio" class="page">
-        <div class="page-head"><h2>音律动效</h2></div>
-        <div class="settings-card">
-          <label class="switch-row">
-            <div>
-              <div class="row-title">启用音律动效</div>
-              <div class="row-sub">捕获系统正在播放的声音（音乐 / 视频 / 游戏，外放或耳机均可），在壁纸上叠加随节奏舞动的频谱动效（仿 Wallpaper Engine）</div>
+      <section id="page-audio" class="page" data-page-node-id="LQBc8z8qfHR3y8HLfi2Qgc">
+        <div class="page-head" data-page-node-id="jwXki5rrCRC0DiEdOKp52p"><h2 data-page-node-id="YtpOFFCzaTh7DBOP2YkSQm">音律动效</h2></div>
+        <div class="settings-card" data-page-node-id="dKlL9cGMF99icdDNftusrs">
+          <label class="switch-row" data-page-node-id="08i9bLAJvi9ShHSb7s333U">
+            <div data-page-node-id="VnV7EJxspLaP9yK4KBUXFu">
+              <div class="row-title" data-page-node-id="lnTkg4VpYiMrr4t6aMfU8U">启用音律动效</div>
+              <div class="row-sub" data-page-node-id="FkRNbVBM68c2NsFh1tnGOc">捕获系统正在播放的声音（音乐 / 视频 / 游戏，外放或耳机均可），在壁纸上叠加随节奏舞动的频谱动效（仿 Wallpaper Engine）</div>
             </div>
-            <span class="switch"><input type="checkbox" id="av-enabled"><i></i></span>
+            <span class="switch" data-page-node-id="xB5cHYrYthuz0bADHOA1iE"><input type="checkbox" id="av-enabled" data-page-node-id="tTqYK4s3JRp68DUvRcK7Sy"><i data-page-node-id="qHkLup0teSIWNBpTCA3w8R"></i></span>
           </label>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">音频输入状态</div>
-              <div class="row-sub" id="av-status">开启后显示系统声音捕获状态与实时电平</div>
+          <div class="switch-row" data-page-node-id="Vk1e3sShLN6faM4EtuFKCh">
+            <div data-page-node-id="MRjeNCKAkxYrMQDGBSgFfE">
+              <div class="row-title" data-page-node-id="icaJRFvIiZ1Xc3JBEiy83E">音频输入状态</div>
+              <div class="row-sub" id="av-status" data-page-node-id="zw5ysBIE7jSh4TtZ1VuagJ">开启后显示系统声音捕获状态与实时电平</div>
             </div>
-            <div class="av-meter" id="av-meter" title="实时音频电平"></div>
+            <div class="av-meter" id="av-meter" title="实时音频电平" data-page-node-id="DbsAwihSqJM1g2ZHxNTOHz"></div>
           </div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">动效样式</div>
-              <div class="row-sub">频谱条：能量柱 · 波浪：波形曲线 · 圆环：旋转放射环 · 山峦：填充山脉 · 圆点：点阵矩阵 · 同心环：三频同心 · LED块：复古电平块 · 霓虹：强发光灯管</div>
+          <div class="switch-row" data-page-node-id="DRJ3gPpp0iLgdaLPqqWAkJ">
+            <div data-page-node-id="4PayYE4H1ElE2bFS86KREB">
+              <div class="row-title" data-page-node-id="XcAnJlzSCUoWaoDrL4JFBo">动效样式</div>
+              <div class="row-sub" data-page-node-id="XV4DtTXXMWJdTCE2Bv9Xob">频谱条：能量柱 · 波浪：波形曲线 · 圆环：旋转放射环 · 山峦：填充山脉 · 圆点：点阵矩阵 · 同心环：三频同心 · LED块：复古电平块 · 霓虹：强发光灯管</div>
             </div>
-            <div class="seg" id="av-style" style="flex-wrap:wrap; max-width:300px; justify-content:flex-end">
-              <button data-style="bars">频谱条</button>
-              <button data-style="wave">波浪</button>
-              <button data-style="circle">圆环</button>
-              <button data-style="mountain">山峦</button>
-              <button data-style="dots">圆点</button>
-              <button data-style="rings">同心环</button>
-              <button data-style="blocks">LED块</button>
-              <button data-style="neon">霓虹</button>
-            </div>
-          </div>
-          <div class="switch-row" id="av-pos-row">
-            <div>
-              <div class="row-title">显示位置</div>
-              <div class="row-sub">底部 / 顶部快速切换；需要自由摆放时用下方「调整位置」，在桌面按住动效直接拖</div>
-            </div>
-            <div class="seg" id="av-pos">
-              <button data-pos="bottom">底部</button>
-              <button data-pos="top">顶部</button>
+            <div class="seg" id="av-style" style="flex-wrap:wrap; max-width:300px; justify-content:flex-end" data-page-node-id="9LRlvyHcxki8Ctwid766wa">
+              <button data-style="bars" data-page-node-id="aQvdEhhDUDIHnHFkcg2mWI">频谱条</button>
+              <button data-style="wave" data-page-node-id="2VxxzxXHjnbBj72DF2DAxj">波浪</button>
+              <button data-style="circle" data-page-node-id="WK2rJIfDbnBGvx7DgHFL9m">圆环</button>
+              <button data-style="mountain" data-page-node-id="UhrADWZArtoHPntxNeI8Tq">山峦</button>
+              <button data-style="dots" data-page-node-id="g9lhfSWBcCtZoj6wl6IeAk">圆点</button>
+              <button data-style="rings" data-page-node-id="XXbAHEvYOVDtbSHmEn1rWs">同心环</button>
+              <button data-style="blocks" data-page-node-id="1IJu2OCtjfLdcgftnAIoTE">LED块</button>
+              <button data-style="neon" data-page-node-id="nUTFaeTwf27gfJifjC4T91">霓虹</button>
             </div>
           </div>
-          <div class="switch-row" id="av-pos9-row">
-            <div>
-              <div class="row-title">九宫格定位</div>
-              <div class="row-sub">点击快速摆放到中心 / 左中 / 右上等常用位置；拖动调整与精确滑杆仍可用</div>
+          <div class="switch-row" id="av-pos-row" data-page-node-id="kJj3mDdruzwc0cFZnarRbk">
+            <div data-page-node-id="zZb3du863aNkA9EqCgMxdW">
+              <div class="row-title" data-page-node-id="IbdnZuBKoUmqrXdC21R9wz">显示位置</div>
+              <div class="row-sub" data-page-node-id="0lPSrsxHC9nljHMoHqmvdB">底部 / 顶部快速切换；需要自由摆放时用下方「调整位置」，在桌面按住动效直接拖</div>
             </div>
-            <div class="pos-grid" id="av-pos9" title="点击快速设置位置"></div>
-          </div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">调整位置</div>
-              <div class="row-sub" id="av-adjust-hint">点「开始调整」后在桌面上按住动效拖动，松开即保存位置并自动退出</div>
-            </div>
-            <button class="btn small" id="btn-av-adjust">开始调整</button>
-          </div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">精确位置 <span class="title-hint" id="av-xy-val"></span></div>
-              <div class="row-sub">水平 / 垂直精确调节（屏幕百分比，可直接输入数值）；拖动调整后此处同步显示</div>
-            </div>
-            <div class="av-xy-col">
-              <label class="xy-line">水平<input type="number" id="av-posx-num" min="2" max="98" step="1" style="width:56px"><input type="range" id="av-posx" min="2" max="98" step="1" style="width:110px"></label>
-              <label class="xy-line">垂直<input type="number" id="av-posy-num" min="4" max="96" step="1" style="width:56px"><input type="range" id="av-posy" min="4" max="96" step="1" style="width:110px"></label>
+            <div class="seg" id="av-pos" data-page-node-id="yC1H1FvNKI3k0sFGIkDDWl">
+              <button data-pos="bottom" data-page-node-id="DF6bJtAEwGkXDcGvuvvx5A">底部</button>
+              <button data-pos="top" data-page-node-id="ccx7SoeEdbXKeXCWUa43FQ">顶部</button>
             </div>
           </div>
-          <div class="preset-row" id="av-xy-presets" title="点击快速设置到对应角落/居中"></div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">颜色</div>
-              <div class="row-sub">点击色板快速切换常用配色，或用取色器自定义（渐变模式下向亮色过渡）</div>
+          <div class="switch-row" id="av-pos9-row" data-page-node-id="OSYUBDC7QTC25U0Cd67lIg">
+            <div data-page-node-id="5z6RkEIJDAGvD9395Jq2WP">
+              <div class="row-title" data-page-node-id="iv2KnaxCfLu9qPnSI4P92j">九宫格定位</div>
+              <div class="row-sub" data-page-node-id="SOtK1G3a0HussG43feHaRx">点击快速摆放到中心 / 左中 / 右上等常用位置；拖动调整与精确滑杆仍可用</div>
             </div>
-            <div class="av-color-row">
-              <input type="color" id="av-color" value="#7c5cff">
-              <div class="seg" id="av-gradient">
-                <button data-gradient="on">渐变</button>
-                <button data-gradient="off">纯色</button>
+            <div class="pos-grid" id="av-pos9" title="点击快速设置位置" data-page-node-id="q3Ay9G5VfNUN9052eF7mmF"></div>
+          </div>
+          <div class="switch-row" data-page-node-id="tQfzh0FvVEYanrPW1oNarE">
+            <div data-page-node-id="RZFpe9CKVuCb9ViyIFiItL">
+              <div class="row-title" data-page-node-id="rE4mNBNt1iput3925jRp4V">调整位置</div>
+              <div class="row-sub" id="av-adjust-hint" data-page-node-id="0kGaV0l56oMt1HZIO1Arn8">点「开始调整」后在桌面上按住动效拖动，松开即保存位置并自动退出</div>
+            </div>
+            <button class="btn small" id="btn-av-adjust" data-page-node-id="MQgh5XFdRTpz8Lz545A74T">开始调整</button>
+          </div>
+          <div class="switch-row" data-page-node-id="6x7UJppbeREbND6j4vsUOV">
+            <div data-page-node-id="DpKkvDJ7GMTdth5qeLBB2q">
+              <div class="row-title" data-page-node-id="fFsGd8rk9FUHzwqktIRL0J">精确位置 <span class="title-hint" id="av-xy-val" data-page-node-id="Npg0kdj88sj3HlBfvDaJMC"></span></div>
+              <div class="row-sub" data-page-node-id="5TYhvJmOofaj9YwbAAB3dA">水平 / 垂直精确调节（屏幕百分比，可直接输入数值）；拖动调整后此处同步显示</div>
+            </div>
+            <div class="av-xy-col" data-page-node-id="sjuKW9WLhTUcVSTrGO47E5">
+              <label class="xy-line" data-page-node-id="7ah6HoWKwOCIJQpbk7777A">水平<input type="number" id="av-posx-num" min="2" max="98" step="1" style="width:56px" data-page-node-id="fZJQoKuvf7LtiBZAYyTBs7"><input type="range" id="av-posx" min="2" max="98" step="1" style="width:110px" data-page-node-id="VKBrbwOg2ZOxFpndFF0ySU"></label>
+              <label class="xy-line" data-page-node-id="2fihXMNtDvrX1SLJPGNCyv">垂直<input type="number" id="av-posy-num" min="4" max="96" step="1" style="width:56px" data-page-node-id="dhqCOPMdmwmxW9CQB03M3X"><input type="range" id="av-posy" min="4" max="96" step="1" style="width:110px" data-page-node-id="ARYd3dn26WHewtnQ6wUEHM"></label>
+            </div>
+          </div>
+          <div class="preset-row" id="av-xy-presets" title="点击快速设置到对应角落/居中" data-page-node-id="BYxqgSvqCTmk4l0AARhdnL"></div>
+          <div class="switch-row" data-page-node-id="NlyygNnrwyuRYPiXBr2TxL">
+            <div data-page-node-id="6f25ptDNTpVOjzaJ1z7PX2">
+              <div class="row-title" data-page-node-id="DwUoZCHGZHaPLAD1kwDpXo">颜色</div>
+              <div class="row-sub" data-page-node-id="zRNHdp5ZTZxLgTGsms7DRt">点击色板快速切换常用配色，或用取色器自定义（渐变模式下向亮色过渡）</div>
+            </div>
+            <div class="av-color-row" data-page-node-id="pbtihkIyigyeMxBDjCnP1F">
+              <input type="color" id="av-color" value="#7c5cff" data-page-node-id="Ce2DoaX4VkRFCY23Nsih3M">
+              <div class="seg" id="av-gradient" data-page-node-id="QsEVI5iH1ojwKJbovuCnZa">
+                <button data-gradient="on" data-page-node-id="kCaMBLKAH3g7neewNv5s1B">渐变</button>
+                <button data-gradient="off" data-page-node-id="hPfZ7rR2eHsrmfhqAj1rDl">纯色</button>
               </div>
             </div>
           </div>
-          <div class="preset-row" id="av-colors"></div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">不透明度 <span class="title-hint" id="av-opacity-val"></span></div>
-              <div class="row-sub"><input type="number" id="av-opacity-num" min="20" max="100" step="5" style="width:64px"> %（20~100，可直接输入）</div>
+          <div class="preset-row" id="av-colors" data-page-node-id="Ew4AolsqM0SdB7SrJCU4Bq"></div>
+          <div class="switch-row" data-page-node-id="ubAoxwAtUUYrdsDNhq4mlI">
+            <div data-page-node-id="rKhlssRxedDY1O8sAneeW9">
+              <div class="row-title" data-page-node-id="0hA5PeeU6EGunXc6QGM6C5">不透明度 <span class="title-hint" id="av-opacity-val" data-page-node-id="hz5jXuaB0uuDFFbXncT3qR"></span></div>
+              <div class="row-sub" data-page-node-id="FbMo5Mz4JtLLDSKhnc9v8R"><input type="number" id="av-opacity-num" min="20" max="100" step="5" style="width:64px" data-page-node-id="PVxxWmeRSzYdOflUZB4l4F"> %（20~100，可直接输入）</div>
             </div>
-            <input type="range" id="av-opacity" min="20" max="100" step="5" style="width:150px">
+            <input type="range" id="av-opacity" min="20" max="100" step="5" style="width:150px" data-page-node-id="AbqzvCTKWbOFAtaLE42U2V">
           </div>
-          <div class="preset-row" id="av-opacity-presets"></div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">大小 <span class="title-hint" id="av-size-val"></span></div>
-              <div class="row-sub"><input type="number" id="av-size-num" min="0.5" max="2" step="0.1" style="width:64px"> ×（0.5~2，可直接输入）</div>
+          <div class="preset-row" id="av-opacity-presets" data-page-node-id="Dlc2EacWLHmV3ACccAE3Nm"></div>
+          <div class="switch-row" data-page-node-id="p5qQbdqQYPIVaGK1t1BPkw">
+            <div data-page-node-id="QAmJoBuRikEtxAHw43G5ji">
+              <div class="row-title" data-page-node-id="x63fGqMAPXGgoMD1fC8pzi">大小 <span class="title-hint" id="av-size-val" data-page-node-id="Tpyr24VD652clAH3LH77Th"></span></div>
+              <div class="row-sub" data-page-node-id="yMDZqJmQVA0vfn6q7Tag2a"><input type="number" id="av-size-num" min="0.5" max="2" step="0.1" style="width:64px" data-page-node-id="D4F7fGUppknFpH3aN9Jbsw"> ×（0.5~2，可直接输入）</div>
             </div>
-            <input type="range" id="av-size" min="0.5" max="2" step="0.1" style="width:150px">
+            <input type="range" id="av-size" min="0.5" max="2" step="0.1" style="width:150px" data-page-node-id="B5ZkstuXPl4FvlecX2QGQ8">
           </div>
-          <div class="preset-row" id="av-size-presets"></div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">灵敏度 <span class="title-hint" id="av-sens-val"></span></div>
-              <div class="row-sub"><input type="number" id="av-sens-num" min="0.5" max="3" step="0.1" style="width:64px">（0.5~3，可直接输入）</div>
+          <div class="preset-row" id="av-size-presets" data-page-node-id="5M7MDlHBQ1CY197vQBZDrH"></div>
+          <div class="switch-row" data-page-node-id="2BJbkkEZFZk3pgIsrnwOun">
+            <div data-page-node-id="tnL4X27VLuE3VuKv1Xmtcy">
+              <div class="row-title" data-page-node-id="SO2eKw5XYAcZAZ2nGDx1KI">灵敏度 <span class="title-hint" id="av-sens-val" data-page-node-id="L1jNHrVrnWOmMUOjfrcepE"></span></div>
+              <div class="row-sub" data-page-node-id="V1UGI3kdgwMPlhrp9HehUb"><input type="number" id="av-sens-num" min="0.5" max="3" step="0.1" style="width:64px" data-page-node-id="uvxWSPsfylyX9D6HUN3vc9">（0.5~3，可直接输入）</div>
             </div>
-            <input type="range" id="av-sens" min="0.5" max="3" step="0.1" style="width:150px">
+            <input type="range" id="av-sens" min="0.5" max="3" step="0.1" style="width:150px" data-page-node-id="cinGJrYXmnZB2uANZCFW7T">
           </div>
-          <div class="preset-row" id="av-sens-presets"></div>
-          <label class="switch-row">
-            <div>
-              <div class="row-title">倒影</div>
-              <div class="row-sub">在基线另一侧叠加倒影，对全部动效样式生效；倒影与主体取自同一张发光层，动效变化完整复刻</div>
+          <div class="preset-row" id="av-sens-presets" data-page-node-id="wIskn57EP6Y5ztXJWKt2ca"></div>
+          <label class="switch-row" data-page-node-id="3mnKUENS0ODRXFZfPii5kr">
+            <div data-page-node-id="r60vBNP4F9vY7JTkT8G4Yj">
+              <div class="row-title" data-page-node-id="7Ofjv0lofRwp4UqBDV0sCv">倒影</div>
+              <div class="row-sub" data-page-node-id="c6rNuN0MsDrqDNVJm1RWy2">在基线另一侧叠加倒影，对全部动效样式生效；倒影与主体取自同一张发光层，动效变化完整复刻</div>
             </div>
-            <span class="switch"><input type="checkbox" id="av-mirror"><i></i></span>
+            <span class="switch" data-page-node-id="LRMVGpFbtTqQttnLCMQZiH"><input type="checkbox" id="av-mirror" data-page-node-id="mTxnTOiXMcTVfrtbZjFUIc"><i data-page-node-id="SOYMOEkTEQueL5Fp7sXQjg"></i></span>
           </label>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">倒影形态</div>
-              <div class="row-sub">渐隐：柔和虚化快速淡出；镜面：清晰锐利、延伸最长；水面：横向波纹扰动，越远越晃</div>
+          <div class="switch-row" data-page-node-id="22cFHsU8tezSwtXRqvGn4F">
+            <div data-page-node-id="wJmU7ov8G19iIkr29ncyGW">
+              <div class="row-title" data-page-node-id="oae3bybWoVFz5NTEEFfYQQ">倒影形态</div>
+              <div class="row-sub" data-page-node-id="u0Skp8ckiAWCXE0GZrz9cX">渐隐：柔和虚化快速淡出；镜面：清晰锐利、延伸最长；水面：横向波纹扰动，越远越晃</div>
             </div>
-            <div class="seg" id="av-mirrormode">
-              <button data-mirrormode="fade">渐隐</button>
-              <button data-mirrormode="mirror">镜面</button>
-              <button data-mirrormode="water">水面</button>
+            <div class="seg" id="av-mirrormode" data-page-node-id="nk3YXYNBtdXBloGsv8t4AG">
+              <button data-mirrormode="fade" data-page-node-id="SVxLa7bq894sv5z2e44sSD">渐隐</button>
+              <button data-mirrormode="mirror" data-page-node-id="QkukxndgBQrg6bE6KbMVSM">镜面</button>
+              <button data-mirrormode="water" data-page-node-id="pd96TPCCcLI71nIs9FAVnP">水面</button>
             </div>
           </div>
-          <label class="switch-row">
-            <div>
-              <div class="row-title">被遮挡时自动暂停</div>
-              <div class="row-sub">有窗口最大化或应用全屏时暂停动效绘制（此时动效层被完全盖住，继续跑只是白耗 GPU/CPU），窗口恢复后自动继续</div>
+          <label class="switch-row" data-page-node-id="Bf5orF57hzFRhzQi5GRZjP">
+            <div data-page-node-id="RLs6RquObuSEr2fyGu7Pcm">
+              <div class="row-title" data-page-node-id="ueCx3twgN4p3vNI9kK2JQq">被遮挡时自动暂停</div>
+              <div class="row-sub" data-page-node-id="59P4doZMxSYmdjuGrgk6X2">有窗口最大化或应用全屏时暂停动效绘制（此时动效层被完全盖住，继续跑只是白耗 GPU/CPU），窗口恢复后自动继续</div>
             </div>
-            <span class="switch"><input type="checkbox" id="av-occult"><i></i></span>
+            <span class="switch" data-page-node-id="vrS9vL44GIeT1wrO4AliGt"><input type="checkbox" id="av-occult" data-page-node-id="GnGLGIInFV6eUmMLQSGjEq"><i data-page-node-id="qRMDsbHGoPy9zq4D7PzuCs"></i></span>
           </label>
-          <div id="av-adj"></div>
+          <div id="av-adj" data-page-node-id="2pl1kfJ5oGLVpax5byEoGk"></div>
         </div>
-        <p class="hint">动效层与桌面组件同层：显示在壁纸与桌面图标之上、所有程序窗口之下，不影响任何操作。切换输出设备（外放 ⇄ 耳机）会自动跟随重新捕获。静音时频谱自然归零。捕获走系统音频环回（WASAPI loopback），不录制、不回放、不产生声音。</p>
+        <p class="hint" data-page-node-id="NKBXIVSGHMD1zjFR3PLfB8">动效层与桌面组件同层：显示在壁纸与桌面图标之上、所有程序窗口之下，不影响任何操作。切换输出设备（外放 ⇄ 耳机）会自动跟随重新捕获。静音时频谱自然归零。捕获走系统音频环回（WASAPI loopback），不录制、不回放、不产生声音。</p>
       </section>
 
       <!-- 桌面快捷方式转盘 -->
-      <section id="page-launcher" class="page">
-        <div class="page-head"><h2>桌面快捷方式</h2></div>
-        <div class="settings-card">
-          <label class="switch-row">
-            <div>
-              <div class="row-title">启用快捷方式转盘</div>
-              <div class="row-sub">常用 App 以转盘形式收纳在桌面上（图标层之上、不遮挡窗口）：点击图标即可启动，不影响壁纸观感</div>
+      <section id="page-launcher" class="page" data-page-node-id="5nAVBACpYr6Kaex8hITCvC">
+        <div class="page-head" data-page-node-id="dDI1dZJ4iDH3NJ8AhFxABY"><h2 data-page-node-id="dID2aeJcepGcGAyJvOsih8">桌面快捷方式</h2></div>
+        <div class="settings-card" data-page-node-id="bA52395NUDFZyFVVFyXtUF">
+          <label class="switch-row" data-page-node-id="1unCThOpNMbv51ieHjK54b">
+            <div data-page-node-id="1oZLNaEMbCF4mzq5TEqtma">
+              <div class="row-title" data-page-node-id="q87iGCBs4NwN21Hog3k0Ur">启用快捷方式转盘</div>
+              <div class="row-sub" data-page-node-id="PdxtT3fjAxTUTrV5sqhBDQ">常用 App 以转盘形式收纳在桌面上（图标层之上、不遮挡窗口）：点击图标即可启动，不影响壁纸观感</div>
             </div>
-            <span class="switch"><input type="checkbox" id="lc-enabled"><i></i></span>
+            <span class="switch" data-page-node-id="nkJU57zV0ewBP1PhVJtcLE"><input type="checkbox" id="lc-enabled" data-page-node-id="5C5LEiIbx7VGzVJxI9ZCQX"><i data-page-node-id="NVlR8kGpPtovaW2soEEqTI"></i></span>
           </label>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">同屏显示数量</div>
-              <div class="row-sub"><input type="number" id="lc-count-num" min="1" max="12" step="1" style="width:64px"> 个（4~12，可直接输入），其余图标通过拖动轮换出现</div>
+          <div class="switch-row" data-page-node-id="QuZN5VAYCSxi91LV60bWOo">
+            <div data-page-node-id="eOivnDSTr1FdFp1lDHNvsl">
+              <div class="row-title" data-page-node-id="juVfEhUF4Gk3gd1BvJ6bVS">同屏显示数量</div>
+              <div class="row-sub" data-page-node-id="qdxbyIICIpgpzuZcg6RUHS"><input type="number" id="lc-count-num" min="1" max="12" step="1" style="width:64px" data-page-node-id="vE14GECvErl3IdT6dGyvtc"> 个（4~12，可直接输入），其余图标通过拖动轮换出现</div>
             </div>
-            <div class="seg" id="lc-count">
-              <button data-count="4">4</button>
-              <button data-count="6">6</button>
-              <button data-count="8">8</button>
-              <button data-count="10">10</button>
-              <button data-count="12">12</button>
+            <div class="seg" id="lc-count" data-page-node-id="iPcnaHMPejCs5rgPMLuQGV">
+              <button data-count="4" data-page-node-id="Zn1cG91ruNS9kBhbD9B4Pq">4</button>
+              <button data-count="6" data-page-node-id="7OVk7NHolXzsPGOF1FJMoD">6</button>
+              <button data-count="8" data-page-node-id="YfXo6lrbCkuqQhXpPhvC8p">8</button>
+              <button data-count="10" data-page-node-id="LusdcaPI8vCUQH0HMbVvgN">10</button>
+              <button data-count="12" data-page-node-id="8aREXfoXsOgDp0U4fH9Qsu">12</button>
             </div>
           </div>
-          <label class="switch-row">
-            <div>
-              <div class="row-title">空闲自动收起</div>
-              <div class="row-sub">鼠标离开数秒后自动收起为小胶囊，悬停自动展开，保持桌面清爽</div>
+          <label class="switch-row" data-page-node-id="0MHDxS25tYJoCpJZHuyZzQ">
+            <div data-page-node-id="TuVEM8nV1XjCRiit5fJ1zn">
+              <div class="row-title" data-page-node-id="fcsIapoEnGBVR2P79qJgKA">空闲自动收起</div>
+              <div class="row-sub" data-page-node-id="Fj8XBCOF10rAhxDfjDAsuK">鼠标离开数秒后自动收起为小胶囊，悬停自动展开，保持桌面清爽</div>
             </div>
-            <span class="switch"><input type="checkbox" id="lc-autocollapse"><i></i></span>
+            <span class="switch" data-page-node-id="uwWj9KPYyGe67opa8wdE31"><input type="checkbox" id="lc-autocollapse" data-page-node-id="XCbcCXbhN98rwjUaBeSB1L"><i data-page-node-id="QuKyIb7I6kSiVfLidvgFUq"></i></span>
           </label>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">收纳方式</div>
-              <div class="row-sub">
-                移动到收纳目录：文件真正离开桌面进入程序目录，关闭程序 / 卸载后可一键恢复；恢复后图标位置由资源管理器重排，不保证原位。<br>
-                隐藏到壁纸后：文件留在原地，仅把图标停到屏幕外（肉眼不可见、无法点选 / 框选）；恢复后精确回到原位；依赖资源管理器列表视图，其重启或「自动排列」可能复位（有看门狗自动重新隐藏）。<br>
+          <div class="switch-row" data-page-node-id="b4VsIU6qgmqZB6qSYIbgpF">
+            <div data-page-node-id="cRarWRgHKUcJEYyiYI9aqr">
+              <div class="row-title" data-page-node-id="ZLrWLrQPQZ8kH50AAVioXf">收纳方式</div>
+              <div class="row-sub" data-page-node-id="z57sxMUGJWUOSTZ6fayelJ">
+                移动到收纳目录：文件真正离开桌面进入程序目录，关闭程序 / 卸载后可一键恢复；恢复后图标位置由资源管理器重排，不保证原位。<br data-page-node-id="h7XIZtG2kn6PyvPuWLGvg3">
+                隐藏到壁纸后：文件留在原地，仅把图标停到屏幕外（肉眼不可见、无法点选 / 框选）；恢复后精确回到原位；依赖资源管理器列表视图，其重启或「自动排列」可能复位（有看门狗自动重新隐藏）。<br data-page-node-id="GLtQplFfRMdjhA5P2hBAa1">
                 系统图标（回收站 / 此电脑等）没有实体文件，恒走隐藏方式。
               </div>
             </div>
-            <div class="seg" id="lc-collect">
-              <button data-collect="box">移动到收纳目录</button>
-              <button data-collect="hide">隐藏到壁纸后</button>
+            <div class="seg" id="lc-collect" data-page-node-id="hAIbjzXpKLiBCEaEKkPNiM">
+              <button data-collect="box" data-page-node-id="VkJ1XaSVgcgg5pTapuaWFw">移动到收纳目录</button>
+              <button data-collect="hide" data-page-node-id="OXmprmg48mcyEKx9ZFiuAB">隐藏到壁纸后</button>
             </div>
           </div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">排列方向</div>
-              <div class="row-sub">图标横向排成一行，或纵向排成一列；摆放位置用下方「调整位置」自由拖动</div>
+          <div class="switch-row" data-page-node-id="vzn36N0jiASu5jxzUsnQVd">
+            <div data-page-node-id="bAHEqZyhg7NB8qi8bpPHFE">
+              <div class="row-title" data-page-node-id="AKblucE73VqlHkui6FDz9Q">排列方向</div>
+              <div class="row-sub" data-page-node-id="Oh4vsCNpujBL7e98gMibPd">图标横向排成一行，或纵向排成一列；摆放位置用下方「调整位置」自由拖动</div>
             </div>
-            <div class="seg" id="lc-orient">
-              <button data-orient="h">横向</button>
-              <button data-orient="v">纵向</button>
+            <div class="seg" id="lc-orient" data-page-node-id="WKZUZWpvhNLdWjypZamMrl">
+              <button data-orient="h" data-page-node-id="QaE8Xoiu8crYPP7bLAK5nZ">横向</button>
+              <button data-orient="v" data-page-node-id="fqXIBydmwzEOojpDEPRDuQ">纵向</button>
             </div>
           </div>
-          <label class="switch-row">
-            <div>
-              <div class="row-title">图标镜像倒影</div>
-              <div class="row-sub">在图标远离转盘方向生成渐隐倒影；强度与整体亮度/对比/饱和/不透明度在下方调节</div>
+          <label class="switch-row" data-page-node-id="fCCXyjKfVHNXt59ua2nt7H">
+            <div data-page-node-id="OHhwdF0rAXxJPhqJqbGLjO">
+              <div class="row-title" data-page-node-id="notMBBmLri9S0i5nAC58BA">图标镜像倒影</div>
+              <div class="row-sub" data-page-node-id="YEtNkhSYcNov8BB219ts7y">在图标远离转盘方向生成渐隐倒影；强度与整体亮度/对比/饱和/不透明度在下方调节</div>
             </div>
-            <span class="switch"><input type="checkbox" id="lc-mirror"><i></i></span>
+            <span class="switch" data-page-node-id="gIX39hkeMfDNfRph7Gn2KH"><input type="checkbox" id="lc-mirror" data-page-node-id="8tTGFz7YKz5a4EvtOOQEDd"><i data-page-node-id="PDQFJuEx471ibHxAaICBRj"></i></span>
           </label>
-          <div id="lc-adj"></div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">调整位置</div>
-              <div class="row-sub" id="lc-adjust-hint">点「开始调整」后在桌面上按住转盘拖动，松开即保存位置并自动退出</div>
+          <div id="lc-adj" data-page-node-id="nGxQ6JUE56moQmJ1XZwT0n"></div>
+          <div class="switch-row" data-page-node-id="uVEajdKNyCRQyXHJzNGr9v">
+            <div data-page-node-id="nqxcEK6u6m5GKB6Mp3Bduw">
+              <div class="row-title" data-page-node-id="FMmv6cAA7iBMHY2A9d3c0w">调整位置</div>
+              <div class="row-sub" id="lc-adjust-hint" data-page-node-id="cXp4oi8UuwQZh9hH12aM5t">点「开始调整」后在桌面上按住转盘拖动，松开即保存位置并自动退出</div>
             </div>
-            <button class="btn small" id="btn-lc-adjust">开始调整</button>
+            <button class="btn small" id="btn-lc-adjust" data-page-node-id="KKuy6OJ3eandRoiHwYpoTv">开始调整</button>
           </div>
-          <div class="switch-row" id="lc-pos9-row">
-            <div>
-              <div class="row-title">九宫格定位</div>
-              <div class="row-sub">点击快速摆放到常用位置；「默认」恢复任务栏上方居中，拖动调整仍可用</div>
+          <div class="switch-row" id="lc-pos9-row" data-page-node-id="Y2Scp8uheH5dXNKdOnZsGj">
+            <div data-page-node-id="W7W0FBDEZxgBnPhTPrd7CJ">
+              <div class="row-title" data-page-node-id="6jHyMXlI1OQcNBtsH5H4aa">九宫格定位</div>
+              <div class="row-sub" data-page-node-id="UB3PpGJzeOVKItdC0KRrKR">点击快速摆放到常用位置；「默认」恢复任务栏上方居中，拖动调整仍可用</div>
             </div>
-            <div style="display:flex;align-items:center;gap:8px">
-              <div class="pos-grid" id="lc-pos9" title="点击快速设置位置"></div>
-              <button class="btn ghost small" id="lc-pos-reset">默认</button>
+            <div style="display:flex;align-items:center;gap:8px" data-page-node-id="Gx6UnyO3dgMQPRbtWr54hc">
+              <div class="pos-grid" id="lc-pos9" title="点击快速设置位置" data-page-node-id="WKdGx1hnUXfZmIv5B6D8Vt"></div>
+              <button class="btn ghost small" id="lc-pos-reset" data-page-node-id="3pbknhHYuGuZMOew8BQZ1Q">默认</button>
             </div>
           </div>
-          <label class="switch-row">
-            <div>
-              <div class="row-title">边缘图标淡化</div>
-              <div class="row-sub">默认关闭：转盘内所有图标全亮度清晰显示；开启后两端图标轻微淡化突出中间</div>
+          <label class="switch-row" data-page-node-id="qBcDB7rAySOhHBW7fVnvnm">
+            <div data-page-node-id="CFfiMVJSRJTD30RoTVt5Gs">
+              <div class="row-title" data-page-node-id="mw05TfMMpuZqOkHDJtPHkD">边缘图标淡化</div>
+              <div class="row-sub" data-page-node-id="SRqEzNmgae6YGwfAAosEsa">默认关闭：转盘内所有图标全亮度清晰显示；开启后两端图标轻微淡化突出中间</div>
             </div>
-            <span class="switch"><input type="checkbox" id="lc-edgefade"><i></i></span>
+            <span class="switch" data-page-node-id="ywKlCWVdnNnU0kX8PkSTUS"><input type="checkbox" id="lc-edgefade" data-page-node-id="coZpXoFTnYhc5o4TpA5amt"><i data-page-node-id="MLwt9h3Hczz6wZyEI6HbLi"></i></span>
           </label>
-          <p class="hint">转盘用法：按住图标条或下方「拖动条」左右拖动即可像转盘一样轮换图标，滚轮同样可轮换；需要移动整个转盘时，点上方「调整位置」按钮后按住拖到任意位置；右键转盘可添加/移除快捷方式。</p>
+          <p class="hint" data-page-node-id="POxxVx1dpzLyVQtK4tALr0">转盘用法：按住图标条或下方「拖动条」左右拖动即可像转盘一样轮换图标，滚轮同样可轮换；需要移动整个转盘时，点上方「调整位置」按钮后按住拖到任意位置；右键转盘可添加/移除快捷方式。</p>
         </div>
-        <div class="settings-card">
-          <div class="card-title">快捷方式列表 <span class="title-hint" id="lc-shortcut-count"></span></div>
-          <div id="lc-list" class="lc-list"></div>
-          <div class="btn-row" style="margin-top:12px">
-            <button class="btn primary small" id="btn-lc-pick">⊞ 点选 / 框选桌面图标收纳</button>
-            <button class="btn ghost small" id="btn-lc-box-all">📦 一键收纳全部快捷方式</button>
-            <button class="btn ghost small hidden" id="btn-lc-box-public">🛡️ 管理员授权收纳公共桌面</button>
-            <button class="btn ghost small" id="btn-lc-add">＋ 从文件添加</button>
-            <button class="btn ghost small" id="btn-lc-restore-all">全部恢复到桌面</button>
+        <div class="settings-card" data-page-node-id="47tShWYv4iWcevmfwacqL7">
+          <div class="card-title" data-page-node-id="cBehUCmWbMhagIEgPyYywc">快捷方式列表 <span class="title-hint" id="lc-shortcut-count" data-page-node-id="AyQECpTfTeV1PwMjtRXVVP"></span></div>
+          <div id="lc-list" class="lc-list" data-page-node-id="RLiUwjrMdNWMEFxDAx5Vk9"></div>
+          <div class="btn-row" style="margin-top:12px" data-page-node-id="bRrKfEdBZZlHfUOx0BncY8">
+            <button class="btn primary small" id="btn-lc-pick" data-page-node-id="JIaDnustezfX5G9KiWF1iu">⊞ 点选 / 框选桌面图标收纳</button>
+            <button class="btn ghost small" id="btn-lc-box-all" data-page-node-id="YIW3Hb4dx949iAXBw8bJqR">📦 一键收纳全部快捷方式</button>
+            <button class="btn ghost small hidden" id="btn-lc-box-public" data-page-node-id="vBP13HFNFu6uJYC0hgngz9">🛡️ 管理员授权收纳公共桌面</button>
+            <button class="btn ghost small" id="btn-lc-add" data-page-node-id="uXjODX3sJtPZXwxqwB7IFg">＋ 从文件添加</button>
+            <button class="btn ghost small" id="btn-lc-restore-all" data-page-node-id="iJvUyGCujkOPCRqmWGzmab">全部恢复到桌面</button>
           </div>
-          <p class="hint" id="lc-leftover-hint">「一键收纳全部」会收走桌面上所有快捷方式（.lnk / .url，含文件名与显示名不一致的）与程序文件（.exe / .bat / .cmd）。系统图标（此电脑 / 回收站等）不是文件、桌面文件夹与办公文档是用户数据，均不移动（可到「文件收纳」页单独收纳）；「公共桌面」（所有用户可见）的快捷方式需要管理员权限，收纳后可点上方按钮一次授权批量收进。</p>
-          <p class="hint">「点选/框选收纳」打开全屏选择器，手动勾选要收纳的桌面快捷方式；收纳后从转盘点击图标照常启动对应 App；从列表移除或「全部恢复到桌面」即还原到原位置；关闭快捷方式转盘功能也会自动全部还原。</p>
+          <p class="hint" id="lc-leftover-hint" data-page-node-id="sPTKBufencfuOC2cOTQpSA">「一键收纳全部」会收走桌面上所有快捷方式（.lnk / .url，含文件名与显示名不一致的）与程序文件（.exe / .bat / .cmd）。系统图标（此电脑 / 回收站等）不是文件、桌面文件夹与办公文档是用户数据，均不移动（可到「文件收纳」页单独收纳）；「公共桌面」（所有用户可见）的快捷方式需要管理员权限，收纳后可点上方按钮一次授权批量收进。</p>
+          <p class="hint" data-page-node-id="jEzlO5CrlNbHPfDZjkfT8I">「点选/框选收纳」打开全屏选择器，手动勾选要收纳的桌面快捷方式；收纳后从转盘点击图标照常启动对应 App；从列表移除或「全部恢复到桌面」即还原到原位置；关闭快捷方式转盘功能也会自动全部还原。</p>
+          <p class="hint" id="lc-storage-hint">收纳文件的存放位置将在启动后显示。</p>
         </div>
       </section>
 
       <!-- 桌面文件收纳区 -->
-      <section id="page-filebox" class="page">
-        <div class="page-head"><h2>桌面文件收纳</h2></div>
-        <div class="settings-card">
-          <label class="switch-row">
-            <div>
-              <div class="row-title">启用文件收纳区</div>
-              <div class="row-sub">桌面上的办公文档与文件夹以独立浮层收纳（图标层之上、不遮挡窗口）：点开即打开对应文件/文件夹，不影响壁纸观感</div>
+      <section id="page-filebox" class="page" data-page-node-id="171SVEJ0hRGSgaWXuaM10H">
+        <div class="page-head" data-page-node-id="omAbJn7DTe36zGTy0b0fWf"><h2 data-page-node-id="Ti7XNhrDjIaQsZawAumN9M">桌面文件收纳</h2></div>
+        <div class="settings-card" data-page-node-id="lyGhrEf1EqiRgGvMgipQor">
+          <label class="switch-row" data-page-node-id="HmVEYBATiFUwf19c0lpMaB">
+            <div data-page-node-id="mUASQ2hoBWtcCZaskc2Aom">
+              <div class="row-title" data-page-node-id="IHAo2I09NL0RRjCCnMVlEH">启用文件收纳区</div>
+              <div class="row-sub" data-page-node-id="cY2EsTtnvBFasG5pNGd0DE">桌面上的办公文档与文件夹以独立浮层收纳（图标层之上、不遮挡窗口）：点开即打开对应文件/文件夹，不影响壁纸观感</div>
             </div>
-            <span class="switch"><input type="checkbox" id="fb-enabled"><i></i></span>
+            <span class="switch" data-page-node-id="jqF4gToR1JSV4gMyjGiPXz"><input type="checkbox" id="fb-enabled" data-page-node-id="JTKdqdMYecPCzjcWL3k0rZ"><i data-page-node-id="L6CZyFBSMZx5Xoy70Y8pbs"></i></span>
           </label>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">网格列数</div>
-              <div class="row-sub"><input type="number" id="fb-cols-num" min="3" max="12" step="1" style="width:64px"> 列（3~12，可直接输入），图标按网格平铺排列</div>
+          <div class="switch-row" data-page-node-id="EeUU2WgpZnXQGi4x4OqkWP">
+            <div data-page-node-id="oCXefj7VjaJIFXWz2WmbQA">
+              <div class="row-title" data-page-node-id="98vQ2YheVDnjvX3sm8XKmY">网格列数</div>
+              <div class="row-sub" data-page-node-id="LrfLUvTR0mpWYSiezhyFqO"><input type="number" id="fb-cols-num" min="3" max="12" step="1" style="width:64px" data-page-node-id="PJMpAIQk0RSfiwurAiYT9p"> 列（3~12，可直接输入），图标按网格平铺排列</div>
             </div>
-            <div class="seg" id="fb-cols">
-              <button data-cols="4">4</button>
-              <button data-cols="5">5</button>
-              <button data-cols="6">6</button>
-              <button data-cols="8">8</button>
-              <button data-cols="10">10</button>
-            </div>
-          </div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">分类排列</div>
-              <div class="row-sub">文件夹与文件各自归类；也可按名称/修改时间排序，或手动自定义顺序</div>
-            </div>
-            <div class="seg" id="fb-groupby">
-              <button data-groupby="kind">类型分类</button>
-              <button data-groupby="name">按名称</button>
-              <button data-groupby="mtime">按时间</button>
-              <button data-groupby="manual">手动</button>
+            <div class="seg" id="fb-cols" data-page-node-id="G499L7xd4YgpUnBS3JXkiN">
+              <button data-cols="4" data-page-node-id="sgJyXzY1SkgJKNcy6dmgaw">4</button>
+              <button data-cols="5" data-page-node-id="QQbXAbyz5xd1BdoxQPUUZq">5</button>
+              <button data-cols="6" data-page-node-id="japRXCo0wAQqS6rAtbxarK">6</button>
+              <button data-cols="8" data-page-node-id="XKNCxf5egObRBdnlxHmXRj">8</button>
+              <button data-cols="10" data-page-node-id="X6d9ZTZE557Wcu6YGJjyGs">10</button>
             </div>
           </div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">面板背景样式</div>
-              <div class="row-sub">与桌面组件同一套玻璃语言：毛玻璃柔和模糊，液态玻璃更厚的模糊 + 高光描边，半透明则不做实时模糊（性能最省）</div>
+          <div class="switch-row" data-page-node-id="jRbGuZ6Zx1kbv88oxm01hW">
+            <div data-page-node-id="Bad2YLwjtRy50EHFTZxZ4H">
+              <div class="row-title" data-page-node-id="poizph1Q9twWs8ZFkGjZKv">分类排列</div>
+              <div class="row-sub" data-page-node-id="T1i9NARQ999eoQs9HGYoE5">文件夹与文件各自归类；也可按名称/修改时间排序，或手动自定义顺序</div>
             </div>
-            <div class="seg" id="fb-style">
-              <button data-style="frosted">毛玻璃</button>
-              <button data-style="liquid">液态玻璃</button>
-              <button data-style="none">半透明</button>
-            </div>
-          </div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">面板透明度</div>
-              <div class="row-sub">收纳区面板底色不透明度（鼠标悬停展开时的清晰度）</div>
-            </div>
-            <div class="seg" id="fb-bgop">
-              <button data-op="0.20">20%</button>
-              <button data-op="0.32">32%</button>
-              <button data-op="0.45">45%</button>
-              <button data-op="0.60">60%</button>
+            <div class="seg" id="fb-groupby" data-page-node-id="h0vuQ7h4vpkLHzarxK8obX">
+              <button data-groupby="kind" data-page-node-id="8Jm7dCaYYYerd34M1MDpzw">类型分类</button>
+              <button data-groupby="name" data-page-node-id="gdRSXAEZ8CJnVqsNUKoj6X">按名称</button>
+              <button data-groupby="mtime" data-page-node-id="MEc8E1sLGC3iha3240C1Bf">按时间</button>
+              <button data-groupby="manual" data-page-node-id="o1HFRYQlsNjwaxEFxh1zrj">手动</button>
             </div>
           </div>
-          <label class="switch-row">
-            <div>
-              <div class="row-title">空闲自动收起</div>
-              <div class="row-sub">鼠标离开后先转为半透明毛玻璃，再收缩为单个文件图标；悬停自动展开，点击图标弹出收纳的文件 / 文件夹</div>
+          <div class="switch-row" data-page-node-id="BcYNQtJuOOjMCZ9oLYtQHe">
+            <div data-page-node-id="7CmrpKpE53iduH15HGQmhE">
+              <div class="row-title" data-page-node-id="39E8G3mOdTd43LI9nWPVlQ">面板背景样式</div>
+              <div class="row-sub" data-page-node-id="P3rSge2REH8LRnjuyGhjI2">与桌面组件同一套玻璃语言：毛玻璃柔和模糊，液态玻璃更厚的模糊 + 高光描边，半透明则不做实时模糊（性能最省）</div>
             </div>
-            <span class="switch"><input type="checkbox" id="fb-autoidle"><i></i></span>
+            <div class="seg" id="fb-style" data-page-node-id="kx4IjySXroEWKD5xE2vZVv">
+              <button data-style="frosted" data-page-node-id="dYIEcnKOupLqoMACai70Df">毛玻璃</button>
+              <button data-style="liquid" data-page-node-id="cPS7KHN16ueFid6R64k3UW">液态玻璃</button>
+              <button data-style="none" data-page-node-id="fClw6TYebMODysixo0FGio">半透明</button>
+            </div>
+          </div>
+          <div class="switch-row" data-page-node-id="2PTHPGvgcfUWE7XnSnva0A">
+            <div data-page-node-id="31QhTHCM4QjmkmIS0KtuZW">
+              <div class="row-title" data-page-node-id="5ltbZemzu01oNG8S5Fv4KT">面板透明度</div>
+              <div class="row-sub" data-page-node-id="tfX9PQ3zyHKK6lmAfa6RmU">收纳区面板底色不透明度（鼠标悬停展开时的清晰度）</div>
+            </div>
+            <div class="seg" id="fb-bgop" data-page-node-id="qqo0J7gQz1ZtYz3j2nsjGr">
+              <button data-op="0.20" data-page-node-id="l6ftU9b8KgtmHgvfFCCXnU">20%</button>
+              <button data-op="0.32" data-page-node-id="b0wSgNrvYhrcv5g5aQiEY8">32%</button>
+              <button data-op="0.45" data-page-node-id="dLezwwlFHIR2HFO6VRS6EZ">45%</button>
+              <button data-op="0.60" data-page-node-id="PaVl7th6RxyRHWwTtH88Ah">60%</button>
+            </div>
+          </div>
+          <label class="switch-row" data-page-node-id="DfxGswauy0XQT33YmGRWej">
+            <div data-page-node-id="9VP36z7picqpjpQnKiSUhV">
+              <div class="row-title" data-page-node-id="qcfoD8hnetOPgLS5vAZs7o">空闲自动收起</div>
+              <div class="row-sub" data-page-node-id="2xcefOvqu5msN05bO801MC">鼠标离开后先转为半透明毛玻璃，再收缩为单个文件图标；悬停自动展开，点击图标弹出收纳的文件 / 文件夹</div>
+            </div>
+            <span class="switch" data-page-node-id="Jh6M1EVx4csYvMb9JzjIG7"><input type="checkbox" id="fb-autoidle" data-page-node-id="EOONJof8NIwoRuoPNFhp6H"><i data-page-node-id="1X3nEmfPGULJfRgY0b7lvI"></i></span>
           </label>
-          <label class="switch-row">
-            <div>
-              <div class="row-title">面板镜像倒影</div>
-              <div class="row-sub">在面板下方生成渐隐倒影；强度与整体亮度/对比/饱和/不透明度在下方调节</div>
+          <label class="switch-row" data-page-node-id="DABOEjwXGMpA2gByzI1n6R">
+            <div data-page-node-id="qWffTqRqKbRowNaUd1gbLX">
+              <div class="row-title" data-page-node-id="JCrFtDKYk1nACVYL8yZPTK">面板镜像倒影</div>
+              <div class="row-sub" data-page-node-id="GsQU4wOpnVLbcvnsMdHOUo">在面板下方生成渐隐倒影；强度与整体亮度/对比/饱和/不透明度在下方调节</div>
             </div>
-            <span class="switch"><input type="checkbox" id="fb-mirror"><i></i></span>
+            <span class="switch" data-page-node-id="PTMGEFCaJHlolgB0oGVtov"><input type="checkbox" id="fb-mirror" data-page-node-id="wpP9QKvroIZAgnC16Or4GS"><i data-page-node-id="mQzcRBnmghvBwk1wk8yKX6"></i></span>
           </label>
-          <div id="fb-adj"></div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">调整位置</div>
-              <div class="row-sub" id="fb-adjust-hint">点「开始调整」后在桌面上按住收纳区拖动，松开即保存位置并自动退出</div>
+          <div id="fb-adj" data-page-node-id="gdBxNTNyCTG8cdgqcByio7"></div>
+          <div class="switch-row" data-page-node-id="COVq35FF9x1UBpbzg1wd6E">
+            <div data-page-node-id="Em1ACRR3WGOXR5HFg3Mpl0">
+              <div class="row-title" data-page-node-id="4uBr0mVrgDo1QGc6aoc1Cv">调整位置</div>
+              <div class="row-sub" id="fb-adjust-hint" data-page-node-id="2Vhjruv35s4ZFxed7Cs6p9">点「开始调整」后在桌面上按住收纳区拖动，松开即保存位置并自动退出</div>
             </div>
-            <button class="btn small" id="btn-fb-adjust">开始调整</button>
+            <button class="btn small" id="btn-fb-adjust" data-page-node-id="TVsIHOUgeQLJV42PJMyORP">开始调整</button>
           </div>
-          <div class="switch-row" id="fb-pos9-row">
-            <div>
-              <div class="row-title">九宫格定位</div>
-              <div class="row-sub">点击快速摆放到常用位置；「默认」恢复任务栏上方居中，拖动调整仍可用</div>
+          <div class="switch-row" id="fb-pos9-row" data-page-node-id="0PKgmRBOUfI5fPj4mNNnmE">
+            <div data-page-node-id="xb9TzTtLXiKDlGK4bmZbLm">
+              <div class="row-title" data-page-node-id="gYTkG58EyRqX0xFKVqMmw6">九宫格定位</div>
+              <div class="row-sub" data-page-node-id="2GyA4QrGz3YARSuMnFJb40">点击快速摆放到常用位置；「默认」恢复任务栏上方居中，拖动调整仍可用</div>
             </div>
-            <div style="display:flex;align-items:center;gap:8px">
-              <div class="pos-grid" id="fb-pos9" title="点击快速设置位置"></div>
-              <button class="btn ghost small" id="fb-pos-reset">默认</button>
+            <div style="display:flex;align-items:center;gap:8px" data-page-node-id="ex0OCKjBFkB58Ok1ozuTGe">
+              <div class="pos-grid" id="fb-pos9" title="点击快速设置位置" data-page-node-id="c9k7tZKbFsA6Vn4poRJqju"></div>
+              <button class="btn ghost small" id="fb-pos-reset" data-page-node-id="gdBC5K7auFttT54hNHw4XB">默认</button>
             </div>
           </div>
-          <p class="hint">收纳区用法：鼠标靠近显示完整图标，离开后自动转半透明毛玻璃；点图标打开对应文件或文件夹；右键可添加/移除。</p>
+          <p class="hint" data-page-node-id="gVHkgLEHjoLAnmx9JY86lj">收纳区用法：鼠标靠近显示完整图标，离开后自动转半透明毛玻璃；点图标打开对应文件或文件夹；右键可添加/移除。</p>
+          <p class="hint" id="fb-storage-hint">收纳文件的存放位置将在启动后显示。</p>
         </div>
-        <div class="settings-card">
-          <div class="card-title">已收纳的文件 / 文件夹 <span class="title-hint" id="fb-item-count"></span></div>
-          <div id="fb-list" class="lc-list"></div>
-          <div class="btn-row" style="margin-top:12px">
-            <button class="btn primary small" id="btn-fb-box-all">📦 一键收纳桌面文件与文件夹</button>
-            <button class="btn ghost small" id="btn-fb-add">＋ 从文件添加</button>
-            <button class="btn ghost small" id="btn-fb-restore-all">全部恢复到桌面</button>
+        <div class="settings-card" data-page-node-id="0GBzf0ig3IlcMDtj7JAAoj">
+          <div class="card-title" data-page-node-id="cl1NvmsTMgbMcHPLMGBCsl">已收纳的文件 / 文件夹 <span class="title-hint" id="fb-item-count" data-page-node-id="U3WRmeiU7vgA6P0HL747m2"></span></div>
+          <div id="fb-list" class="lc-list" data-page-node-id="AHNjZAcJnkpd9pWeP5bls5"></div>
+          <div class="btn-row" style="margin-top:12px" data-page-node-id="fLJxhNUoEJ9wYI7LWXojb8">
+            <button class="btn primary small" id="btn-fb-box-all" data-page-node-id="5J8YWo4o8fzHgbINfCPLMi">📦 一键收纳桌面文件与文件夹</button>
+            <button class="btn ghost small" id="btn-fb-add" data-page-node-id="npgqpLLwECKq6QvolBft8w">＋ 从文件添加</button>
+            <button class="btn ghost small" id="btn-fb-restore-all" data-page-node-id="ZgEDsTE1Q45hWraF8krqYG">全部恢复到桌面</button>
           </div>
-          <p class="hint">「一键收纳」会收走桌面上所有普通文件（办公文档 / 媒体 / 归档等）与文件夹；快捷方式与程序文件仍归「快捷方式」转盘收纳。文件夹仅登记收纳（不移动内容），点开进入文件夹；普通文件会移动到应用数据目录保管，移除或「全部恢复」即还原到原位置。</p>
+          <p class="hint" data-page-node-id="oCotG31dZhXxgTULaspHYR">「一键收纳」会收走桌面上所有普通文件（办公文档 / 媒体 / 归档等）与文件夹；快捷方式与程序文件仍归「快捷方式」转盘收纳。文件夹仅登记收纳（不移动内容），点开进入文件夹；普通文件会移动到应用数据目录保管，移除或「全部恢复」即还原到原位置。</p>
         </div>
       </section>
 
       <!-- 壁纸站点 -->
-      <section id="page-sites" class="page">
-        <div class="page-head">
-          <h2>壁纸站点</h2>
-          <span class="head-note">精选免费壁纸网站，点击卡片前往下载</span>
+      <section id="page-sites" class="page" data-page-node-id="KyOcdiPBADC5oG4cgRIwqW">
+        <div class="page-head" data-page-node-id="rPqvtV9iCZJTWd1f0WP17u">
+          <h2 data-page-node-id="1HYD6rzb6WvgPh9B8QvGfM">壁纸站点</h2>
+          <span class="head-note" data-page-node-id="7xjPA2fyoUwtIXtDzXArPo">精选免费壁纸网站，点击卡片前往下载</span>
         </div>
-        <div id="sites-grid" class="sites-grid"></div>
+        <div id="sites-grid" class="sites-grid" data-page-node-id="EiLWN6JPl9vmWlVPf9A8E1"></div>
       </section>
 
       <!-- 设置 -->
-      <section id="page-settings" class="page">
-        <div class="page-head"><h2>设置</h2></div>
-        <div class="settings-card">
-          <label class="switch-row">
-            <div>
-              <div class="row-title">开机自启动</div>
-              <div class="row-sub">登录 Windows 后自动运行并恢复壁纸</div>
+      <section id="page-settings" class="page" data-page-node-id="a7tph3e131vekHoS7cC9LA">
+        <div class="page-head" data-page-node-id="9Q8RGrv2zvgb3U4land6no"><h2 data-page-node-id="TlnDgZT4wpwSGY8y5DdU3q">设置</h2></div>
+        <div class="settings-card" data-page-node-id="4ysMF3X9iQHefDeGq7AC7s">
+          <label class="switch-row" data-page-node-id="rUnOeFAIjUG13ZGFyB7fIl">
+            <div data-page-node-id="Tw4vTaVaeHCFb2WShD0l4l">
+              <div class="row-title" data-page-node-id="g0KAnGXCk81gBcMDBsgMT0">开机自启动</div>
+              <div class="row-sub" data-page-node-id="Wo2aKU6PogQ34CWRpZ9qsS">登录 Windows 后自动运行并恢复壁纸</div>
             </div>
-            <span class="switch"><input type="checkbox" id="set-autostart"><i></i></span>
+            <span class="switch" data-page-node-id="J307yABRiWiFkQ569bxmfb"><input type="checkbox" id="set-autostart" data-page-node-id="zcsuKp7HSH0JL0dU2RP2UP"><i data-page-node-id="6Z5eEAQXV1L3FmZZ6fl5b5"></i></span>
           </label>
         </div>
-        <div class="settings-card hidden" id="perf-restart-card">
-          <div class="switch-row">
-            <div>
-              <div class="row-title">需要重启以生效</div>
-              <div class="row-sub" id="perf-restart-sub"></div>
+        <div class="settings-card hidden" id="perf-restart-card" data-page-node-id="9O4J86hBDm3KCvonKuCbB7">
+          <div class="switch-row" data-page-node-id="glR9JTe3aprXritZYGM8OM">
+            <div data-page-node-id="nxTU3hvjugkykAh3qF2HBz">
+              <div class="row-title" data-page-node-id="cBBG3Zx0jYoMd29vhxPbmv">需要重启以生效</div>
+              <div class="row-sub" id="perf-restart-sub" data-page-node-id="bxDT1hdjyva9JZvlQDtUqA"></div>
             </div>
-            <button class="btn primary small" id="btn-perf-relaunch">立即重启</button>
+            <button class="btn primary small" id="btn-perf-relaunch" data-page-node-id="sApK6xtjgBX9ALjPdZyTtS">立即重启</button>
           </div>
         </div>
-        <div class="settings-card">
-          <div class="card-title">性能优化</div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">性能档位</div>
-              <div class="row-sub">一键设定音律帧率 / 组件刷新间隔 / 硬解模式 / 视频帧率上限与解码缓存；下方细分项可单独微调，微调后档位高亮取消</div>
+        <div class="settings-card" data-page-node-id="jAHE3MEdwly0nyXFIT8SgE">
+          <div class="card-title" data-page-node-id="D4cKrqdNcj5DUZ1mUYlDAt">性能优化</div>
+          <div class="switch-row" data-page-node-id="gQdTN7omivRQPywBNK4Dfl">
+            <div data-page-node-id="8bVUHoETmh0S0q2xIa7qId">
+              <div class="row-title" data-page-node-id="RbLEON3D4oeXYu6LaUdblJ">性能档位</div>
+              <div class="row-sub" data-page-node-id="8FCBzlLfWSk39qZIflG3Tl">一键设定音律帧率 / 组件刷新间隔 / 硬解模式 / 视频帧率上限与解码缓存；下方细分项可单独微调，微调后档位高亮取消</div>
             </div>
-            <div class="seg" id="perf-tier">
-              <button data-tier="eco">省电</button>
-              <button data-tier="balanced">均衡</button>
-              <button data-tier="performance">性能</button>
-            </div>
-          </div>
-          <label class="switch-row">
-            <div>
-              <div class="row-title">Chromium 硬件加速</div>
-              <div class="row-sub">界面与桌面组件窗口的 GPU 合成；关闭后回退软件渲染（驱动异常的老显卡更稳）。<b>改动需重启应用</b></div>
-            </div>
-            <span class="switch"><input type="checkbox" id="set-gpu-accel"><i></i></span>
-          </label>
-          <div id="perf-adv"></div>
-          <label class="switch-row">
-            <div>
-              <div class="row-title">全屏应用时自动暂停</div>
-              <div class="row-sub">检测到游戏 / 视频等全屏应用时暂停视频壁纸，释放 CPU/GPU，退出全屏自动恢复</div>
-            </div>
-            <span class="switch"><input type="checkbox" id="set-fs-pause"><i></i></span>
-          </label>
-          <label class="switch-row">
-            <div>
-              <div class="row-title">电池供电时自动暂停</div>
-              <div class="row-sub">笔记本使用电池时暂停视频壁纸省电，接通电源自动恢复</div>
-            </div>
-            <span class="switch"><input type="checkbox" id="set-battery-pause"><i></i></span>
-          </label>
-          <label class="switch-row">
-            <div>
-              <div class="row-title">其他窗口最大化时暂停</div>
-              <div class="row-sub">有应用窗口最大化时暂停视频壁纸，专注工作不被干扰（Wallpaper Engine 同款）</div>
-            </div>
-            <span class="switch"><input type="checkbox" id="set-max-pause"><i></i></span>
-          </label>
-          <p class="hint">视频壁纸默认使用硬件解码并限制渲染分辨率（可在右侧「壁纸调节」中调整），进一步降低占用。</p>
-        </div>
-        <div class="settings-card">
-          <div class="card-title">播放体验</div>
-          <label class="switch-row">
-            <div>
-              <div class="row-title">平滑循环过渡</div>
-              <div class="row-sub">开启：视频循环交界处新画面柔和淡入覆盖（亮度恒定、无黑变无重影），消除画面跳变（多占用约 60MB 内存）。关闭：改为硬切循环（画面直接跳回开头，但不会停播）</div>
-            </div>
-            <span class="switch"><input type="checkbox" id="set-smooth-loop"><i></i></span>
-          </label>
-        </div>
-        <div class="settings-card">
-          <div class="card-title">快捷键</div>
-          <label class="switch-row">
-            <div>
-              <div class="row-title">全局暂停 / 恢复壁纸</div>
-              <div class="row-sub">系统级快捷键 <b>Ctrl+Alt+W</b>，在游戏或任意界面一键暂停 / 恢复壁纸</div>
-            </div>
-            <span class="switch"><input type="checkbox" id="set-hotkey"><i></i></span>
-          </label>
-        </div>
-        <div class="settings-card">
-          <div class="card-title">锁屏壁纸</div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">Windows 锁屏与登录背景</div>
-              <div class="row-sub" id="lockscreen-detail">将图片壁纸同步设置为锁屏与登录界面背景</div>
-            </div>
-            <div class="btn-col">
-              <button class="btn ghost small" id="btn-lockscreen-use-current">使用当前壁纸</button>
-              <button class="btn ghost small" id="btn-lockscreen-reset">恢复默认</button>
+            <div class="seg" id="perf-tier" data-page-node-id="Mp4phTLDQJgP5oZZhgwUff">
+              <button data-tier="eco" data-page-node-id="nvOvp2FuQL7DnrH0bpPVoc">省电</button>
+              <button data-tier="balanced" data-page-node-id="nsDn1PH4rG8i31Icp6SD3a">均衡</button>
+              <button data-tier="performance" data-page-node-id="BYXOgwAapchaKPpkrjsLwH">性能</button>
             </div>
           </div>
-          <p class="hint">通过系统策略（PersonalizationCSP）写入，需要管理员权限，点击后会弹出 UAC 确认框。仅支持 JPG/PNG/BMP 等图片格式。</p>
+          <label class="switch-row" data-page-node-id="PmBUvGM6h9rtBzHzkPF8nw">
+            <div data-page-node-id="xUG13dmxxMekTgQYBm6OdS">
+              <div class="row-title" data-page-node-id="60VuHsTfKELh3FfxtGHm65">Chromium 硬件加速</div>
+              <div class="row-sub" data-page-node-id="8SXzbP2xA0AdYOv5wFr4aq">界面与桌面组件窗口的 GPU 合成；关闭后回退软件渲染（驱动异常的老显卡更稳）。<b data-page-node-id="PEhg2o7udngzOwMzcQjIZQ">改动需重启应用</b></div>
+            </div>
+            <span class="switch" data-page-node-id="UFtel6APQXdWpA1n2awayG"><input type="checkbox" id="set-gpu-accel" data-page-node-id="Bz39ODhv9Es1N5lbxgmA00"><i data-page-node-id="jxJXk3IDyHkB1zLagbtZdO"></i></span>
+          </label>
+          <div id="perf-adv" data-page-node-id="r9w0LueNOE3g89iw5oHlBJ"></div>
+          <label class="switch-row" data-page-node-id="06nVLKBmuxhycgMdLcmGEv">
+            <div data-page-node-id="8rtlSAh5uKFx0uXR3BimEE">
+              <div class="row-title" data-page-node-id="ABojATTwOAohphhYVxe7we">全屏应用时自动暂停</div>
+              <div class="row-sub" data-page-node-id="222E1bZBhjcVfRucsyUiRV">检测到游戏 / 视频等全屏应用时暂停视频壁纸，释放 CPU/GPU，退出全屏自动恢复</div>
+            </div>
+            <span class="switch" data-page-node-id="OLwg2uQBq2pyZkslm9hIYF"><input type="checkbox" id="set-fs-pause" data-page-node-id="BswU5hQbDe9MNjLFGLYjn6"><i data-page-node-id="TgZgI923NurCIgR9qtFKhl"></i></span>
+          </label>
+          <label class="switch-row" data-page-node-id="UFQNMEktGDxmdAut4pOAVg">
+            <div data-page-node-id="zZi8s74c2xG1FGjekZXrC2">
+              <div class="row-title" data-page-node-id="d4fTaIAXzFlDxlQM7mdYN2">电池供电时自动暂停</div>
+              <div class="row-sub" data-page-node-id="cosByomcCfuzAcMCV9n853">笔记本使用电池时暂停视频壁纸省电，接通电源自动恢复</div>
+            </div>
+            <span class="switch" data-page-node-id="FdZtqXaFKIGTlG4k4DW7pi"><input type="checkbox" id="set-battery-pause" data-page-node-id="h5g21Z70orIiLhOUMz7aG5"><i data-page-node-id="QFZsJzq5Uw9SPOrHcW42IT"></i></span>
+          </label>
+          <label class="switch-row" data-page-node-id="Ge8W9seCrN4H3AYSkm6lyT">
+            <div data-page-node-id="CuajrETcfaHILl8b941Ez5">
+              <div class="row-title" data-page-node-id="5kqWLWVZDEgKSqSHzCEYH1">其他窗口最大化时暂停</div>
+              <div class="row-sub" data-page-node-id="9czn59hsQjJxQ77T32HCnP">有应用窗口最大化时暂停视频壁纸，专注工作不被干扰（Wallpaper Engine 同款）</div>
+            </div>
+            <span class="switch" data-page-node-id="NA6Ixjz1A76joDKbYJE8oD"><input type="checkbox" id="set-max-pause" data-page-node-id="j6SryaiAn6EyhIDg7ybz7d"><i data-page-node-id="HyXHpVHCbmFKqi2C4lC1Qg"></i></span>
+          </label>
+          <p class="hint" data-page-node-id="VZwQENm21CXDE32o8XlEWg">视频壁纸默认使用硬件解码并限制渲染分辨率（可在右侧「壁纸调节」中调整），进一步降低占用。</p>
         </div>
-        <div class="settings-card">
-          <div class="switch-row">
-            <div>
-              <div class="row-title">mpv 播放引擎</div>
-              <div class="row-sub" id="mpv-detail">视频壁纸的播放内核，支持 AVI / MKV / FLV 等格式</div>
+        <div class="settings-card" data-page-node-id="XDO7OQARYB9sZRNBby1BDw">
+          <div class="card-title" data-page-node-id="X5Td1eUrd6Ft0F6CsLMXjZ">播放体验</div>
+          <label class="switch-row" data-page-node-id="6oHExX7eQiqG5nOBOm8vgL">
+            <div data-page-node-id="PkNybb4kk0e6k1bMFFx7zQ">
+              <div class="row-title" data-page-node-id="9BZxIQvZeTWrly0aVLRtjB">平滑循环过渡</div>
+              <div class="row-sub" data-page-node-id="8bzWdv0iRFo47yCHrGKzzA">开启：视频循环交界处新画面柔和淡入覆盖（亮度恒定、无黑变无重影），消除画面跳变（多占用约 60MB 内存）。关闭：改为硬切循环（画面直接跳回开头，但不会停播）</div>
             </div>
-            <button class="btn ghost small" id="btn-mpv-download">前往下载</button>
-          </div>
-          <p class="hint">视频壁纸依赖 mpv：将下载的 mpv 解压到程序目录 assets/mpv/ 下，或把 mpv.exe 加入系统 PATH。</p>
+            <span class="switch" data-page-node-id="F3DocvyNqZORmmzgIHpiRm"><input type="checkbox" id="set-smooth-loop" data-page-node-id="FxYn5CrhTdGTBGPALmYQIn"><i data-page-node-id="OhtZN9LiS8Hw2GGLhUAnie"></i></span>
+          </label>
         </div>
-        <div class="settings-card" id="about-card">
-          <div class="switch-row">
-            <div>
-              <div class="row-title">关于</div>
-              <div class="row-sub" id="about-version">壁纸工坊 v1.8.0 — 静态 / 动态 / 网页 / EXE 壁纸 · 平滑轮换过渡 · 音律动效 · 桌面组件 · 快捷方式收纳转盘 · 桌面与锁屏</div>
+        <div class="settings-card" data-page-node-id="XAqt3zVFXkP8HBZgfiDQYq">
+          <div class="card-title" data-page-node-id="30y52VwbMoIT5HwhE9O9fH">快捷键</div>
+          <label class="switch-row" data-page-node-id="O956ipwdeAA2oQylmFgGGE">
+            <div data-page-node-id="RQjRhhaLfqInxe4BcBlC5h">
+              <div class="row-title" data-page-node-id="OBexBr7kLFF32Q2F3xaAy8">全局暂停 / 恢复壁纸</div>
+              <div class="row-sub" data-page-node-id="UM2SEUMK3jMqYjkok4sE0f">系统级快捷键 <b data-page-node-id="FpoOaWmZAFxSGVhHdFycaE">Ctrl+Alt+W</b>，在游戏或任意界面一键暂停 / 恢复壁纸</div>
+            </div>
+            <span class="switch" data-page-node-id="iZb8EWDe3e1Jd5DKtV9ALP"><input type="checkbox" id="set-hotkey" data-page-node-id="qU1DOz25EbaUzqmGGMf3kK"><i data-page-node-id="EKQLnNN6Mnk1mWYOay4fEI"></i></span>
+          </label>
+        </div>
+        <div class="settings-card" data-page-node-id="ks50lB95g9Wpnm8Zc2e4mx">
+          <div class="card-title" data-page-node-id="3P24nbt89DPfX27YxYwOCg">锁屏壁纸</div>
+          <div class="switch-row" data-page-node-id="ofAhb8aueJ3RB8fHJ31tW6">
+            <div data-page-node-id="Gd1GOIWBR2rasrEBETgwia">
+              <div class="row-title" data-page-node-id="AcFynOVMd32LDzDpfPI14o">Windows 锁屏与登录背景</div>
+              <div class="row-sub" id="lockscreen-detail" data-page-node-id="Gs9yMvcQnruwvQ6skE99tC">将图片壁纸同步设置为锁屏与登录界面背景</div>
+            </div>
+            <div class="btn-col" data-page-node-id="ygCgHXiBDDGjPoEDHLfw7Z">
+              <button class="btn ghost small" id="btn-lockscreen-use-current" data-page-node-id="FT9sfUgMtrkKBdBzYIEZUQ">使用当前壁纸</button>
+              <button class="btn ghost small" id="btn-lockscreen-reset" data-page-node-id="WVH0Dk0ZhnmoTtHlrtpMsn">恢复默认</button>
             </div>
           </div>
-          <div class="switch-row">
-            <div>
-              <div class="row-title">版本与更新</div>
-              <div class="row-sub" id="update-status">打开客户端时自动检查更新（后台不检查）；发现新版本会弹出功能介绍，可在应用内直接下载安装</div>
+          <p class="hint" data-page-node-id="2ecnAmyfhBcdyDradNhlbG">通过系统策略（PersonalizationCSP）写入，需要管理员权限，点击后会弹出 UAC 确认框。仅支持 JPG/PNG/BMP 等图片格式。</p>
+        </div>
+        <div class="settings-card" data-page-node-id="Zxmf6FzzPgZIR2agfQJPd2">
+          <div class="switch-row" data-page-node-id="AV7heiNBF7LGxwxptFqx5w">
+            <div data-page-node-id="g5mPvDgaBnYTePN760HFeL">
+              <div class="row-title" data-page-node-id="yQlRpjcCwqZ6Uq0HxcxmrF">mpv 播放引擎</div>
+              <div class="row-sub" id="mpv-detail" data-page-node-id="hyyb2Fku2BxF7GFipyY8Tv">视频壁纸的播放内核，支持 AVI / MKV / FLV 等格式</div>
             </div>
-            <div class="btn-col">
-              <button class="btn ghost small" id="btn-check-update">检查更新</button>
-              <button class="btn primary small hidden" id="btn-install-update">立即更新</button>
-              <button class="btn ghost small hidden" id="btn-open-download">前往发布页</button>
+            <button class="btn ghost small" id="btn-mpv-download" data-page-node-id="JAwhmfs4CWxQSRoEPZGraH">前往下载</button>
+          </div>
+          <p class="hint" data-page-node-id="eoQkyXVJNr71l5EASVQCTp">视频壁纸依赖 mpv：将下载的 mpv 解压到程序目录 assets/mpv/ 下，或把 mpv.exe 加入系统 PATH。</p>
+        </div>
+        <div class="settings-card" id="about-card" data-page-node-id="Dq4cBXAbAiaNbVSAPCjbID">
+          <div class="switch-row" data-page-node-id="lTlJ0SLiBIKl1wRdnG5ByC">
+            <div data-page-node-id="AdNVHec1jGCKf17AkIxqoy">
+              <div class="row-title" data-page-node-id="qHwJaiIEzZAkSyDk9acL7G">关于</div>
+              <div class="row-sub" id="about-version" data-page-node-id="H2XSgCQCOd87UQWQVzVCad">壁纸工坊 v1.8.0 — 静态 / 动态 / 网页 / EXE 壁纸 · 平滑轮换过渡 · 音律动效 · 桌面组件 · 快捷方式收纳转盘 · 桌面与锁屏</div>
+            </div>
+          </div>
+          <div class="switch-row" data-page-node-id="EAXAMNvvxRIAE2Zf7FsS5F">
+            <div data-page-node-id="lxhSq2uLSWlwlIfi1Ily3y">
+              <div class="row-title" data-page-node-id="FUt04ZcdGyhRngWD6ZVxAY">版本与更新</div>
+              <div class="row-sub" id="update-status" data-page-node-id="KqaGEyMygxK2XY0C7zi1K8">打开客户端时自动检查更新（后台不检查）；发现新版本会弹出功能介绍，可在应用内直接下载安装</div>
+            </div>
+            <div class="btn-col" data-page-node-id="S7RnYqWYPZaXIvQpBXmWkB">
+              <button class="btn ghost small" id="btn-check-update" data-page-node-id="qWGcjOv7unWtheeryzPCOW">检查更新</button>
+              <button class="btn primary small hidden" id="btn-install-update" data-page-node-id="KjiLnyFbDX6AyzwoUgo31N">立即更新</button>
+              <button class="btn ghost small hidden" id="btn-open-download" data-page-node-id="tV1WVzTJEJ2EX1hy1RwIJB">前往发布页</button>
             </div>
           </div>
         </div>
@@ -787,147 +789,147 @@
     </main>
 
     <!-- 右侧参数面板 -->
-    <aside id="params-panel">
-      <div class="pp-head">
-        <h3>壁纸调节</h3>
-        <span class="pp-type" id="pp-type-badge">未选择</span>
+    <aside id="params-panel" data-page-node-id="NYEtJKz2c8OItIfbW97Y9E">
+      <div class="pp-head" data-page-node-id="6PXxYkRfZDbS7TEQ9xGuao">
+        <h3 data-page-node-id="wW36vPHAT6f5GwpAnIYXq6">壁纸调节</h3>
+        <span class="pp-type" id="pp-type-badge" data-page-node-id="9HdOO2jBfUTx3AXqam8pav">未选择</span>
       </div>
-      <div id="pp-none" class="pp-empty">
-        <p>未选择壁纸</p>
-        <p class="sub">单击卡片即可在预览区查看效果<br>双击卡片或点「应用壁纸」设为桌面壁纸</p>
+      <div id="pp-none" class="pp-empty" data-page-node-id="Cqt7tZjqTsZN3slz9y7Paa">
+        <p data-page-node-id="IzDSh7XJhxcJwVD9KtaW09">未选择壁纸</p>
+        <p class="sub" data-page-node-id="h2dAdvkA3gbK9UaBoz7pAR">单击卡片即可在预览区查看效果<br data-page-node-id="h8OlSA4qlLA4RxVZOtQlME">双击卡片或点「应用壁纸」设为桌面壁纸</p>
       </div>
-      <div id="pp-controls" class="hidden">
+      <div id="pp-controls" class="hidden" data-page-node-id="WkLZNQRY0ynngTzwlzzAsE">
         <!-- 预览区（按主显示器比例） -->
-        <div id="pp-preview" class="pp-preview">
-          <div class="preview-stage" id="preview-stage">
-            <div class="preview-placeholder" id="preview-placeholder">预览区</div>
+        <div id="pp-preview" class="pp-preview" data-page-node-id="wKmYXbhtd2ZI54cs38exgn">
+          <div class="preview-stage" id="preview-stage" data-page-node-id="afOzlgTPDE0eRRwFq61QHC">
+            <div class="preview-placeholder" id="preview-placeholder" data-page-node-id="8Gz77nMjn1ksrGPu6OMONQ">预览区</div>
           </div>
-          <div class="preview-meta">
-            <span id="preview-res-label">—</span>
-            <span class="preview-meta-actions">
-              <button class="icon-btn" id="btn-preview-zoom-in" title="放大预览区">＋</button>
-              <button class="icon-btn" id="btn-preview-zoom-out" title="缩小预览区">－</button>
-              <button class="icon-btn" id="btn-preview-popout" title="弹出独立预览窗口（可自由调整大小）">⧉</button>
+          <div class="preview-meta" data-page-node-id="YAifAGKw8CGaRd8UHYJ3F0">
+            <span id="preview-res-label" data-page-node-id="eaOqOtByiQazKlxAveEE6W">—</span>
+            <span class="preview-meta-actions" data-page-node-id="zleMew2N6lmQGjdbtLqE5t">
+              <button class="icon-btn" id="btn-preview-zoom-in" title="放大预览区" data-page-node-id="8Vx6rAWb5P8xLBVOIQ6ZS5">＋</button>
+              <button class="icon-btn" id="btn-preview-zoom-out" title="缩小预览区" data-page-node-id="ldstowtQJZK7xuOVgRVhkL">－</button>
+              <button class="icon-btn" id="btn-preview-popout" title="弹出独立预览窗口（可自由调整大小）" data-page-node-id="9u36KmHgUeErM417hAG55V">⧉</button>
             </span>
           </div>
         </div>
-        <div class="pp-name" id="pp-name"></div>
-        <div class="btn-row apply-row">
-          <button class="btn primary small" id="btn-apply">应用壁纸</button>
-          <button class="btn ghost small hidden" id="btn-lockscreen" title="将该图片同时设为 Windows 锁屏壁纸">设为锁屏</button>
+        <div class="pp-name" id="pp-name" data-page-node-id="gyjgaSTQtqjo045ZFOi0K8"></div>
+        <div class="btn-row apply-row" data-page-node-id="H9oIbhNwpxxC857eCNS2wU">
+          <button class="btn primary small" id="btn-apply" data-page-node-id="hcw7J9G1adrB7MPJCqZM3N">应用壁纸</button>
+          <button class="btn ghost small hidden" id="btn-lockscreen" title="将该图片同时设为 Windows 锁屏壁纸" data-page-node-id="XWOXelzH8KIECHKoHUVolf">设为锁屏</button>
         </div>
 
         <!-- 视频专属控制 -->
-        <div id="pp-video-only">
-          <div class="pp-row btn-row">
-            <button class="btn ghost small" id="btn-pause">暂停</button>
-            <button class="btn ghost small" id="btn-mute">静音</button>
-            <button class="btn ghost small toggle-loop active" id="btn-loop">循环</button>
+        <div id="pp-video-only" data-page-node-id="7gdAUvNICPSf0IA6jGaVcL">
+          <div class="pp-row btn-row" data-page-node-id="MAxh1D8SKIPmMlERXEGHX7">
+            <button class="btn ghost small" id="btn-pause" data-page-node-id="jg7XJoAGLb5VTZ91cAnmcx">暂停</button>
+            <button class="btn ghost small" id="btn-mute" data-page-node-id="HKnTXqAFhpatOo9LkjXeWM">静音</button>
+            <button class="btn ghost small toggle-loop active" id="btn-loop" data-page-node-id="tP3ZFoJKdRrkjGj1HSgtR7">循环</button>
           </div>
-          <div class="slider-row" data-param="speed">
-            <label>播放速度
-              <span class="param-num-wrap"><input type="number" class="param-num" id="v-speed-num" min="0.25" max="4" step="0.05" value="1"><i>×</i></span>
+          <div class="slider-row" data-param="speed" data-page-node-id="3l8wmELKIOyCoECvu3gZts">
+            <label data-page-node-id="TeiLazuAHhb4EOreS99LJg">播放速度
+              <span class="param-num-wrap" data-page-node-id="LrWS2l0H2uP9RT4v3j7l5R"><input type="number" class="param-num" id="v-speed-num" min="0.25" max="4" step="0.05" value="1" data-page-node-id="AIvjshHfP00Hi90GkCU8PW"><i data-page-node-id="bdjTNE4jNtamsgdeEjcTi9">×</i></span>
             </label>
-            <input type="range" id="v-speed" min="0.25" max="4" step="0.05" value="1">
-            <div class="preset-row" id="v-speed-presets"></div>
+            <input type="range" id="v-speed" min="0.25" max="4" step="0.05" value="1" data-page-node-id="cH3kdBPAco4Ydwz9dTHt6N">
+            <div class="preset-row" id="v-speed-presets" data-page-node-id="VgLRrSS5TWG6Wx6BJfEiZy"></div>
           </div>
-          <div class="slider-row" data-param="volume">
-            <label>音量
-              <span class="param-num-wrap"><input type="number" class="param-num" id="v-volume-num" min="0" max="100" step="1" value="70"><i>%</i></span>
+          <div class="slider-row" data-param="volume" data-page-node-id="E9IT3HKiZMLhUKo8ZdS68P">
+            <label data-page-node-id="CATr63N8AVfo6ZT7u99sEM">音量
+              <span class="param-num-wrap" data-page-node-id="67hMPkZhIiF72QudfTMsqa"><input type="number" class="param-num" id="v-volume-num" min="0" max="100" step="1" value="70" data-page-node-id="2zB6KW7OuGdmEDWCzNR1sO"><i data-page-node-id="ODUH2zGc7SoLjtkuJr5b3x">%</i></span>
             </label>
-            <input type="range" id="v-volume" min="0" max="100" step="1" value="70">
-            <div class="preset-row" id="v-volume-presets"></div>
+            <input type="range" id="v-volume" min="0" max="100" step="1" value="70" data-page-node-id="dwzISm7E2Eo7moZZ2AET5z">
+            <div class="preset-row" id="v-volume-presets" data-page-node-id="dxwGA1KlbT5lHwTPOi6Dxq"></div>
           </div>
         </div>
 
         <!-- 通用画面调节 -->
-        <div class="pp-divider"></div>
-        <div class="pp-section-title">画面调节</div>
-        <div class="slider-row" data-param="brightness">
-          <label>亮度
-            <span class="param-num-wrap"><input type="number" class="param-num" id="v-bright-num" min="-100" max="100" step="1" value="0"></span>
+        <div class="pp-divider" data-page-node-id="DF7hR44RkHJxaxdFHEYVEJ"></div>
+        <div class="pp-section-title" data-page-node-id="qmzsicSx3eeID2p1YAU8oF">画面调节</div>
+        <div class="slider-row" data-param="brightness" data-page-node-id="VWZTjHG75ESBc2oHrWTGGL">
+          <label data-page-node-id="JPDbX1F1KDCPTM2YAJ2FGT">亮度
+            <span class="param-num-wrap" data-page-node-id="mC8wJBwmEB3cev0FGS2gMH"><input type="number" class="param-num" id="v-bright-num" min="-100" max="100" step="1" value="0" data-page-node-id="1PAXTkG7mB38lMLxqrAO79"></span>
           </label>
-          <input type="range" id="v-bright" min="-100" max="100" step="1" value="0">
-          <div class="preset-row" id="v-bright-presets"></div>
+          <input type="range" id="v-bright" min="-100" max="100" step="1" value="0" data-page-node-id="3BJJQaGJawYABgFzBEAm11">
+          <div class="preset-row" id="v-bright-presets" data-page-node-id="0W0AQtbsLEHGuHWbdEAqk5"></div>
         </div>
-        <div class="slider-row" data-param="contrast">
-          <label>对比度
-            <span class="param-num-wrap"><input type="number" class="param-num" id="v-contrast-num" min="-100" max="100" step="1" value="0"></span>
+        <div class="slider-row" data-param="contrast" data-page-node-id="RvLAhz7hoeXeyUbpaxRdcD">
+          <label data-page-node-id="3ERmhsipHcYaysQz00seIp">对比度
+            <span class="param-num-wrap" data-page-node-id="8vIK2hfiQX0ZwUDcbCxhbe"><input type="number" class="param-num" id="v-contrast-num" min="-100" max="100" step="1" value="0" data-page-node-id="T67kp5rZrV1ey4WGcOCXdv"></span>
           </label>
-          <input type="range" id="v-contrast" min="-100" max="100" step="1" value="0">
-          <div class="preset-row" id="v-contrast-presets"></div>
+          <input type="range" id="v-contrast" min="-100" max="100" step="1" value="0" data-page-node-id="Y7CvVKkZMA6YBmjr3w6xM6">
+          <div class="preset-row" id="v-contrast-presets" data-page-node-id="sfox0zNotcmzAyp21Yrnzs"></div>
         </div>
-        <div class="slider-row" data-param="saturation">
-          <label>饱和度
-            <span class="param-num-wrap"><input type="number" class="param-num" id="v-saturation-num" min="-100" max="100" step="1" value="0"></span>
+        <div class="slider-row" data-param="saturation" data-page-node-id="zDMzdmBiH0hMVV6LWrWCta">
+          <label data-page-node-id="kVkqQP9pWZ8s21dgDMDxuU">饱和度
+            <span class="param-num-wrap" data-page-node-id="kMNjgtFJB8FAE94DAolx2p"><input type="number" class="param-num" id="v-saturation-num" min="-100" max="100" step="1" value="0" data-page-node-id="HwLRJC6go26JSgBKxYdczR"></span>
           </label>
-          <input type="range" id="v-saturation" min="-100" max="100" step="1" value="0">
-          <div class="preset-row" id="v-saturation-presets"></div>
+          <input type="range" id="v-saturation" min="-100" max="100" step="1" value="0" data-page-node-id="lsOX3sBacOoUtD56nHm3NE">
+          <div class="preset-row" id="v-saturation-presets" data-page-node-id="UPGq9jrLBGTNRj5HJI1VHB"></div>
         </div>
 
-        <div class="pp-divider"></div>
-        <div class="pp-section-title">显示适配</div>
-        <div class="seg full" id="seg-fit">
-          <button data-fit="cover" title="填满屏幕，可能裁剪">填充裁剪</button>
-          <button data-fit="contain" title="完整显示，可能留黑边">完整显示</button>
-          <button data-fit="stretch" title="拉伸铺满，可能变形">拉伸</button>
+        <div class="pp-divider" data-page-node-id="OPdEbV18qVOuWXESMIk8GC"></div>
+        <div class="pp-section-title" data-page-node-id="ndMTCgN4VnR36RgnTijRKh">显示适配</div>
+        <div class="seg full" id="seg-fit" data-page-node-id="u9uhRTBfEWI5ebQZZjG4Eg">
+          <button data-fit="cover" title="填满屏幕，可能裁剪" data-page-node-id="rAZwsJTOBZPBeRMLOI6zF1">填充裁剪</button>
+          <button data-fit="contain" title="完整显示，可能留黑边" data-page-node-id="hI21qhyOKxO5NCricF0El6">完整显示</button>
+          <button data-fit="stretch" title="拉伸铺满，可能变形" data-page-node-id="m3w3ri8cxWcMzgvkK1Vs1h">拉伸</button>
         </div>
-        <div id="pp-quality-row">
-          <div class="pp-section-title" style="margin-top:14px">渲染质量</div>
-          <div class="seg full" id="seg-quality">
-            <button data-quality="low">流畅</button>
-            <button data-quality="medium">均衡</button>
-            <button data-quality="high">精细</button>
+        <div id="pp-quality-row" data-page-node-id="yfnwFdHcUMNFbl9UNTHuZ2">
+          <div class="pp-section-title" style="margin-top:14px" data-page-node-id="pDQKtsxH8oqEZJWhEFSwMX">渲染质量</div>
+          <div class="seg full" id="seg-quality" data-page-node-id="fYSRnvxLGCFo3UbQIaVknF">
+            <button data-quality="low" data-page-node-id="AoVVSDMkskc3sjVeVyqT32">流畅</button>
+            <button data-quality="medium" data-page-node-id="vhuluTGMz2bvIs13QNkxSe">均衡</button>
+            <button data-quality="high" data-page-node-id="LoY3LDiaSwdCbuFCU7PS2l">精细</button>
           </div>
-          <div class="pp-section-title" style="margin-top:14px">渲染分辨率 <span class="title-hint">降低可省 CPU/GPU</span></div>
-          <div class="seg full" id="seg-resolution">
-            <button data-resolution="source">原生</button>
-            <button data-resolution="1080p">1080P</button>
-            <button data-resolution="720p">720P</button>
-            <button data-resolution="480p">480P</button>
+          <div class="pp-section-title" style="margin-top:14px" data-page-node-id="gaCdZnFpxoCFUtBPpERWvF">渲染分辨率 <span class="title-hint" data-page-node-id="qXXeR9SBvHUFmlYPUdwJjx">降低可省 CPU/GPU</span></div>
+          <div class="seg full" id="seg-resolution" data-page-node-id="5bUyruyHxDHi9SrRfAPmFr">
+            <button data-resolution="source" data-page-node-id="7Rp764orBHRK9yjLtqM7iX">原生</button>
+            <button data-resolution="1080p" data-page-node-id="JW6zD5stthip3Nd3tRXZlv">1080P</button>
+            <button data-resolution="720p" data-page-node-id="wXCoxYKEMlZ8OPgSB7Dw9s">720P</button>
+            <button data-resolution="480p" data-page-node-id="OyCZvFrgqLgMMobCq7FUzB">480P</button>
           </div>
         </div>
 
-        <button class="btn ghost small full-width" id="btn-reset-params">恢复默认参数</button>
+        <button class="btn ghost small full-width" id="btn-reset-params" data-page-node-id="VMHTS8RxTEiEZGZ1BKk0kI">恢复默认参数</button>
       </div>
-      <div id="pp-exe-tip" class="pp-empty hidden">
-        <p>EXE 壁纸正在运行</p>
-        <p class="sub">外部程序窗口已嵌入桌面。<br>切换其他壁纸会自动关闭该程序。</p>
+      <div id="pp-exe-tip" class="pp-empty hidden" data-page-node-id="ytuIWkXBBILzKD8l3bIDtQ">
+        <p data-page-node-id="rbCu6tc5EgDd6GsGPr07Wm">EXE 壁纸正在运行</p>
+        <p class="sub" data-page-node-id="IbrjdaJ6BltVdm7fQyr7bv">外部程序窗口已嵌入桌面。<br data-page-node-id="4PIOoUX6cQLezJYFxnGH5S">切换其他壁纸会自动关闭该程序。</p>
       </div>
     </aside>
   </div>
 
   <!-- 网页壁纸输入弹窗 -->
-  <div id="modal-web" class="modal hidden">
-    <div class="modal-box">
-      <h3>添加网页壁纸</h3>
-      <p class="modal-sub">输入网址，页面将作为动态壁纸显示在桌面</p>
-      <input type="text" id="web-url-input" placeholder="例如：https://example.com" spellcheck="false">
-      <div class="modal-actions">
-        <button class="btn ghost" id="web-cancel">取消</button>
-        <button class="btn primary" id="web-confirm">添加并应用</button>
+  <div id="modal-web" class="modal hidden" data-page-node-id="ecgFADcOKUWWQgve8bgZx1">
+    <div class="modal-box" data-page-node-id="biiIeUxICR5jaHSSwRX4Z9">
+      <h3 data-page-node-id="kEOlS8d2B7yxD8HyfgaPIC">添加网页壁纸</h3>
+      <p class="modal-sub" data-page-node-id="1gOHeV9NJCxgHiN7i8YIe0">输入网址，页面将作为动态壁纸显示在桌面</p>
+      <input type="text" id="web-url-input" placeholder="例如：https://example.com" spellcheck="false" data-page-node-id="OgNyOwhbjFlQ9wH4CVteQ6">
+      <div class="modal-actions" data-page-node-id="mZjCH4uzwWYzHVyUKHnKGJ">
+        <button class="btn ghost" id="web-cancel" data-page-node-id="vSwbcbXAQxTtV8V8iyWNc3">取消</button>
+        <button class="btn primary" id="web-confirm" data-page-node-id="tE9eZ0qo0hLUmy3MN7XAFI">添加并应用</button>
       </div>
     </div>
   </div>
 
   <!-- 新版本功能介绍弹窗 -->
-  <div id="modal-update" class="modal hidden">
-    <div class="modal-box upd-modal">
-      <h3 id="upd-modal-title">发现新版本</h3>
-      <p class="modal-sub" id="upd-modal-sub"></p>
-      <div class="upd-notes" id="upd-modal-notes"></div>
-      <div class="upd-dl hidden" id="upd-dl">
-        <div class="upd-dl-bar"><div class="upd-dl-fill" id="upd-dl-fill"></div></div>
-        <div class="upd-dl-text" id="upd-dl-text">准备下载…</div>
+  <div id="modal-update" class="modal hidden" data-page-node-id="JAzdXah6Ycc9OdBAfYLVkR">
+    <div class="modal-box upd-modal" data-page-node-id="fy0ddqvSOiH3CSanUXCp1T">
+      <h3 id="upd-modal-title" data-page-node-id="uhpCsXvW9n6ez3Km1wRhZA">发现新版本</h3>
+      <p class="modal-sub" id="upd-modal-sub" data-page-node-id="w7GGsqdKXCHiD1mjozdXoI"></p>
+      <div class="upd-notes" id="upd-modal-notes" data-page-node-id="TDCF1XeocW8XMbYDFLReI8"></div>
+      <div class="upd-dl hidden" id="upd-dl" data-page-node-id="djrkQ3JmVeB89CwOGrXXxB">
+        <div class="upd-dl-bar" data-page-node-id="IgymxhrdCCgLQJkaead0Ve"><div class="upd-dl-fill" id="upd-dl-fill" data-page-node-id="y1wNzrEl2mQZmWLg68Ay9h"></div></div>
+        <div class="upd-dl-text" id="upd-dl-text" data-page-node-id="yRZ0MgyNzLSHEO9a6FHj2Q">准备下载…</div>
       </div>
-      <div class="modal-actions">
-        <button class="btn ghost" id="upd-cancel">稍后再说</button>
-        <button class="btn primary" id="upd-install">立即更新</button>
+      <div class="modal-actions" data-page-node-id="FJIlkG2enZh6e8GgUpZs1o">
+        <button class="btn ghost" id="upd-cancel" data-page-node-id="CZeFKjZTF6thJW7helDQxD">稍后再说</button>
+        <button class="btn primary" id="upd-install" data-page-node-id="iqwIFxm7DdcZxDTNkKqJCr">立即更新</button>
       </div>
     </div>
   </div>
 
-  <div id="toast" class="toast hidden"></div>
+  <div id="toast" class="toast hidden" data-page-node-id="BxET9j7717SG40Ed28z0YA"></div>
 
   <script src="js/app.js"></script>
 </body>

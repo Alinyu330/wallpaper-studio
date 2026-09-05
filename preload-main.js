@@ -66,6 +66,8 @@ contextBridge.exposeInMainWorld('api', {
   cancelUpdateInstall: () => ipcRenderer.invoke('update:install-cancel'),
   // 客户端版本号（关于页动态显示）
   getAppVersion: () => ipcRenderer.invoke('app:get-version'),
+  // 收纳存储路径（主存储 / 备用镜像；设置页文字提示 + 点击打开）
+  getStoragePaths: () => ipcRenderer.invoke('app:storage-paths'),
   // 硬件加速等「app ready 前才生效」的设置改完后立即重启（主进程会先 flushSync 落盘）
   relaunchApp: () => ipcRenderer.invoke('app:relaunch'),
   // 窗口控制
