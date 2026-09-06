@@ -872,6 +872,41 @@ function applyAutoStartSetting(on) {
   } catch (e) {
     console.warn('[autostart] 注册失败:', e.message);
   }
+  removeLegacyAutoStartEntries();
+}
+
+/**
+ * 清理历史版本写错值名的开机自启残留项。
+ * Electron 在 Windows 上以 AppUserModelId 作为 HKCU Run 的值名：main.js 早期
+ * 版本未设自定义 AUMID，历史登录项可能叫 "electron.app.壁纸工坊"；而
+ * setLoginItemSettings 只管理当前值名 —— 残留项会导致「已关闭自启仍开机自启」
+ * 和「卸载后仍开机自启」（卸载器 installer.nsh 侧另有同类清理，这里兜住不卸载
+ * 场景：升级换代、用户关闭开关）。按"值名属于历史变体 且 数据指向本应用 exe"
+ * 双条件删除，保证绝不误伤其他应用或本应用现役项（当前值名显式排除）。
+ */
+function removeLegacyAutoStartEntries() {
+  if (process.platform !== 'win32') return;
+  try {
+    const { execFile } = require('child_process');
+    const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
+    const LEGACY_NAMES = ['壁纸工坊', 'wallpaper-studio', 'electron.app.壁纸工坊', 'electron.app.Electron', 'com.alinyu.wallpaperstudio'];
+    const currentName = (typeof app.getAppUserModelId === 'function' ? app.getAppUserModelId() : '') || '';
+    const exePath = process.execPath.toLowerCase();
+    execFile('reg', ['query', RUN_KEY], { windowsHide: true }, (err, stdout) => {
+      if (err || !stdout) return;
+      for (const line of String(stdout).split(/\r?\n/)) {
+        const m = line.match(/^\s*(.+?)\s+REG_(?:SZ|EXPAND_SZ)\s+(.*)$/);
+        if (!m) continue;
+        const name = m[1].trim();
+        if (!LEGACY_NAMES.includes(name) || name === currentName) continue;
+        if (!m[2].toLowerCase().includes(exePath)) continue;
+        execFile('reg', ['delete', RUN_KEY, '/v', name, '/f'], { windowsHide: true }, () => {});
+        console.log(`[autostart] 已清理历史残留自启项: ${name}`);
+      }
+    });
+  } catch (e) {
+    console.warn('[autostart] 清理历史残留自启项失败:', e.message);
+  }
 }
 
 function applyHotkeySetting() {
@@ -1658,6 +1693,9 @@ if (gotLock) {
 
     // 开机自启自愈：设置已开启但登录项缺失/损坏（旧版本注册的坏项）时重写一次
     if (store.settings.autoStart) applyAutoStartSetting(true);
+    // 历史残留自启项清理：无论自启开关状态都执行 —— 老版本写错值名的残留项
+    // 会让「已关闭自启/已卸载」的机器照样开机自启，与当前开关无关
+    removeLegacyAutoStartEntries();
 
     // ---------- 音律动效：系统声音环回捕获授权 ----------
     // 组件覆盖层通过 getDisplayMedia({audio:true}) 捕获 Windows 系统混音（WASAPI

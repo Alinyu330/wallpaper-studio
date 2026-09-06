@@ -8,7 +8,12 @@
 ;   2) 数据目录残留 —— electron-builder 默认不删除 %APPDATA%\壁纸工坊
 ;      （壁纸库 / 配置 / 收纳的文件 / 日志）；
 ;   3) 自启注册残留 —— 应用用 setLoginItemSettings 写入 HKCU Run 的开机
-;      自启项，默认卸载器不清理。
+;      自启项，默认卸载器不清理。注意 Electron 在 Windows 上写入的"值名"
+;      是应用 ID（AppUserModelId）而非应用名：本应用 = "com.alinyu.
+;      wallpaperstudio"（main.js 自定义 AUMID），历史未设 AUMID 的版本 =
+;      "electron.app.<应用名>"。按应用名删除永远删不中真实登录项
+;      （v1.17.1 及之前的卸载器即栽在这里），customUnInstall 现按真实
+;      值名静态删除 + 枚举 Run 键按安装路径前缀兜底。
 ;
 ; 方案：customRemoveFiles 接管"删除已安装文件"（加等待 + 失败重试）；
 ;       customUnInstall 在卸载末尾清理自启注册、抢救收纳文件、删除数据目录。
@@ -189,9 +194,56 @@
   Pop $R1
   Pop $R0
 
-  ; --- 1) 清理开机自启注册（app.setLoginItemSettings 写入 HKCU Run，value = 应用名）---
+  ; --- 1) 清理开机自启注册 ---
+  ; ★ 关键认知（修复"卸载后重启客户端仍自启"）：Electron 在 Windows 上
+  ;   setLoginItemSettings 写入 HKCU Run 的"值名"不是应用名，而是应用 ID
+  ;   （AppUserModelId）—— main.js 设置了 app.setAppUserModelId(
+  ;   'com.alinyu.wallpaperstudio')，故打包版登录项值名 =
+  ;   "com.alinyu.wallpaperstudio"；未设自定义 AUMID 的历史版本（及开发态）
+  ;   写入的是 "electron.app.<应用名>"。此前删除 "壁纸工坊"/"wallpaper-studio"
+  ;   两个值名从未命中过真实登录项。
+  ;   a) 按全部已知值名静态删除（这些值名唯属于本应用，无条件删除是安全的；
+  ;      "electron.app.Electron" 是通用开发态值名，其他 Electron 项目的开发
+  ;      自启也可能叫这个名，绝不静态删除）；
+  ;   b) 再枚举整个 Run 键兜底：凡值数据（exe 路径）以本次卸载的 $INSTDIR
+  ;      开头的一律删除，覆盖未来值名变体。NSIS StrCmp 天然大小写不敏感，
+  ;      路径大小写差异无需归一化；数据形如 "C:\...\壁纸工坊.exe" 参数 或
+  ;      C:\...\壁纸工坊.exe，先剥首引号再取前 $INSTDIR 长度字符比对前缀。
+  ;   （应用运行期的同类清理见 main.js removeLegacyAutoStartEntries —— 按
+  ;     execPath 匹配，兜住"不卸载"场景；两侧互为冗余。）
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "com.alinyu.wallpaperstudio"
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "electron.app.壁纸工坊"
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "壁纸工坊"
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "wallpaper-studio"
+
+  Push $0 ; 枚举索引
+  Push $1 ; 值名
+  Push $2 ; 值数据（截取后复用为前缀）
+  Push $3 ; 首字符探针
+  Push $4 ; $INSTDIR 长度
+  StrLen $4 "$INSTDIR"
+  StrCpy $0 0
+  asr_loop:
+    EnumRegValue $1 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" $0
+    StrCmp $1 "" asr_done
+    ReadRegStr $2 HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "$1"
+    StrCpy $3 "$2" 1
+    StrCmp $3 '"' 0 asr_noquote
+      StrCpy $2 "$2" "" 1 ; 带引号：剥掉首引号（前缀比对不关心引号后内容）
+    asr_noquote:
+    StrCpy $2 "$2" $4 ; 截取 $INSTDIR 长度的前缀
+    StrCmp $2 "$INSTDIR" 0 asr_next
+      DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "$1"
+      IntOp $0 $0 - 1 ; 删除后同键后续值前移，回退一格重查当前槽位
+    asr_next:
+    IntOp $0 $0 + 1
+    Goto asr_loop
+  asr_done:
+  Pop $4
+  Pop $3
+  Pop $2
+  Pop $1
+  Pop $0
 
   ; --- 2) 抢救旧版收纳目录（v1.11 及之前存在 %APPDATA% 保管目录，跨版本
   ; 卸载兼容；v1.12.0 起收纳内容在 $INSTDIR，由 customRemoveFiles 抢救）---
