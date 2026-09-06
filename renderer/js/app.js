@@ -1880,6 +1880,7 @@ function buildAvAdj(host) {
 
 // ---------- 桌面快捷方式转盘 ----------
 let launcherCfg = null;
+let lcQuery = '';            // 快捷方式列表搜索词（过滤用，不影响原始下标）
 
 /** 一键收纳后的剩余情况提示：显示/隐藏管理员按钮 + 更新提示文案 */
 function updateBoxLeftoverHint(res) {
@@ -1916,17 +1917,45 @@ async function renderLauncherSettings() {
   $('#lc-mirror').checked = lc.mirror !== false;
   syncLcGrid();
 
+  renderLcList();
+}
+
+/** 列表行的可搜索文本：显示名 + 目标文件名（含收纳前的 .lnk / .url 名）+ 系统项 id */
+function lcSearchText(s) {
+  const base = (p) => String(p || '').split(/[\\/]/).pop();
+  return [s.name, base(s.path), base(s.originPath), s.sysId]
+    .filter(Boolean).join(' ').toLowerCase();
+}
+
+/** 按搜索词渲染快捷方式列表；⭐ 置顶 / 🗑 移除都在命中结果上直接完成 */
+function renderLcList() {
+  const lc = launcherCfg || { shortcuts: [] };
+  const all = lc.shortcuts || [];
+  const q = lcQuery.trim().toLowerCase();
+  const hits = q ? all.filter((s) => lcSearchText(s).includes(q)) : all;
   const list = $('#lc-list');
   list.innerHTML = '';
-  $('#lc-shortcut-count').textContent = lc.shortcuts.length ? `已收纳 ${lc.shortcuts.length} 个` : '';
-  if (!lc.shortcuts.length) {
+  $('#lc-shortcut-count').textContent = all.length ? `已收纳 ${all.length} 个` : '';
+  const hint = $('#lc-search-hint');
+  if (hint) hint.textContent = q ? `命中 ${hits.length} / ${all.length}` : '';
+  const clear = $('#lc-search-clear');
+  if (clear) clear.classList.toggle('hidden', !q);
+  if (!all.length) {
     const empty = document.createElement('p');
     empty.className = 'hint';
     empty.textContent = '还没有快捷方式，点击下方按钮添加常用 App。';
     list.appendChild(empty);
     return;
   }
-  lc.shortcuts.forEach((s, i) => {
+  if (!hits.length) {
+    const empty = document.createElement('p');
+    empty.className = 'hint';
+    empty.textContent = `没有名称含「${lcQuery.trim()}」的快捷方式`;
+    list.appendChild(empty);
+    return;
+  }
+  hits.forEach((s) => {
+    const i = all.indexOf(s);
     const item = document.createElement('div');
     item.className = 'lc-item';
     const ico = document.createElement('div');
@@ -2019,6 +2048,17 @@ function buildLcAdj(host) {
 }
 
 function bindLauncherSettings() {
+  const lcSearch = $('#lc-search-input');
+  lcSearch?.addEventListener('input', () => {
+    lcQuery = lcSearch.value;
+    renderLcList();
+  });
+  $('#lc-search-clear')?.addEventListener('click', () => {
+    lcQuery = '';
+    if (lcSearch) lcSearch.value = '';
+    renderLcList();
+    lcSearch?.focus();
+  });
   $('#lc-enabled').addEventListener('change', async (e) => {
     await window.api.updateLauncherConfig({ enabled: e.target.checked });
     toast(e.target.checked ? '快捷方式转盘已开启，回到桌面查看效果' : '快捷方式转盘已关闭，收纳的快捷方式已恢复到桌面');

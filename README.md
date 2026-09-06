@@ -4,7 +4,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Version](https://img.shields.io/badge/version-1.14.0-7c5cff)
+![Version](https://img.shields.io/badge/version-1.15.0-7c5cff)
 
 ## 官网
 
@@ -13,10 +13,10 @@
 
 ## 下载
 
-**最新版 v1.14.0 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · 调参时客户端自动变透明）：
+**最新版 v1.15.0 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · 搜索快捷方式一键置顶转盘）：
 
-- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.14.0/WallpaperStudio-Setup-1.14.0.exe)
-- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.14.0/WallpaperStudio-Setup-1.14.0.exe)
+- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.15.0/WallpaperStudio-Setup-1.15.0.exe)
+- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.15.0/WallpaperStudio-Setup-1.15.0.exe)
 - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
 > 已安装旧版？客户端「设置 → 检查更新」即可应用内一键更新，无需重新下载安装包。
@@ -37,7 +37,7 @@
 
 - **内置精选壁纸**（v1.10.0 新增）：6 部精选动态壁纸随安装包附带（古风美女 / 初音未来 / 夏日绿树 / 圣诞夜 / 冬季雪林 / 大海云影），下载安装打开即可直接使用，已装旧版升级不受影响
 
-- **桌面快捷方式转盘**（v1.5.0，v1.7.0/v1.8.0 增强）：快捷方式（.lnk/.url）与程序文件（.exe/.bat/.cmd）以转盘形式收纳在桌面（系统项：控制面板 / 回收站 / 网络 / 此电脑 亦可收纳）— 点击图标即可启动对应 App；按住图标条或拖动条左右拖动即可像转盘一样轮换（带惯性甩动）；拖动 ⋮ 手柄自由摆放位置；同屏数量 4~12 可调；图标取系统真实图标（无空白占位）、垂直倒影、去面板边框更沉浸；空闲自动收起为小药丸，悬停药丸展开，不遮挡窗口、不影响壁纸观感
+- **桌面快捷方式转盘**（v1.5.0，v1.7.0/v1.8.0 增强，v1.15.0 列表搜索置顶）：快捷方式（.lnk/.url）与程序文件（.exe/.bat/.cmd）以转盘形式收纳在桌面（系统项：控制面板 / 回收站 / 网络 / 此电脑 亦可收纳）— 点击图标即可启动对应 App；按住图标条或拖动条左右拖动即可像转盘一样轮换（带惯性甩动）；拖动 ⋮ 手柄自由摆放位置；同屏数量 4~12 可调；图标取系统真实图标（无空白占位）、垂直倒影、去面板边框更沉浸；空闲自动收起为小药丸，悬停药丸展开，不遮挡窗口、不影响壁纸观感；设置页快捷方式列表带搜索栏，输入即过滤，搜到即可点星设为常用排到转盘最前
 
 - **桌面文件收纳区**（v1.8.0 新增，v1.9.0 重构，v1.13.0 支持全部文件类型与空文件夹）：桌面上的任意普通文件（含 0 字节空文件、无扩展名与未知类型）与文件夹收进独立浮层，与快捷方式转盘职责分离 — 文件夹 / 文件自动分组排列（支持按名称 / 修改时间 / 手动排序），网格列数与面板透明度可调；文件名完整两行显示；空闲先转半透明毛玻璃、再收缩为单个文件图标，悬停自动展开、点击弹出收纳内容；面板镜像倒影与调色可调；收纳的文件与空文件夹移动隐藏（可一键恢复），非空文件夹仅登记引用不移动内容、点开即进入文件夹；支持自由拖动与九宫格快捷定位
 
@@ -87,6 +87,7 @@
 
 | 版本 | 国内加速下载 | GitHub 直连 |
 |---|---|---|
+| v1.15.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.15.0/WallpaperStudio-Setup-1.15.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.15.0/WallpaperStudio-Setup-1.15.0.exe) |
 | v1.14.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.14.0/WallpaperStudio-Setup-1.14.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.14.0/WallpaperStudio-Setup-1.14.0.exe) |
 | v1.13.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.13.0/WallpaperStudio-Setup-1.13.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.13.0/WallpaperStudio-Setup-1.13.0.exe) |
 | v1.12.1 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.1/WallpaperStudio-Setup-1.12.1.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.1/WallpaperStudio-Setup-1.12.1.exe) |
@@ -113,6 +114,13 @@
 | v1.1.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) |
 
 > 各版本更新内容见下方「新增功能与修复问题」分节与 [官网更新日志](https://wallpaper-studio.pages.dev/#changelog)；更早版本（v1.0.0）见 [Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)。
+
+## v1.15.0 新增功能与修复问题
+
+**新增功能**
+
+- **快捷方式列表搜索栏**：设置 → 桌面快捷方式 → 快捷方式列表顶部新增搜索框，输入即过滤（匹配显示名、目标程序 / .lnk 文件名与系统项），右侧实时显示「命中 N / 总数」并带一键清空 — 桌面快捷方式收进转盘几十上百个时，搜一下就能定位到要设为常用的那一个，点 ⭐ 直接排到转盘最前
+- **命中结果里连续置顶不错位**：过滤视图的每一行仍按完整列表的原始位置定位，点星置顶的就是当前看到的这一行；置顶后列表保持当前筛选，可接着连续置顶下一条，全部排完再清空看整盘顺序
 
 ## v1.14.0 新增功能与修复问题
 
