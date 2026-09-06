@@ -1,6 +1,8 @@
-# 壁纸工坊 Wallpaper Studio
+# 壁纸工坊 Wallpaper Studio — 免费开源的 Windows 动态壁纸软件（壁纸引擎）
 
-免费开源的 Windows 桌面壁纸软件 — 让桌面动起来。
+让桌面动起来：视频 / 图片 / 网页 / EXE 程序皆可设为壁纸，桌面组件、快捷方式转盘、文件收纳、音律动效融入桌面，调参时客户端自动变透明、桌面实时效果一眼可见。
+
+**English**: Free & open-source live wallpaper engine for Windows — set videos, images, webpages and programs as your desktop wallpaper, with desktop widgets, a shortcut wheel, a file organizer and an audio visualizer. A free alternative to Wallpaper Engine.
 
 ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
@@ -273,6 +275,12 @@ npm run build   # 生成 Windows 安装包（dist/ 目录）
 ├── scripts/              # 辅助脚本（mpv 下载）
 └── docs/                 # 官网（GitHub Pages）
 ```
+
+## 搜索关键词 / Keywords
+
+**中文**：壁纸工坊 · 壁纸引擎 · 壁纸软件 · 动态壁纸 · 视频壁纸 · 桌面壁纸 · 动态桌面 · 桌面美化 · 壁纸下载 · 免费壁纸引擎 · 开源壁纸软件 · Windows 11 动态壁纸 · Windows 10 视频壁纸 · Wallpaper Engine 免费 · Wallpaper Engine 替代 · 桌面组件 · 桌面便签 · 快捷方式转盘 · 文件收纳 · 音律动效
+
+**English**: Wallpaper Studio · Wallpaper Engine · WallpaperEngine · wallpaper engine download · live wallpaper · video wallpaper · animated wallpaper · dynamic wallpaper · desktop wallpaper · desktop customization · desktop widgets · wallpaper app · wallpaper software · free wallpaper engine · open source Wallpaper Engine alternative · Windows wallpaper software · Electron wallpaper · mpv · audio visualizer
 
 ## License
 
