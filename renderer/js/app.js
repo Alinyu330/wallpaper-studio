@@ -3087,9 +3087,6 @@ function bindWindowControls() {
 // 调节壁纸 / 桌面组件 / 音律动效 / 快捷方式转盘 / 文件收纳的位置与参数时，
 // 客户端窗口整体淡出，让下面的桌面实时效果直接可见；停止操作后自动恢复。
 const PEEK_IDLE_MS = 1500;
-// 「保持透视」只是省掉反复调参时那一下闪回，不是无限期卡在透明态：窗口淡到 10% 时
-// 用户既看不清也点不准那个解锁开关，所以空闲超过这个时长照样复原。
-const PEEK_LOCK_IDLE_MS = 30000;
 const PEEK_SCOPE = '.settings-card, #params-panel';
 const PEEK_INPUT = 'input[type="range"], input[type="number"], input[type="checkbox"]';
 const PEEK_PICKER = '.preset-chip, .seg button, .pos-cell';
@@ -3111,11 +3108,10 @@ function peekSync() {
 
 function peekArm() {
   clearTimeout(peek.timer);
-  peek.timer = setTimeout(() => { peek.pulsing = false; peekSync(); },
-    peekCfg().locked ? PEEK_LOCK_IDLE_MS : PEEK_IDLE_MS);
+  peek.timer = setTimeout(() => { peek.pulsing = false; peekSync(); }, PEEK_IDLE_MS);
 }
 
-/** 一次调参动作：淡出，空闲后恢复；「保持透视」把恢复推迟到 PEEK_LOCK_IDLE_MS */
+/** 一次调参动作：淡出，停止操作 1.5 秒后自动恢复 */
 function peekPulse() {
   if (!peekCfg().enabled) return;
   peek.pulsing = true;
@@ -3146,17 +3142,12 @@ async function peekReconcile() {
   peekSync();
 }
 
-/** 逃生门：窗口淡到几乎看不见时，按 Esc 结束调整、立刻恢复显示并解除保持透视 */
+/** 逃生门：窗口淡到几乎看不见时，按 Esc 结束全部调整模式、立刻恢复显示 */
 function peekEscape() {
   clearTimeout(peek.timer);
   window.api.exitAllAdjust();
   peek.pulsing = false;
   peek.holders.clear();
-  if (peekCfg().locked) {
-    state.settings.tunePeek = { ...peekCfg(), locked: false };
-    window.api.updateSettings({ tunePeek: state.settings.tunePeek });
-    paintPeekUi();
-  }
   peek.applied = -1;
   peekSync();
   toast('已结束调整并恢复窗口显示');
@@ -3165,19 +3156,16 @@ function peekEscape() {
 function paintPeekUi() {
   const sw = $('#set-peek');
   const rng = $('#set-peek-opacity');
-  const lock = $('#set-peek-lock');
   const val = $('#peek-opacity-val');
   const c = peekCfg();
   if (sw) sw.checked = !!c.enabled;
   if (rng) rng.value = Math.min(70, Math.max(10, Number(c.opacity) || 30));
-  if (lock) lock.checked = !!c.locked;
   if (val) val.textContent = `${rng ? rng.value : 30}%`;
 }
 
 function bindPeek() {
   const sw = $('#set-peek');
   const rng = $('#set-peek-opacity');
-  const lock = $('#set-peek-lock');
   const save = (patch) => {
     state.settings.tunePeek = { ...peekCfg(), ...patch };
     window.api.updateSettings({ tunePeek: state.settings.tunePeek });
@@ -3191,20 +3179,13 @@ function bindPeek() {
     toast(sw.checked ? '已开启透视调参：调节参数时窗口自动变透明' : '已关闭透视调参');
   });
   rng?.addEventListener('input', () => save({ opacity: Number(rng.value) }));
-  lock?.addEventListener('change', () => {
-    const on = lock.checked;
-    if (!on) { clearTimeout(peek.timer); peek.pulsing = false; }
-    else if (peek.pulsing) peekArm();
-    save({ locked: on });
-    toast(on ? '已锁定透视：调完参数窗口保持透明，便于反复对比效果' : '已解除锁定，调参停止后自动恢复窗口');
-  });
 
-  // 委托监听：只有命中「调参控件」才淡出。总开关与锁定开关本身排除，
+  // 委托监听：只有命中「调参控件」才淡出。透视总开关本身排除，
   // 否则刚把透视打开窗口就闪没，看不清点在哪个开关上。
   const onTune = (e) => {
     const t = e.target;
     if (!t || !t.closest) return;
-    if (t.id === 'set-peek' || t.id === 'set-peek-lock') return;
+    if (t.id === 'set-peek') return;
     const hit = e.type === 'click' ? t.closest(PEEK_PICKER) : (t.matches && t.matches(PEEK_INPUT));
     if (hit && t.closest(PEEK_SCOPE)) peekPulse();
   };
@@ -3213,7 +3194,7 @@ function bindPeek() {
   }
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && peek.applied < 1) peekEscape();
+    if (e.key === 'Escape' && (peek.pulsing || peek.holders.size > 0 || peek.applied < 1)) peekEscape();
   }, true);
   window.addEventListener('focus', () => peekReconcile());
   window.api.on('win:shown', () => peekReconcile());

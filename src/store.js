@@ -40,7 +40,6 @@ const DEFAULT_CONFIG = {
     tunePeek: {                 // 透视调参：调节参数时主窗淡出，直接看桌面实时效果
       enabled: true,            // 总开关（关闭后调参不再淡出）
       opacity: 30,              // 淡出后的窗口不透明度 %（10~70，越小越透）
-      locked: false,            // 锁定透视：调参后不自动恢复，便于反复对比
     },
     launcher: {                 // 桌面快捷方式转盘
       enabled: false,
@@ -167,7 +166,8 @@ class Store {
             items: (((raw.settings || {}).filebox || {}).items) || [],
           },
           performance: { ...DEFAULT_CONFIG.settings.performance, ...((raw.settings || {}).performance || {}) },
-          tunePeek: { ...DEFAULT_CONFIG.settings.tunePeek, ...((raw.settings || {}).tunePeek || {}) },
+          // v1.17.1 移除「保持透视」：合并旧配置时丢弃残留的 locked 字段
+          tunePeek: { ...DEFAULT_CONFIG.settings.tunePeek, ...((raw.settings || {}).tunePeek || {}), locked: undefined },
           audioViz: { ...DEFAULT_CONFIG.settings.audioViz, ...((raw.settings || {}).audioViz || {}) },
           board: {
             ...DEFAULT_CONFIG.settings.board,
