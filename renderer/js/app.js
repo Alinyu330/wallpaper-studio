@@ -1435,18 +1435,23 @@ function saveBoard(patch) {
   };
   state.settings.board = b;
   window.api.updateSettings({ board: b });
-  bdRev = bdRevision();
+  renderBoardEditor();   // 本次操作立刻上屏（内部会把 bdRev 记成当前修订，sync 回波即为空操作）
 }
 
-/** settings:sync 回写后按需重绘：修订号没变或用户正在输入则不动 */
+/** settings:sync 回写后按需重绘：修订号没变（自己刚保存过）则不动 */
 function maybeRenderBoardEditor() {
   const rev = bdRevision();
   if (rev === bdRev) return;
   bdRev = rev;
-  const ae = document.activeElement;
-  if (ae && ae.id && ae.id.startsWith('bd-')) return;
   renderBoardEditor();
 }
+
+// 列表按内容签名增量重建：只有真的变了才换节点，
+// 否则桌面端一次回推会把用户正在点的删除按钮换掉，表现为「点了没反应」。
+let bdEvSig = '';
+let bdTdSig = '';
+const evSignature = (b) => (b.events || []).map((e) => `${e.id}|${e.text}|${e.date}|${e.type}`).join('#');
+const tdSignature = (b) => (b.todos || []).map((t) => `${t.id}|${t.text}|${t.done ? 1 : 0}`).join('#');
 
 function renderBoardEditor() {
   const b = bdNow();
@@ -1459,35 +1464,43 @@ function renderBoardEditor() {
     ? `当前：${w.cityName}（${Number(w.lat).toFixed(2)}, ${Number(w.lon).toFixed(2)}）`
     : '自动定位（按 IP 所在地）· 搜索可手动指定';
 
-  const evList = $('#bd-ev-list');
-  evList.innerHTML = '';
-  for (const e of (b.events || [])) {
-    const row = document.createElement('div');
-    row.className = 'lc-item';
-    row.innerHTML = `<span class="lc-name">${e.type === 'anniversary' ? '🎂 ' : '📅 '}${escHtml(e.text)} <span class="lc-boxed-tag">${escHtml(e.date || '')}</span></span>`;
-    const del = document.createElement('button');
-    del.className = 'icon-btn';
-    del.innerHTML = ICONS.trash;
-    del.addEventListener('click', () => saveBoard({ events: (b.events || []).filter((x) => x.id !== e.id) }));
-    row.appendChild(del);
-    evList.appendChild(row);
+  const evSig = evSignature(b);
+  if (evSig !== bdEvSig) {
+    bdEvSig = evSig;
+    const evList = $('#bd-ev-list');
+    evList.innerHTML = '';
+    for (const e of (b.events || [])) {
+      const row = document.createElement('div');
+      row.className = 'lc-item';
+      row.innerHTML = `<span class="lc-name">${e.type === 'anniversary' ? '🎂 ' : '📅 '}${escHtml(e.text)} <span class="lc-boxed-tag">${escHtml(e.date || '')}</span></span>`;
+      const del = document.createElement('button');
+      del.className = 'icon-btn';
+      del.innerHTML = ICONS.trash;
+      del.dataset.delEv = e.id;
+      row.appendChild(del);
+      evList.appendChild(row);
+    }
+    if (!(b.events || []).length) evList.innerHTML = '<p class="hint">还没有日程 / 纪念日</p>';
   }
-  if (!(b.events || []).length) evList.innerHTML = '<p class="hint">还没有日程 / 纪念日</p>';
 
-  const tdList = $('#bd-todo-list');
-  tdList.innerHTML = '';
-  for (const t of (b.todos || [])) {
-    const row = document.createElement('div');
-    row.className = 'lc-item';
-    row.innerHTML = `<span class="lc-name" style="${t.done ? 'text-decoration:line-through;opacity:.55' : ''}">${escHtml(t.text)}</span>`;
-    const del = document.createElement('button');
-    del.className = 'icon-btn';
-    del.innerHTML = ICONS.trash;
-    del.addEventListener('click', () => saveBoard({ todos: (b.todos || []).filter((x) => x.id !== t.id) }));
-    row.appendChild(del);
-    tdList.appendChild(row);
+  const tdSig = tdSignature(b);
+  if (tdSig !== bdTdSig) {
+    bdTdSig = tdSig;
+    const tdList = $('#bd-todo-list');
+    tdList.innerHTML = '';
+    for (const t of (b.todos || [])) {
+      const row = document.createElement('div');
+      row.className = 'lc-item';
+      row.innerHTML = `<span class="lc-name" style="${t.done ? 'text-decoration:line-through;opacity:.55' : ''}">${escHtml(t.text)}</span>`;
+      const del = document.createElement('button');
+      del.className = 'icon-btn';
+      del.innerHTML = ICONS.trash;
+      del.dataset.delTodo = t.id;
+      row.appendChild(del);
+      tdList.appendChild(row);
+    }
+    if (!(b.todos || []).length) tdList.innerHTML = '<p class="hint">还没有待办</p>';
   }
-  if (!(b.todos || []).length) tdList.innerHTML = '<p class="hint">还没有待办</p>';
   bdRev = bdRevision();
 }
 
@@ -1500,6 +1513,24 @@ function bindBoardEditor() {
   $('#bd-sec-calendar').addEventListener('change', sec('calendar'));
   $('#bd-sec-weather').addEventListener('change', sec('weather'));
   $('#bd-sec-todo').addEventListener('change', sec('todo'));
+
+  // 删除走容器委托：行节点会被增量重建，逐行绑定会随重建丢失；
+  // 且必须在点击那一刻读当前数据，不能用渲染时的快照数组写回（会覆盖期间的外部改动）。
+  const onDel = (e) => {
+    const ev = e.target.closest('[data-del-ev]');
+    if (ev) {
+      const id = ev.dataset.delEv;
+      saveBoard({ events: (bdNow().events || []).filter((x) => x.id !== id) });
+      return;
+    }
+    const td = e.target.closest('[data-del-todo]');
+    if (td) {
+      const id = td.dataset.delTodo;
+      saveBoard({ todos: (bdNow().todos || []).filter((x) => x.id !== id) });
+    }
+  };
+  $('#bd-ev-list').addEventListener('click', onDel);
+  $('#bd-todo-list').addEventListener('click', onDel);
 
   $('#bd-ev-add').addEventListener('click', () => {
     const text = $('#bd-ev-text').value.trim();
@@ -1927,37 +1958,22 @@ function lcSearchText(s) {
     .filter(Boolean).join(' ').toLowerCase();
 }
 
-/** 按搜索词渲染快捷方式列表；⭐ 置顶 / 🗑 移除都在命中结果上直接完成 */
-function renderLcList() {
-  const lc = launcherCfg || { shortcuts: [] };
-  const all = lc.shortcuts || [];
-  const q = lcQuery.trim().toLowerCase();
-  const hits = q ? all.filter((s) => lcSearchText(s).includes(q)) : all;
+/** ★ 行只在集合/顺序/置顶/收纳状态真变化时重建，搜索仅切 .hidden。
+ *    列表可达上百条且每行图标是几十 KB 的 base64 data URL，
+ *    每击一键就整体重建会阻塞主线程数百毫秒，中文输入法组词因此被打断。 */
+let lcSig = '';
+
+const lcSignature = (all) =>
+  all.map((s) => `${s.name}|${s.path}|${s.type || ''}|${s.sysId || ''}|${s.pinned ? 1 : 0}|${s.boxed ? 1 : 0}`).join('#');
+
+/** 构建全量行（含 data-i = 在 shortcuts 中的原始下标）；不做任何过滤 */
+function buildLcRows(all) {
   const list = $('#lc-list');
   list.innerHTML = '';
-  $('#lc-shortcut-count').textContent = all.length ? `已收纳 ${all.length} 个` : '';
-  const hint = $('#lc-search-hint');
-  if (hint) hint.textContent = q ? `命中 ${hits.length} / ${all.length}` : '';
-  const clear = $('#lc-search-clear');
-  if (clear) clear.classList.toggle('hidden', !q);
-  if (!all.length) {
-    const empty = document.createElement('p');
-    empty.className = 'hint';
-    empty.textContent = '还没有快捷方式，点击下方按钮添加常用 App。';
-    list.appendChild(empty);
-    return;
-  }
-  if (!hits.length) {
-    const empty = document.createElement('p');
-    empty.className = 'hint';
-    empty.textContent = `没有名称含「${lcQuery.trim()}」的快捷方式`;
-    list.appendChild(empty);
-    return;
-  }
-  hits.forEach((s) => {
-    const i = all.indexOf(s);
+  all.forEach((s, i) => {
     const item = document.createElement('div');
     item.className = 'lc-item';
+    item.dataset.i = String(i);
     const ico = document.createElement('div');
     ico.className = 'lc-ico';
     if (s.type === 'system') {
@@ -1989,13 +2005,22 @@ function renderLcList() {
       tag.title = '开机/重启后打开转盘时优先显示在最前';
       name.appendChild(tag);
     }
+    // ★ 点击时按 data-i 取「当前」条目，不闭包捕获渲染时的 s：
+    //   置顶会物理重排数组，捕获旧对象会读到过期的 pinned 状态。
+    const cur = () => ((launcherCfg && launcherCfg.shortcuts) || [])[i];
     const del = document.createElement('button');
     del.className = 'icon-btn';
     del.title = s.boxed ? '从转盘移除并恢复到桌面原位置' : '从列表移除';
     del.innerHTML = ICONS.trash;
     del.addEventListener('click', async () => {
-      // 走主进程 removeAt：收纳项自动恢复到桌面原位置
-      await window.api.removeLauncherAt(i);
+      const c = cur();
+      if (!c) return;
+      del.disabled = true;
+      try {
+        // 走主进程 removeAt：收纳项自动恢复到桌面原位置
+        await window.api.removeLauncherAt(i);
+        await renderLauncherSettings();
+      } finally { del.disabled = false; }
     });
     item.append(ico, name);
     // 系统项位置固定，不参与「常用」置顶
@@ -2005,14 +2030,59 @@ function renderLcList() {
       star.title = s.pinned ? '取消常用（回到原顺序位置）' : '设为常用（始终排在转盘最前）';
       star.innerHTML = ICONS.star;
       star.addEventListener('click', async () => {
-        await window.api.setLauncherPinned(i, !s.pinned);
-        await renderLauncherSettings();
+        const c = cur();
+        if (!c) return;
+        star.disabled = true;                       // 防重入：pending 期间连点会来回翻转
+        try {
+          await window.api.setLauncherPinned(i, !c.pinned);
+          await renderLauncherSettings();
+        } finally { star.disabled = false; }
       });
       item.append(star);
     }
     item.append(del);
     list.appendChild(item);
   });
+}
+
+/** 空态节点单独维护，避免为它重建整表 */
+function setLcEmpty(text) {
+  const list = $('#lc-list');
+  let node = $('#lc-list-empty');
+  if (!text) { if (node) node.remove(); return; }
+  if (!node) {
+    node = document.createElement('p');
+    node.id = 'lc-list-empty';
+    node.className = 'hint';
+    list.appendChild(node);
+  }
+  if (node.textContent !== text) node.textContent = text;
+}
+
+/** 按搜索词渲染：命中判定只切 class，不重建 DOM */
+function renderLcList() {
+  const all = (launcherCfg && launcherCfg.shortcuts) || [];
+  const sig = lcSignature(all);
+  if (sig !== lcSig) { lcSig = sig; buildLcRows(all); }
+
+  const q = lcQuery.trim().toLowerCase();
+  let hits = 0;
+  $('#lc-list').querySelectorAll('.lc-item').forEach((row) => {
+    const s = all[+row.dataset.i];
+    const ok = !q || (s && lcSearchText(s).includes(q));
+    row.classList.toggle('hidden', !ok);
+    if (ok) hits++;
+  });
+
+  $('#lc-shortcut-count').textContent = all.length ? `已收纳 ${all.length} 个` : '';
+  const hint = $('#lc-search-hint');
+  if (hint) hint.textContent = q ? `命中 ${hits} / ${all.length}` : '';
+  const clear = $('#lc-search-clear');
+  if (clear) clear.classList.toggle('hidden', !q);
+
+  setLcEmpty(!all.length
+    ? '还没有快捷方式，点击下方按钮添加常用 App。'
+    : (hits === 0 ? `没有名称含「${lcQuery.trim()}」的快捷方式` : ''));
 }
 
 /** 转盘九宫格高亮跟随 launcherCfg.grid（null/拖动自定义位置 = 不亮） */
@@ -2049,7 +2119,17 @@ function buildLcAdj(host) {
 
 function bindLauncherSettings() {
   const lcSearch = $('#lc-search-input');
-  lcSearch?.addEventListener('input', () => {
+  // 输入法组词期间不驱动过滤：逐字符拼音会反复触发重算，且中途改列表会打断候选窗。
+  // 组词结束后再过滤一次（e.isComposing 兜住 compositionend 与末次 input 的先后差异）。
+  let lcComposing = false;
+  lcSearch?.addEventListener('compositionstart', () => { lcComposing = true; });
+  lcSearch?.addEventListener('compositionend', () => {
+    lcComposing = false;
+    lcQuery = lcSearch.value;
+    renderLcList();
+  });
+  lcSearch?.addEventListener('input', (e) => {
+    if (lcComposing || e.isComposing) return;
     lcQuery = lcSearch.value;
     renderLcList();
   });
@@ -3007,6 +3087,9 @@ function bindWindowControls() {
 // 调节壁纸 / 桌面组件 / 音律动效 / 快捷方式转盘 / 文件收纳的位置与参数时，
 // 客户端窗口整体淡出，让下面的桌面实时效果直接可见；停止操作后自动恢复。
 const PEEK_IDLE_MS = 1500;
+// 「保持透视」只是省掉反复调参时那一下闪回，不是无限期卡在透明态：窗口淡到 10% 时
+// 用户既看不清也点不准那个解锁开关，所以空闲超过这个时长照样复原。
+const PEEK_LOCK_IDLE_MS = 30000;
 const PEEK_SCOPE = '.settings-card, #params-panel';
 const PEEK_INPUT = 'input[type="range"], input[type="number"], input[type="checkbox"]';
 const PEEK_PICKER = '.preset-chip, .seg button, .pos-cell';
@@ -3014,32 +3097,69 @@ const peek = { pulsing: false, applied: 1, holders: new Set(), timer: 0 };
 
 const peekCfg = () => state.settings?.tunePeek || {};
 
-/** 把「该不该淡出」折算成窗口不透明度下发（同值不重复发） */
+/** 把「该不该淡出」折算成窗口不透明度下发 */
 function peekSync() {
   const cfg = peekCfg();
   const fade = !!cfg.enabled && (peek.pulsing || peek.holders.size > 0);
   const pct = Math.min(70, Math.max(10, Number(cfg.opacity) || 30));
   const target = fade ? pct / 100 : 1;
-  if (target === peek.applied) return;
+  // 淡出值靠去重少发几条无所谓；「复原 1」一旦被去重吞掉就是永久卡在透明态，必须无条件送达。
+  if (fade && target === peek.applied) return;
   peek.applied = target;
   window.api.setWindowOpacity(target);
 }
 
-/** 一次调参动作：淡出，空闲 PEEK_IDLE_MS 后恢复；「保持透视」时不自动恢复 */
+function peekArm() {
+  clearTimeout(peek.timer);
+  peek.timer = setTimeout(() => { peek.pulsing = false; peekSync(); },
+    peekCfg().locked ? PEEK_LOCK_IDLE_MS : PEEK_IDLE_MS);
+}
+
+/** 一次调参动作：淡出，空闲后恢复；「保持透视」把恢复推迟到 PEEK_LOCK_IDLE_MS */
 function peekPulse() {
   if (!peekCfg().enabled) return;
-  clearTimeout(peek.timer);
   peek.pulsing = true;
   peekSync();
-  if (!peekCfg().locked) {
-    peek.timer = setTimeout(() => { peek.pulsing = false; peekSync(); }, PEEK_IDLE_MS);
-  }
+  peekArm();
 }
 
 /** 桌面拖动调整模式（组件 / 动效 / 转盘 / 收纳区）：整段拖动期间保持淡出 */
 function peekHold(name, on) {
   if (on) peek.holders.add(name); else peek.holders.delete(name);
   peekSync();
+}
+
+/**
+ * 与主进程对账。调整模式的权威状态在主进程（拖动落位、覆盖层销毁都在那边复位），
+ * 只要有一次 adjust-state 回传没送达，holders 就会永久挂着 → 窗口卡在透明态。
+ * 客户端每次重新可见 / 重新聚焦都按主进程实况重建一次，并强制重发透明度。
+ */
+async function peekReconcile() {
+  const live = await window.api.getAdjustStates();
+  if (!live) return;
+  const keep = new Set();
+  if (live.launcher) keep.add('转盘');
+  if (live.filebox) keep.add('收纳区');
+  for (const k of live.widgets || []) keep.add(k === 'aviz' ? '动效' : `组件:${k}`);
+  peek.holders = keep;
+  peek.applied = -1;
+  peekSync();
+}
+
+/** 逃生门：窗口淡到几乎看不见时，按 Esc 结束调整、立刻恢复显示并解除保持透视 */
+function peekEscape() {
+  clearTimeout(peek.timer);
+  window.api.exitAllAdjust();
+  peek.pulsing = false;
+  peek.holders.clear();
+  if (peekCfg().locked) {
+    state.settings.tunePeek = { ...peekCfg(), locked: false };
+    window.api.updateSettings({ tunePeek: state.settings.tunePeek });
+    paintPeekUi();
+  }
+  peek.applied = -1;
+  peekSync();
+  toast('已结束调整并恢复窗口显示');
 }
 
 function paintPeekUi() {
@@ -3072,9 +3192,11 @@ function bindPeek() {
   });
   rng?.addEventListener('input', () => save({ opacity: Number(rng.value) }));
   lock?.addEventListener('change', () => {
-    if (!lock.checked) { clearTimeout(peek.timer); peek.pulsing = false; }
-    save({ locked: lock.checked });
-    toast(lock.checked ? '已锁定透视：调完参数窗口保持透明，便于反复对比' : '已解除锁定，调参停止后自动恢复窗口');
+    const on = lock.checked;
+    if (!on) { clearTimeout(peek.timer); peek.pulsing = false; }
+    else if (peek.pulsing) peekArm();
+    save({ locked: on });
+    toast(on ? '已锁定透视：调完参数窗口保持透明，便于反复对比效果' : '已解除锁定，调参停止后自动恢复窗口');
   });
 
   // 委托监听：只有命中「调参控件」才淡出。总开关与锁定开关本身排除，
@@ -3089,6 +3211,13 @@ function bindPeek() {
   for (const type of ['input', 'change', 'click']) {
     document.addEventListener(type, onTune, true);
   }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && peek.applied < 1) peekEscape();
+  }, true);
+  window.addEventListener('focus', () => peekReconcile());
+  window.api.on('win:shown', () => peekReconcile());
+  peekReconcile();
 }
 
 // ---------- Toast ----------

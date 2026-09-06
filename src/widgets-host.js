@@ -508,6 +508,11 @@ class WidgetsHost {
     return true;
   }
 
+  /** 当前仍处于调整模式的部件键（客户端透视调参对账用） */
+  adjustingKeys() {
+    return [...this.parts.entries()].filter(([, p]) => p.adjusting).map(([k]) => k);
+  }
+
   // ---------- 拖动（直接拖窗口；松手吸附/回写位置） ----------
 
   _dragStart(p) {

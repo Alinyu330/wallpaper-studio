@@ -76,6 +76,10 @@ contextBridge.exposeInMainWorld('api', {
   close: () => ipcRenderer.send('win:close'),
   // 透视调参：调节参数时把主窗淡出以便直接看桌面效果（0.1~1）
   setWindowOpacity: (v) => ipcRenderer.send('win:set-opacity', v),
+  // 透视调参对账：主进程里当前仍在「调整位置」模式的目标（权威，避免回传丢失卡住透明度）
+  getAdjustStates: () => ipcRenderer.invoke('win:adjust-states'),
+  // 一键结束所有仍在进行的桌面调整模式（Esc 恢复窗口时连带退出，避免对账又淡回去）
+  exitAllAdjust: () => ipcRenderer.send('win:exit-adjust'),
   // 事件订阅（返回取消函数）
   on: (channel, cb) => {
     const listener = (_e, payload) => cb(payload);

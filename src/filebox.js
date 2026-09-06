@@ -287,12 +287,15 @@ class FileBoxHost {
       setTimeout(() => { if (this.hwnd) desktop.ensureLauncherOverlay(this.hwnd); }, 1500);
     });
     this.win.on('closed', () => {
+      const wasAdjusting = this.adjusting;
       this.win = null;
       this.hwnd = 0;
       this.rects = [];
       this.interacting = false;
       this.adjusting = false;
       this._stopPolling();
+      // 覆盖层销毁（关掉收纳区 / 重建合成带）也要回传退出，否则客户端透视持有者永不释放
+      if (wasAdjusting && this.onAdjustState) this.onAdjustState(false);
     });
     this._startPolling();
   }

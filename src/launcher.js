@@ -64,6 +64,7 @@ class LauncherHost {
   /** @param {import('./store').Store} store */
   constructor(store) {
     this.store = store;
+    this._iconCache = new Map();   // _iconFor 的内存 memo，键含 mtime 故会自然失效
     this.win = null;
     this.hwnd = 0;
     this.rects = [];          // 可交互矩形（物理像素，相对窗口客户区）
@@ -384,12 +385,15 @@ class LauncherHost {
       setTimeout(() => { if (this.hwnd) desktop.ensureLauncherOverlay(this.hwnd); }, 1500);
     });
     this.win.on('closed', () => {
+      const wasAdjusting = this.adjusting;
       this.win = null;
       this.hwnd = 0;
       this.rects = [];
       this.interacting = false;
       this.adjusting = false;
       this._stopPolling();
+      // 覆盖层销毁（关转盘 / 重建合成带）也要回传退出，否则客户端透视持有者永不释放
+      if (wasAdjusting && this.onAdjustState) this.onAdjustState(false);
     });
     this._startPolling();
   }
@@ -515,7 +519,27 @@ class LauncherHost {
    *    （app.getFileIcon 只认真实文件，虚拟项只能返回 null）；
    *  - .lnk/.url/办公文件取关联图标，失败回退 app.getFileIcon，再失败由
    *    渲染层首字母/内置 SVG 兜底。 */
+  /** 图标 memo：launcher:get 会为每条目的取图标，上百条时重复读盘 + base64 重编码
+   *  （约 4MB 字符串反复过 IPC）是点一次「常用」要等数秒的主因。
+   *  键带目标 mtimeMs，换图标文件后自然失效。 */
   async _iconFor(s) {
+    if (!s) return null;
+    const ident = s.type === 'system'
+      ? `sys:${s.launch || s.clsid || s.sysId || s.name}`
+      : `p:${s.path}`;
+    let mtime = 0;
+    if (s.type !== 'system' && s.path) {
+      try { mtime = fs.statSync(s.path).mtimeMs; } catch (_) { mtime = -1; }
+    }
+    const key = `${ident}@${mtime}`;
+    if (this._iconCache.has(key)) return this._iconCache.get(key);
+    const url = await this._deriveIcon(s);
+    if (this._iconCache.size > 400) this._iconCache.clear();
+    if (url) this._iconCache.set(key, url);
+    return url;
+  }
+
+  async _deriveIcon(s) {
     await new Promise((r) => setImmediate(r)); // 让出事件循环（批量取图标不冻结主进程）
     try {
       if (s && s.type === 'system') {

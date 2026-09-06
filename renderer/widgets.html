@@ -439,6 +439,14 @@
     let cityTimer = null;
     let edSeq = 0; // 编辑器令牌：提交回包晚到时只作用于自己那个编辑器
 
+    // 输入法候选窗属于另一个进程：抢回前台会直接打断组词（表现为「刚打字就被切走」）。
+    // 组词中、或这个编辑器已经打出字来，都说明键盘通路是通的，一律不再抢焦点。
+    let imComposing = false;
+    document.addEventListener('compositionstart', () => { imComposing = true; }, true);
+    document.addEventListener('compositionend', () => { imComposing = false; }, true);
+    document.addEventListener('input', () => { if (editing) editing.typed = true; }, true);
+    const refocusSafe = () => !imComposing && !(editing && editing.typed);
+
     function editCommit(token, res) {
       // boardEdit invoke 回包是 {ok, board}；兼容直接传 board 对象
       const nb = res && res.board ? res.board : res;
@@ -473,7 +481,7 @@
       for (const ms of [250, 800, 1500]) {
         setTimeout(() => {
           if (!editing || editing.token !== token) return;
-          if (!document.hasFocus()) window.wallpaperHost.boardFocus();
+          if (!document.hasFocus() && refocusSafe()) window.wallpaperHost.boardFocus();
         }, ms);
       }
     }
@@ -615,7 +623,7 @@
       if (closeEditor.refocusTimer) clearTimeout(closeEditor.refocusTimer);
       closeEditor.refocusTimer = setTimeout(() => {
         closeEditor.refocusTimer = null;
-        if (editing && Date.now() - (editing.at || 0) <= 1600) window.wallpaperHost.boardFocus();
+        if (editing && Date.now() - (editing.at || 0) <= 1600 && refocusSafe()) window.wallpaperHost.boardFocus();
       }, 120);
     });
     }

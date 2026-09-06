@@ -994,7 +994,7 @@ function createMainWindow() {
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.once('ready-to-show', () => mainWindow.show());
   // 打开客户端（含从托盘重新显示）→ 静默检查更新；后台驻留（隐藏）不检查
-  mainWindow.on('show', () => scheduleAutoUpdateCheck());
+  mainWindow.on('show', () => { scheduleAutoUpdateCheck(); notifyMain('win:shown', true); });
   mainWindow.on('close', (e) => {
     // 点关闭 = 隐藏到托盘，真正退出走托盘菜单
     if (!isQuitting) {
@@ -1014,6 +1014,8 @@ function createMainWindow() {
   mainWindow.webContents.on('render-process-gone', (_e, details) => {
     console.error(`[crash] 主窗口渲染进程退出: reason=${details.reason} exitCode=${details.exitCode}`);
     if (!isQuitting && !mainWindow.isDestroyed()) {
+      // 重载后的页面透视状态是全新的（自认为已不透明），不先复位就永久卡在透明态
+      try { mainWindow.setOpacity(1); } catch (_) {}
       try { mainWindow.webContents.reload(); } catch (_) {}
     }
   });
@@ -1472,6 +1474,19 @@ function setupIpc() {
     if (mainWindow.isMaximized()) mainWindow.unmaximize(); else mainWindow.maximize();
   });
   ipcMain.on('win:close', () => mainWindow.hide());
+  // 透视调参对账：谁是调整模式的权威（拖动落位 / 覆盖层销毁都在主进程复位），
+  // 渲染层据此重建淡出持有者，任何一次 adjust-state 回传丢失都能自愈。
+  ipcMain.handle('win:adjust-states', () => ({
+    launcher: !!(launcherHost && launcherHost.adjusting),
+    filebox: !!(fileboxHost && fileboxHost.adjusting),
+    widgets: widgetsHost ? widgetsHost.adjustingKeys() : [],
+  }));
+  // 一键结束所有还在进行的桌面调整模式（Esc 恢复窗口时用，否则对账又会按实况淡回去）
+  ipcMain.on('win:exit-adjust', () => {
+    if (launcherHost && launcherHost.adjusting) launcherHost.setAdjust(false);
+    if (fileboxHost && fileboxHost.adjusting) fileboxHost.setAdjust(false);
+    if (widgetsHost) for (const k of widgetsHost.adjustingKeys()) widgetsHost.setAdjust(k, false);
+  });
   // 透视调参：调参时把主窗整体淡出（Windows 走分层窗口，淡出后仍可正常点击），
   // 停止调参后由渲染层发回 1 恢复不透明。
   ipcMain.on('win:set-opacity', (_e, v) => {
