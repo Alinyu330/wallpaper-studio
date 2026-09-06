@@ -4,7 +4,7 @@
 
 ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Version](https://img.shields.io/badge/version-1.17.0-7c5cff)
+![Version](https://img.shields.io/badge/version-1.17.1-7c5cff)
 
 ## 官网
 
@@ -13,10 +13,10 @@
 
 ## 下载
 
-**最新版 v1.17.0 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · GPL-3.0 开源并明确禁止闭源商用）：
+**最新版 v1.17.1 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · GPL-3.0 开源并明确禁止闭源商用）：
 
-- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.0/WallpaperStudio-Setup-1.17.0.exe)
-- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.0/WallpaperStudio-Setup-1.17.0.exe)
+- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.1/WallpaperStudio-Setup-1.17.1.exe)
+- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.1/WallpaperStudio-Setup-1.17.1.exe)
 - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
 > 已安装旧版？客户端「设置 → 检查更新」即可应用内一键更新，无需重新下载安装包。
@@ -55,7 +55,7 @@
 
 - **参数精确调节**：播放速度（0.25×–4×）、音量、亮度、对比度、饱和度；每项参数均有固定调整点一键跳转 + 数值精确输入
 
-- **透视调参**（v1.14.0 新增，v1.17.0 修复不恢复）：调节壁纸 / 桌面组件 / 音律动效 / 快捷方式转盘 / 文件收纳的位置与参数时，客户端窗口自动变透明，桌面上的实时效果直接可见，停止操作 1.5 秒后复原；桌面拖动调整模式期间全程保持透明，松手保存即自动恢复；强度 10~70 可调并支持「保持透视」锁定（锁定下空闲 30 秒仍自动复原，不会把窗口永久留在透明态），窗口淡出时按 Esc 可一键结束调整并恢复显示
+- **透视调参**（v1.14.0 新增，v1.17.0 修复不恢复，v1.17.1 移除「保持透视」、恢复恒定 1.5 秒）：调节壁纸 / 桌面组件 / 音律动效 / 快捷方式转盘 / 文件收纳的位置与参数时，客户端窗口自动变透明，桌面上的实时效果直接可见，停止操作 1.5 秒后必复原；桌面拖动调整模式期间全程保持透明，松手保存即自动恢复；强度 10~70 可调（拖动滑杆实时预览，松手即复原），窗口淡出时按 Esc 可一键结束调整并恢复显示
 
 - **实时预览**：按主显示器真实比例预览；预览区可放大缩小；支持弹出独立预览窗口，参数实时同步
 
@@ -87,6 +87,7 @@
 
 | 版本 | 国内加速下载 | GitHub 直连 |
 |---|---|---|
+| v1.17.1 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.1/WallpaperStudio-Setup-1.17.1.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.1/WallpaperStudio-Setup-1.17.1.exe) |
 | v1.17.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.0/WallpaperStudio-Setup-1.17.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.0/WallpaperStudio-Setup-1.17.0.exe) |
 | v1.16.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.16.0/WallpaperStudio-Setup-1.16.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.16.0/WallpaperStudio-Setup-1.16.0.exe) |
 | v1.15.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.15.0/WallpaperStudio-Setup-1.15.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.15.0/WallpaperStudio-Setup-1.15.0.exe) |
@@ -116,6 +117,15 @@
 | v1.1.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) |
 
 > 各版本更新内容见下方「新增功能与修复问题」分节与 [官网更新日志](https://wallpaper-studio.pages.dev/#changelog)；更早版本（v1.0.0）见 [Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)。
+
+## v1.17.1 透视恢复修复
+
+**修复问题**
+
+- 修复透视调参「停止操作后客户端不能在 1.5 秒恢复正常显示」的问题 —— 根因是「保持透视」开关：它的唯一作用就是把调参淡出后的恢复时间从 1.5 秒推迟（更早版本开启后完全没有自动复原路径，窗口永久卡在透明态，淡出后连这个开关本身都看不清、点不回，只能重启客户端；v1.17.0 起改为空闲 30 秒兜底，但「过好久才恢复」依旧与设置页承诺的「停止操作 1.5 秒后自动恢复」直接矛盾）。本版将其移除，设置页同步去掉该开关：无论调节壁纸 / 桌面组件 / 音律动效 / 快捷方式转盘 / 文件收纳的哪一项位置与参数，停止操作 1.5 秒后窗口必定自动复原（实测恢复耗时 1500±100ms）
+- 修复在设置中拖动「透视强度」滑杆后窗口恢复不及时的问题 —— 拖动滑杆本意是实时预览淡出强度，但受上述开关影响会迟迟不复原；现松手 1.5 秒即自动复原，拖动过程所见即所得
+- 旧配置兼容：升级后配置里残留的 `tunePeek.locked` 锁定状态在读取配置时自动丢弃，不再延迟恢复，无需手动处理
+- 加固 Esc 逃生门：窗口处于任何淡出状态（调参脉冲、桌面拖动调整模式、状态与实况脱节）时按 Esc，都立即结束全部桌面调整模式并恢复显示
 
 ## v1.17.0 新增功能与修复问题
 
