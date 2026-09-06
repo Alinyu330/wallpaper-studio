@@ -1,8 +1,9 @@
 // filebox.js — 桌面「文件收纳区」宿主（主进程侧）
 //
 // 从快捷方式转盘（launcher.js）拆分出的独立文件收纳能力：
-// - 收纳对象：普通文件（办公文档 / 程序 / 任意文件）与文件夹；
-//   （快捷方式 .lnk/.url 与系统项仍归转盘负责，两者职责分离）
+// - 收纳对象：桌面上除「转盘管的」（.lnk/.url/.exe/.bat/.cmd）与系统元数据
+//   （desktop.ini / Thumbs.db / ._* / ~$*）之外的**任意文件**（含 0 字节文件、
+//   无扩展名文件、白名单外的未知类型）；
 // - 独立小窗口挂在桌面图标层之上、普通窗口之下，不遮挡壁纸观感；
 // - 网格平铺展示图标（非转盘轮换）：文件夹与文件各自分类排列，
 //   用户可在设置页自定义排序（手动 / 名称 / 类型 / 时间）；
@@ -10,8 +11,9 @@
 //   图标均取系统真实图标，不落空白占位；
 // - 毛玻璃空闲态：鼠标靠近正常显示图标，离开一段时间后整体转为
 //   半透明毛玻璃胶囊（不打扰壁纸观看，与壁纸协调）；
-// - 文件收纳 = 移动到应用数据保管目录（桌面原位置隐藏，可恢复）；
-//   文件夹收纳 = 仅登记路径引用（不移动文件夹本身，点开进入文件夹）。
+// - 文件收纳 = 移动到保管目录（桌面原位置隐藏，可恢复）；
+//   空文件夹收纳 = 整体移入保管目录（里面没有内容，移动零风险，桌面图标消失）；
+//   非空文件夹 = 仅登记路径引用（不搬动用户内容，点开进入文件夹）。
 //
 // 挂载/输入方案与 launcher 完全一致：顶层窗口 + transparent + focusable +
 // WS_EX_NOACTIVATE，主进程 30ms 光标轮询命中渲染页上报的矩形后才可点击。
@@ -22,6 +24,7 @@ const desktop = require('./desktop');
 const icons = require('./icons');
 const { getAppRoot, FILEBOX_BOX_DIRNAME } = require('./app-root');
 const { scheduleMirrorSync } = require('./box-mirror');
+const { isJunkName, isLauncherItem, isBoxSkipName, isEmptyDir } = require('./box-rules');
 
 const DEFAULTS = {
   enabled: false, x: null, y: null, grid: null,
@@ -39,14 +42,9 @@ const DEFAULTS = {
   opacity: 100,           // 整体不透明度 %
   items: [],              // [{name, path, type:'file'|'folder', originPath?, boxPath?}]
 };
-// 可收纳的文件扩展名（办公文档 + 媒体 + 归档等普通文件；
-// 快捷方式 .lnk/.url 与程序 .exe/.bat/.cmd 归转盘负责，不在此收纳）
-const FILE_EXTS = [
-  '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.pdf', '.txt', '.md', '.csv',
-  '.zip', '.rar', '.7z', '.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.mkv',
-  '.mp3', '.flac', '.wav', '.html', '.htm', '.json', '.xml', '.sql',
-];
-const ALL_FILE_EXTS = FILE_EXTS.map((e) => e.toLowerCase());
+// 收纳范围由 box-rules.js 统一裁定：转盘拿快捷方式与程序，其余文件全归这里。
+// （旧版这里是一份办公文档扩展名白名单 —— 0 字节 / 无扩展名 / 白名单外的
+//   真实用户文件因此"一键收纳"收不进去，现改为黑名单式排除。）
 const CLAMP_KEEP_W = 56;
 const CLAMP_KEEP_H = 28;
 
@@ -90,14 +88,61 @@ class FileBoxHost {
         if (!it) return false;
         if (it.type === 'folder') return it.path && fs.existsSync(it.path);
         if (!it.path || !fs.existsSync(it.path)) return false;
-        const b = path.basename(String(it.path || ''));
-        return !b.startsWith('._') && !b.startsWith('~$');
+        return !isJunkName(it.path);
       });
       if (list.length !== (cfg.items || []).length) {
         this.store.updateSettings({ filebox: { ...cfg, items: list } });
         console.log(`[filebox] 已清理 ${(cfg.items || []).length - list.length} 个幽灵项`);
       }
     } catch (_) {}
+  }
+
+  /**
+   * 新增收纳条目落库：以「当前最新配置」为基准合并，绝不整体覆盖写回。
+   * 收纳是逐个让出事件循环的批处理，期间用户再点一次即另起一批；旧实现把批次
+   * 开始时的快照在结束时整体写回，后完成的一批会盖掉先完成那批的记录 ——
+   * 文件已躺在保管目录、清单却是空的（列表什么都没有、"全部恢复"无事可做）。
+   */
+  _commitItems(added) {
+    if (!added || !added.length) return;
+    const cur = this.cfg;
+    const items = [...(cur.items || [])];
+    const seen = new Set();
+    for (const it of items) { if (it.path) seen.add(it.path); if (it.originPath) seen.add(it.originPath); }
+    let merged = 0;
+    for (const it of added) {
+      if (seen.has(it.path) || (it.originPath && seen.has(it.originPath))) continue;
+      items.push(it);
+      seen.add(it.path);
+      if (it.originPath) seen.add(it.originPath);
+      merged++;
+    }
+    if (merged) this.applyPatch({ items });
+  }
+
+  /**
+   * 保管目录中「清单未引用」的失联内容 → 恢复到桌面根目录。
+   * 清单与保管目录正常永远同步，出现失联即记录曾丢失（历史并发覆盖写回）。
+   * 启动自愈（repair.js）做同一件事，这里让「全部恢复到桌面」当场就能找回。
+   */
+  _restoreOrphans() {
+    const referenced = new Set();
+    for (const it of this.cfg.items || []) {
+      if (it.boxPath) referenced.add(path.resolve(it.boxPath).toLowerCase());
+      if (it.path) referenced.add(path.resolve(it.path).toLowerCase());
+    }
+    const desktopDir = app.getPath('desktop');
+    let moved = 0;
+    let entries = [];
+    try { entries = fs.readdirSync(this.boxDir, { withFileTypes: true }); } catch (_) { return 0; }
+    for (const e of entries) {
+      if (isJunkName(e.name) || isBoxSkipName(e.name)) continue;
+      const src = path.join(this.boxDir, e.name);
+      if (referenced.has(path.resolve(src).toLowerCase())) continue;
+      if (this._moveFile(src, this._restorePathFor(path.join(desktopDir, e.name)))) moved++;
+    }
+    if (moved) console.log(`[filebox] 保管目录 ${moved} 个失联文件已恢复到桌面`);
+    return moved;
   }
 
   /** 保管目录中不冲突的文件名（同名加序号） */
@@ -113,28 +158,38 @@ class FileBoxHost {
     return path.join(this.boxDir, `${base}-${Date.now()}${ext}`);
   }
 
-  /** 移动文件（桌面 ⇄ 保管目录），复用 launcher 的三级降级策略 */
+  /** 移动文件/空目录（桌面 ⇄ 保管目录），复用 launcher 的三级降级策略 */
   _moveFile(src, dst) {
     try {
       fs.mkdirSync(path.dirname(dst), { recursive: true });
       if (fs.existsSync(dst)) return false;
       if (!fs.existsSync(src)) return false;
+      const isDir = fs.statSync(src).isDirectory();
+      const copy = () => {
+        if (isDir) fs.cpSync(src, dst, { recursive: true });
+        else fs.copyFileSync(src, dst);
+        return fs.existsSync(dst);
+      };
+      const removeSrc = () => {
+        if (isDir) { fs.rmSync(src, { recursive: true, force: true, maxRetries: 10, retryDelay: 150 }); return; }
+        try { fs.unlinkSync(src); }
+        catch (_) { try { fs.rmSync(src, { force: true, maxRetries: 10, retryDelay: 150 }); } catch (_2) {} }
+      };
       try { fs.renameSync(src, dst); if (fs.existsSync(dst)) return true; } catch (_) {}
       if (desktop.shellMoveFile(src, dst)) {
         if (fs.existsSync(dst) && !fs.existsSync(src)) return true;
       }
       let copied = false;
-      try { fs.copyFileSync(src, dst); copied = fs.existsSync(dst); } catch (_) { copied = false; }
+      try { copied = copy(); } catch (_) { copied = false; }
       if (!copied) {
         if (!desktop.shellCopyFile(src, dst)) return false;
         copied = fs.existsSync(dst);
         if (!copied) return false;
       }
       if (desktop.shellDeleteFile(src)) return true;
-      try { fs.unlinkSync(src); }
-      catch (_) { try { fs.rmSync(src, { force: true, maxRetries: 10, retryDelay: 150 }); } catch (_) {} }
+      removeSrc();
       if (!fs.existsSync(src)) return true;
-      try { fs.rmSync(dst, { force: true }); } catch (_) {}
+      try { fs.rmSync(dst, { force: true, recursive: true }); } catch (_) {}
       return false;
     } catch (_) {
       return false;
@@ -165,16 +220,12 @@ class FileBoxHost {
       next.y = null;
     }
     if (wasEnabled && next.enabled === false) {
-      // 关闭功能：收纳的文件移回桌面原位置（恢复显示），收纳区清空。
-      // 失败项保留记录（文件仍在保管目录），下次"全部恢复"可重试；
-      // 文件夹项本就未移动，直接移除记录即可。
+      // 关闭功能：收纳的文件/空文件夹移回桌面原位置（恢复显示），收纳区清空。
+      // 失败项保留记录（实体仍在保管目录），下次"全部恢复"可重试；
+      // 仅登记引用的非空文件夹本就未动过，直接移除记录即可。
       const { remaining } = this._restoreAll();
       const failedSet = new Set(remaining.map((b) => b.boxPath));
-      next.items = next.items.filter((it) => {
-        if (it.type === 'folder') return false;           // 文件夹：移除记录
-        if (!it.boxPath) return false;                    // 未移动过的文件：移除记录
-        return failedSet.has(it.boxPath);                 // 恢复失败：保留记录供重试
-      });
+      next.items = next.items.filter((it) => !!it.boxPath && failedSet.has(it.boxPath));
     }
     this.store.updateSettings({ filebox: next });
     if (next.enabled && !this.win) {
@@ -523,75 +574,92 @@ class FileBoxHost {
 
   /** 把一批路径收纳进保管区（文件对话框与桌面拖拽共用） */
   async _ingestPaths(filePaths) {
-    const cfg = this.cfg;
-    const exist = new Set((cfg.items || []).map((i) => i.path));
-    const items = [...(cfg.items || [])];
-    let added = 0;
+    const added = [];
     for (const p of filePaths || []) {
       await new Promise((r) => setImmediate(r));
-      if (exist.has(p)) continue;
       let st;
       try { st = fs.statSync(p); } catch (_) { continue; }
       const mtime = st.mtimeMs || 0;
+      const name = path.basename(p);
       if (st.isDirectory()) {
-        // 文件夹：仅登记路径引用，不移动
-        items.push({ name: path.basename(p), path: p, type: 'folder', mtime });
-        exist.add(p);
-        added++;
+        // 空文件夹：整体移入保管目录（里面没有内容，移动零风险，桌面图标随之消失）
+        if (isEmptyDir(p)) {
+          const boxPath = this._boxPathFor(name);
+          if (this._moveFile(p, boxPath)) {
+            added.push({ name, path: boxPath, type: 'folder', originPath: p, boxPath, mtime });
+            continue;
+          }
+        }
+        // 非空文件夹 / 搬不动：仅登记路径引用，不碰用户内容
+        added.push({ name, path: p, type: 'folder', mtime });
       } else {
-        // 普通文件：移动到保管目录（桌面原位置隐藏，可恢复）
-        const ext = path.extname(p).toLowerCase();
-        const boxPath = this._boxPathFor(path.basename(p));
+        // 普通文件：移动到保管目录（任意类型，含 0 字节与无扩展名）
+        const ext = path.extname(p);
+        const boxPath = this._boxPathFor(name);
         if (!this._moveFile(p, boxPath)) {
           // 移动失败（可能是磁盘根目录等）：退化为仅登记路径引用
-          items.push({ name: path.basename(p, ext), path: p, type: 'file', mtime });
+          added.push({ name: path.basename(p, ext), path: p, type: 'file', mtime });
         } else {
-          items.push({ name: path.basename(p, ext), path: boxPath, type: 'file', originPath: p, boxPath, mtime });
+          added.push({ name: path.basename(p, ext), path: boxPath, type: 'file', originPath: p, boxPath, mtime });
         }
-        exist.add(p);
-        added++;
       }
     }
-    if (added) {
-      this.applyPatch({ items });
+    if (added.length) {
+      this._commitItems(added);
       desktop.notifyShellIconRefresh();
     }
-    return added;
+    return added.length;
   }
 
-  /** 一键收纳桌面全部普通文件 + 文件夹 */
-  async boxAll() {
+  /** 一键收纳桌面全部文件与文件夹（连点复用同一次执行，见 _boxAll 注释） */
+  boxAll() {
+    if (this._boxAllJob) return this._boxAllJob;
+    this._boxAllJob = this._boxAll().finally(() => { this._boxAllJob = null; });
+    return this._boxAllJob;
+  }
+
+  async _boxAll() {
     const cfg = this.cfg;
-    const items = [...(cfg.items || [])];
-    const existPaths = new Set(items.map((i) => i.path));
-    let done = 0, files = 0, folders = 0;
+    // 已在清单里的桌面路径不重复处理（登记型文件夹仍留在桌面，会被反复扫到）
+    const handled = new Set();
+    for (const it of cfg.items || []) {
+      if (it.originPath) handled.add(it.originPath);
+      if (it.path) handled.add(it.path);
+    }
+    const added = [];
+    let files = 0, folders = 0;
     const desktopDir = app.getPath('desktop');
     for (const f of fs.readdirSync(desktopDir, { withFileTypes: true })) {
       await new Promise((r) => setImmediate(r));
       const p = path.join(desktopDir, f.name);
-      if (existPaths.has(p)) continue;
-      if (f.name.startsWith('._') || f.name.startsWith('~$')) continue;
+      if (handled.has(p)) continue;
+      if (isJunkName(f.name) || isBoxSkipName(f.name)) continue;
       if (f.isDirectory()) {
         let mtime = 0; try { mtime = fs.statSync(p).mtimeMs || 0; } catch (_) {}
-        items.push({ name: f.name, path: p, type: 'folder', mtime });
-        existPaths.add(p);
-        folders++; done++;
+        // 空文件夹整体移入保管目录；非空文件夹只登记引用（不搬用户内容）
+        const boxPath = isEmptyDir(p) ? this._boxPathFor(f.name) : null;
+        if (boxPath && this._moveFile(p, boxPath)) {
+          added.push({ name: f.name, path: boxPath, type: 'folder', originPath: p, boxPath, mtime });
+        } else {
+          added.push({ name: f.name, path: p, type: 'folder', mtime });
+        }
+        folders++;
         continue;
       }
-      const ext = path.extname(f.name).toLowerCase();
-      if (!ALL_FILE_EXTS.includes(ext)) continue;
+      if (isLauncherItem(p)) continue; // 快捷方式与程序文件归转盘收纳
       let mtime = 0; try { mtime = fs.statSync(p).mtimeMs || 0; } catch (_) {}
+      const ext = path.extname(f.name);
       const boxPath = this._boxPathFor(f.name);
       if (this._moveFile(p, boxPath)) {
-        items.push({ name: path.basename(f.name, ext), path: boxPath, type: 'file', originPath: p, boxPath, mtime });
+        added.push({ name: path.basename(f.name, ext), path: boxPath, type: 'file', originPath: p, boxPath, mtime });
       } else {
-        items.push({ name: path.basename(f.name, ext), path: p, type: 'file', mtime });
+        added.push({ name: path.basename(f.name, ext), path: p, type: 'file', mtime });
       }
-      existPaths.add(p);
-      files++; done++;
+      files++;
     }
+    const done = added.length;
     if (done) {
-      this.applyPatch({ items });
+      this._commitItems(added);
       desktop.notifyShellIconRefresh();
     }
     console.log(`[filebox] 一键收纳全部: ${done} 个（文件 ${files} / 文件夹 ${folders}）`);
@@ -604,7 +672,8 @@ class FileBoxHost {
     const list = [...(cfg.items || [])];
     if (idx < 0 || idx >= list.length) return;
     const [removed] = list.splice(idx, 1);
-    if (removed && removed.type === 'file' && removed.boxPath && fs.existsSync(removed.boxPath)) {
+    // 有 boxPath = 实体被移进过保管目录（普通文件与空文件夹同理），必须搬回去
+    if (removed && removed.boxPath && fs.existsSync(removed.boxPath)) {
       const dst = this._restorePathFor(removed.originPath);
       if (this._moveFile(removed.boxPath, dst)) {
         console.log(`[filebox] 已恢复到桌面: ${removed.name}`);
@@ -622,7 +691,7 @@ class FileBoxHost {
     const remaining = [];
     const restoredPaths = [];
     for (const it of cfg.items || []) {
-      if (it.type !== 'file' || !it.boxPath) continue;
+      if (!it.boxPath) continue;              // 仅登记的文件夹 / 未移动过的文件：无实体要搬
       if (!fs.existsSync(it.boxPath)) continue;
       const dst = this._restorePathFor(it.originPath);
       if (this._moveFile(it.boxPath, dst)) {
@@ -633,8 +702,13 @@ class FileBoxHost {
         remaining.push(it);
       }
     }
+    // 清单没记、但确实躺在保管目录里的历史失联项一并带回桌面（不必等下次启动自愈）
+    const orphans = failed ? 0 : this._restoreOrphans();
+    if ((cfg.items || []).length || orphans) {
+      console.log(`[filebox] 恢复全部收纳项: 成功 ${restored} 失败 ${failed} 失联 ${orphans}`);
+    }
     if (restored) desktop.notifyShellIconRefresh(restoredPaths);
-    return { restored, failed, remaining };
+    return { restored, failed, orphans, remaining };
   }
 
   _launch(idx) {
@@ -686,16 +760,12 @@ class FileBoxHost {
       return { ok: true };
     });
     ipcMain.handle('filebox:restore-all', () => {
-      const { restored, failed, remaining } = this._restoreAll();
+      const { restored, failed, orphans, remaining } = this._restoreAll();
       const failedSet = new Set(remaining.map((b) => b.boxPath));
       this.applyPatch({
-        items: (this.cfg.items || []).filter((it) => {
-          if (it.type === 'folder') return false;          // 文件夹：移除记录
-          if (!it.boxPath) return false;                   // 未移动过的文件：移除记录
-          return failedSet.has(it.boxPath);                // 恢复失败：保留记录供重试
-        }),
+        items: (this.cfg.items || []).filter((it) => !!it.boxPath && failedSet.has(it.boxPath)),
       });
-      return { ok: true, restored, failed };
+      return { ok: true, restored, failed, orphans };
     });
     ipcMain.handle('filebox:get', async () => {
       const cfg = this.cfg;

@@ -33,6 +33,9 @@ const { syncBoxMirror } = require('./box-mirror');
 const RESCUE_PREFIX = '壁纸工坊-收纳';
 // 旧版（v1.11 及之前）收纳保管目录名（%APPDATA%\壁纸工坊 下）
 const LEGACY_BOX_DIRS = { launcher: 'launcher-box', filebox: 'filebox-box' };
+// 现版收纳文件夹名 —— 记录里某条路径的父目录名命中它，说明指向的是
+// 另一个应用根目录（旧安装目录 / 开发目录）下的收纳文件夹
+const BOX_DIRNAME = { launcher: LAUNCHER_BOX_DIRNAME, filebox: FILEBOX_BOX_DIRNAME };
 // launcher 运行期管理文件，不属于收纳内容
 const BOX_ADMIN_FILES = new Set(['.box-admin.ps1', '.box-admin-result.txt']);
 const isJunk = (name) => name.startsWith('._') || name.startsWith('~$');
@@ -173,25 +176,42 @@ function repairUserData(app, log = console) {
       log.error('[repair] 收纳存储迁移失败:', err && err.message);
     }
 
-    // ---------- 3) 重写 config 里的收纳路径引用（旧位置 → 应用根目录新文件夹） ----------
-    // 无条件重写：v1.11 及之前 config 里引用的 %APPDATA% 旧保管路径一律改指
-    // 新收纳文件夹（此时文件可能还在桌面救援夹/预备份里尚未归位，后续步骤会
-    // 把文件移入新路径；若文件真已丢失，宿主的幽灵项清理会兜底移除记录）。
+    // ---------- 3) 重写 config 里的收纳路径引用（指向当前主存储） ----------
+    // 无条件重写，覆盖两种漂移：
+    //   a) v1.11 及之前记录里的 %APPDATA% 旧保管目录（launcher-box / filebox-box）；
+    //   b) 换了应用根目录 —— 收纳文件夹按「应用根目录」定位（开发态=项目根、
+    //      安装态=安装目录），而 config 在 %APPDATA% 里两边共用。同一份清单在
+    //      另一个根目录下指向的是别处的收纳文件夹，表现为「文件在 A、清单指 B」，
+    //      收纳列表空、恢复无对象。
+    // 规则：清单永远跟着当前主存储走；实体文件若还在旧位置，一并搬过来归位。
     try {
       const cfg = readJson(cfgPath);
       if (cfg && cfg.settings) {
-        let changed = false;
-        const legacyDirs = {
-          launcher: [path.join(dataDir, LEGACY_BOX_DIRS.launcher)],
-          filebox: [path.join(dataDir, LEGACY_BOX_DIRS.filebox)],
+        let changed = 0;
+        const legacyPrefix = {
+          launcher: path.join(dataDir, LEGACY_BOX_DIRS.launcher),
+          filebox: path.join(dataDir, LEGACY_BOX_DIRS.filebox),
+        };
+        const relocate = (src, dst) => {
+          try {
+            if (fs.existsSync(dst) || !fs.existsSync(src)) return;
+            fs.mkdirSync(path.dirname(dst), { recursive: true });
+            moveFile(src, dst);
+          } catch (err) {
+            log.warn(`[repair] 收纳文件归位失败（保留记录指向原位）: ${src}`, err && err.message);
+          }
         };
         const remap = (kind, p) => {
           if (!p) return p;
-          if (legacyDirs[kind].some((d) => String(p).startsWith(d))) {
-            changed = true;
-            return path.join(newBoxDirs[kind], path.basename(p));
-          }
-          return p;
+          const target = path.join(newBoxDirs[kind], path.basename(p));
+          const same = path.normalize(p).toLowerCase() === path.normalize(target).toLowerCase();
+          if (same) return p;
+          const fromLegacy = String(p).startsWith(legacyPrefix[kind]);
+          const fromOtherBoxRoot = path.basename(path.dirname(p)) === BOX_DIRNAME[kind];
+          if (!fromLegacy && !fromOtherBoxRoot) return p;
+          changed++;
+          relocate(p, target);
+          return target;
         };
         const launcher = cfg.settings.launcher || {};
         const filebox = cfg.settings.filebox || {};
@@ -204,8 +224,8 @@ function repairUserData(app, log = console) {
         if (changed) {
           fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2), 'utf8');
           summary.configRewritten = true;
-          summary.actions.push('更新了收纳文件的新位置记录');
-          log.log('[repair] config 收纳路径已重写到应用根目录收纳文件夹');
+          summary.actions.push(`把 ${changed} 条收纳记录改指当前主存储`);
+          log.log(`[repair] 收纳路径已归位到当前主存储: ${changed} 条`);
         }
       }
     } catch (err) {
@@ -290,7 +310,7 @@ function repairUserData(app, log = console) {
         try { entries = fs.readdirSync(boxDir, { withFileTypes: true }); } catch (_) { continue; }
         let moved = 0;
         for (const e of entries) {
-          if (!e.isFile()) continue;
+          if (!e.isFile() && !e.isDirectory()) continue; // 收纳的空文件夹也是目录条目
           if (BOX_ADMIN_FILES.has(e.name) || isJunk(e.name)) continue;
           const src = path.join(boxDir, e.name);
           if (referencedAll.has(src)) continue; // 清单仍在管 → 属正常收纳内容

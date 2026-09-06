@@ -30,6 +30,8 @@ const sameFile = (a, b) => {
   }
 };
 
+const isDirectory = (p) => { try { return fs.statSync(p).isDirectory(); } catch (_) { return false; } };
+
 /** 清单引用的保管文件名集合（按收纳类别），从 config.json 读取 */
 function referencedBasenames(cfgPath) {
   const ref = { launcher: new Set(), filebox: new Set() };
@@ -67,12 +69,20 @@ function syncBoxMirror(app, log = console) {
       fs.mkdirSync(mirror, { recursive: true });
       const names = ref[kind];
 
-      // a) 主 → 镜像：引用中的文件备份刷新
+      // a) 主 → 镜像：引用中的条目备份刷新（目录 = 收纳进去的空文件夹）
       for (const name of fs.readdirSync(primary)) {
         if (isJunk(name) || ADMIN_FILES.has(name)) continue;
         const src = path.join(primary, name);
-        if (!names.has(name) || !fs.statSync(src).isFile()) continue;
+        if (!names.has(name)) continue;
         const dst = path.join(mirror, name);
+        if (isDirectory(src)) {
+          if (!isDirectory(dst)) {
+            fs.cpSync(src, dst, { recursive: true });
+            summary.mirrored++;
+          }
+          continue;
+        }
+        if (!fs.statSync(src).isFile()) continue;
         if (!fs.existsSync(dst) || !sameFile(src, dst)) {
           fs.copyFileSync(src, dst);
           summary.mirrored++;
@@ -83,11 +93,15 @@ function syncBoxMirror(app, log = console) {
       for (const name of fs.readdirSync(mirror)) {
         if (isJunk(name) || ADMIN_FILES.has(name)) continue;
         const mirrorPath = path.join(mirror, name);
-        if (!fs.statSync(mirrorPath).isFile()) continue;
+        const mirrorIsDir = isDirectory(mirrorPath);
+        if (!mirrorIsDir) {
+          try { if (!fs.statSync(mirrorPath).isFile()) continue; } catch (_) { continue; }
+        }
         const primaryPath = path.join(primary, name);
         if (names.has(name) && !fs.existsSync(primaryPath)) {
           try {
-            fs.copyFileSync(mirrorPath, primaryPath);
+            if (mirrorIsDir) fs.cpSync(mirrorPath, primaryPath, { recursive: true });
+            else fs.copyFileSync(mirrorPath, primaryPath);
             summary.recovered++;
             log.log(`[mirror] 主存储缺失，已从镜像恢复: ${name}`);
           } catch (err) {
@@ -97,7 +111,7 @@ function syncBoxMirror(app, log = console) {
         }
         // c) 镜像清理：清单已不再引用的镜像副本删除（恢复/移除后不留残余）
         if (!names.has(name)) {
-          try { fs.unlinkSync(mirrorPath); summary.cleaned++; } catch (_) {}
+          try { fs.rmSync(mirrorPath, { recursive: true, force: true }); summary.cleaned++; } catch (_) {}
         }
       }
     } catch (err) {

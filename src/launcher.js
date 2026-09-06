@@ -26,6 +26,7 @@ const desktop = require('./desktop');
 const icons = require('./icons');
 const { getAppRoot, LAUNCHER_BOX_DIRNAME } = require('./app-root');
 const { scheduleMirrorSync } = require('./box-mirror');
+const { SC_EXTS, APP_EXTS, isJunkName } = require('./box-rules');
 
 const DEFAULTS = {
   enabled: false, x: null, y: null, count: 8, autoCollapse: true,
@@ -44,10 +45,8 @@ const DEFAULTS = {
 const ORIENTATIONS = ['h', 'v'];
 const CLAMP_KEEP_W = 56;  // 拖动出屏时至少保留的可视宽度（物理像素）
 const CLAMP_KEEP_H = 28;
-const SC_EXTS = ['.lnk', '.url']; // 可收纳的快捷方式扩展名
-// 可收纳的程序文件扩展名（.exe 直接启动；.bat/.cmd 经 cmd 运行）
-// 多数快捷方式打开后对应的是 .exe，故程序文件保留在转盘收纳
-const APP_EXTS = ['.exe', '.bat', '.cmd'];
+// SC_EXTS（.lnk/.url）与 APP_EXTS（.exe/.bat/.cmd）来自 box-rules.js ——
+// 与文件收纳区共用同一份定义，两个宿主的收纳范围必须互补不重叠。
 // 桌面「系统特殊项」清单（无实体文件，收纳后通过 shell: 协议 / CLSID 打开）
 const SYSTEM_ITEMS = [
   { id: 'recycle',   name: '回收站',   launch: 'shell:RecycleBinFolder',   clsid: '{645FF040-5081-101B-9F08-00AA002F954E}', aliases: ['回收站', 'Recycle Bin'] },
@@ -102,10 +101,6 @@ class LauncherHost {
       const cfg = this.cfg;
       // 除幽灵项（文件已不在）外，顺带清掉垃圾文件项（._* macOS 资源 fork / ~$ Office 锁文件，
       // 历史版本一键收纳时可能已混入转盘，表现为"空白/无意义图标"）
-      const isJunkName = (p) => {
-        const b = path.basename(String(p || ''));
-        return b.startsWith('._') || b.startsWith('~$');
-      };
       const list = (cfg.shortcuts || []).filter((s) => {
         if (!s) return false;
         if (s.type === 'system') return true;
@@ -203,6 +198,84 @@ class LauncherHost {
       if (!fs.existsSync(p)) return p;
     }
     return path.join(dir, `${base}-${Date.now()}${ext}`);
+  }
+
+  /**
+   * 新增收纳项落库：以「当前最新配置」为基准合并，绝不整体覆盖写回。
+   *
+   * ★ 为什么必须合并：收纳是逐个让出事件循环的批处理（一键全收几十个文件要跑
+   *   上百毫秒），期间用户再点一次按钮 / 改一个参数，都会另起一批。旧实现把批次
+   *   开始时读的配置快照在结束时整体写回，后完成的那一批就用旧快照盖掉了先完成
+   *   那一批的记录 —— 文件已经躺在保管目录里，清单却是空的，表现为「收纳后列表
+   *   什么都没有」且「全部恢复到桌面」无事可做（v1.12.1 实测复现）。
+   * @param {{shortcuts?:Array, boxed?:Array, hidden?:Array, afterPinned?:boolean}} adds
+   *        afterPinned：新条目插到最后一条「常用」之后（对话框/拖拽单条添加用，
+   *        保证新图标落在转盘前部可见）；默认追加到末尾。
+   */
+  _commitAdds({ shortcuts = [], boxed = [], hidden = [], afterPinned = false }) {
+    const cur = this.cfg;
+    const nextShortcuts = [...(cur.shortcuts || [])];
+    const byPath = new Set(nextShortcuts.map((s) => s && s.path));
+    const bySys = new Set(nextShortcuts.map((s) => s && s.sysId).filter(Boolean));
+    const fresh = [];
+    for (const s of shortcuts) {
+      if (s.type === 'system') {
+        if (bySys.has(s.sysId)) continue;
+        bySys.add(s.sysId);
+      } else if (byPath.has(s.path)) continue;
+      fresh.push(s);
+    }
+    if (fresh.length) {
+      if (afterPinned) {
+        const k = nextShortcuts.findIndex((s) => !s || !s.pinned);
+        nextShortcuts.splice(k < 0 ? nextShortcuts.length : k, 0, ...fresh);
+      } else {
+        nextShortcuts.push(...fresh);
+      }
+    }
+    const nextBoxed = [...(cur.boxed || [])];
+    const byBox = new Set(nextBoxed.map((b) => b && b.boxPath));
+    for (const b of boxed) {
+      if (byBox.has(b.boxPath)) continue;
+      nextBoxed.push(b);
+      byBox.add(b.boxPath);
+    }
+    const nextHidden = [...(cur.hidden || [])];
+    const byHidden = new Set(nextHidden.map((h) => h.path || h.sysId || h.name));
+    for (const h of hidden) {
+      const key = h.path || h.sysId || h.name;
+      if (byHidden.has(key)) continue;
+      nextHidden.push(h);
+      byHidden.add(key);
+    }
+    this.applyPatch({ shortcuts: nextShortcuts, boxed: nextBoxed, hidden: nextHidden });
+  }
+
+  /**
+   * 保管目录中「清单未引用」的失联内容 → 恢复到桌面根目录。
+   * 清单与保管目录正常永远同步，出现失联即记录曾丢失（历史并发覆盖写回）。
+   * 启动自愈（repair.js）也做同一件事，这里让「全部恢复到桌面」当场就能找回，
+   * 不必等下次启动。返回恢复条数。
+   */
+  _restoreOrphans() {
+    const cfg = this.cfg;
+    const referenced = new Set();
+    const addRef = (p) => { if (p) referenced.add(path.resolve(p).toLowerCase()); };
+    for (const b of cfg.boxed || []) addRef(b.boxPath);
+    for (const s of cfg.shortcuts || []) if (s.type !== 'system') addRef(s.path);
+    const desktopDir = app.getPath('desktop');
+    let moved = 0;
+    let entries = [];
+    try { entries = fs.readdirSync(this.boxDir, { withFileTypes: true }); } catch (_) { return 0; }
+    for (const e of entries) {
+      if (isJunkName(e.name)) continue;
+      if (e.name === '.box-admin.ps1' || e.name === '.box-admin-result.txt') continue;
+      const src = path.join(this.boxDir, e.name);
+      if (referenced.has(path.resolve(src).toLowerCase())) continue;
+      if (this._moveFile(src, this._restorePathFor(path.join(desktopDir, e.name)))) moved++;
+    }
+    if (moved) console.log(`[launcher] 保管目录 ${moved} 个失联文件已恢复到桌面`);
+    return moved;
   }
 
   /** 应用配置（设置页/托盘调用）。关闭功能 = 恢复全部收纳项并清空转盘 */
@@ -666,8 +739,7 @@ class LauncherHost {
 
   /** 把一批路径登记为转盘项（文件对话框与桌面拖拽共用） */
   async _ingestPaths(filePaths) {
-    const cfg = this.cfg;
-    const exist = new Set((cfg.shortcuts || []).map(s => s.path));
+    const exist = new Set((this.cfg.shortcuts || []).map(s => s.path));
     const added = (filePaths || [])
       .filter(p => !exist.has(p) && (SC_EXTS.includes(path.extname(p).toLowerCase()) || APP_EXTS.includes(path.extname(p).toLowerCase())))
       .map(p => {
@@ -675,7 +747,7 @@ class LauncherHost {
         const type = APP_EXTS.includes(ext) ? 'app' : 'shortcut';
         return { name: path.basename(p, ext), path: p, type };
       });
-    if (added.length) this.applyPatch({ shortcuts: this._insertAfterPinned(cfg.shortcuts || [], added) });
+    if (added.length) this._commitAdds({ shortcuts: added, afterPinned: true });
     return added.length;
   }
 
@@ -700,7 +772,7 @@ class LauncherHost {
       const skipped = { notFound: 0, noPerm: 0 };
       const { done, shortcuts, boxed, hidden } = await this._boxNames(names, skipped);
       if (done) {
-        this.applyPatch({ shortcuts, boxed, hidden });
+        this._commitAdds({ shortcuts, boxed, hidden });
         desktop.notifyShellIconRefresh();
       }
       added += done;
@@ -712,7 +784,7 @@ class LauncherHost {
         const skipped = { notFound: 0, noPerm: 0 };
         const r = await this._boxNames([iconName], skipped);
         if (r.done) {
-          this.applyPatch({ shortcuts: r.shortcuts, boxed: r.boxed, hidden: r.hidden });
+          this._commitAdds({ shortcuts: r.shortcuts, boxed: r.boxed, hidden: r.hidden });
           desktop.notifyShellIconRefresh();
         }
         added += r.done;
@@ -746,12 +818,6 @@ class LauncherHost {
     const pinned = list.filter((s) => s && s.pinned);
     const rest = list.filter((s) => !s || !s.pinned);
     return [...pinned, ...rest];
-  }
-
-  /** 新条目插到最后一条「常用」之后（没有常用项时等价于追加到末尾） */
-  _insertAfterPinned(list, added) {
-    const k = list.findIndex((s) => !s || !s.pinned);
-    return k < 0 ? [...list, ...added] : [...list.slice(0, k), ...added, ...list.slice(k)];
   }
 
   /** 设置/取消某条目的「常用」标记。取消时同样重排：失去标记的项退到常用区之后，
@@ -825,11 +891,13 @@ class LauncherHost {
         restoredPaths.push(dst);
       } else { failed++; remaining.push(b); }
     }
-    if ((cfg.boxed || []).length) {
-      console.log(`[launcher] 恢复全部收纳项: 成功 ${restored} 失败 ${failed}${failed ? '（失败项保留记录，可重试）' : ''}`);
+    // 清单没记、但确实躺在保管目录里的历史失联项一并带回桌面（不必等下次启动自愈）
+    const orphans = failed ? 0 : this._restoreOrphans();
+    if ((cfg.boxed || []).length || orphans) {
+      console.log(`[launcher] 恢复全部收纳项: 成功 ${restored} 失败 ${failed} 失联 ${orphans}${failed ? '（失败项保留记录，可重试）' : ''}`);
     }
     if (restored) desktop.notifyShellIconRefresh(restoredPaths);
-    return { restored, failed, remaining };
+    return { restored, failed, orphans, remaining };
   }
 
   _launch(idx) {
@@ -952,7 +1020,7 @@ class LauncherHost {
     const skipped = { notFound: 0, noPerm: 0 };
     const { done, shortcuts, boxed, hidden } = await this._boxNames(names, skipped);
     if (done) {
-      this.applyPatch({ shortcuts, boxed, hidden });
+      this._commitAdds({ shortcuts, boxed, hidden });
       desktop.notifyShellIconRefresh();
     }
     console.log(`[launcher] 桌面快捷方式收纳: ${done} 个（未匹配 ${skipped.notFound} / 无权限 ${skipped.noPerm}）`);
@@ -962,24 +1030,29 @@ class LauncherHost {
   }
 
   /**
-   * 按显示名收纳一批桌面快捷方式（点选确认 / 一键全收共用）：
+   * 按显示名收纳一批桌面快捷方式（点选确认 / 拖拽 / 一键全收共用）：
    * 非快捷方式（系统图标/文件夹）与公共桌面项自动跳过。
    * 每个文件让出一次事件循环 —— 一键全收几十个快捷方式时主界面不冻结。
-   * @returns {Promise<{done:number, shortcuts:Array, boxed:Array}>} 合并后的完整新列表
+   * @param {string[]} names 桌面图标显示名
+   * @param {{notFound:number,noPerm:number}} skipped 跳过计数（就地累加）
+   * @returns {Promise<{done:number, shortcuts:Array, boxed:Array, hidden:Array}>}
+   *          done = 实收数；三个数组是**本批新增项**（不是完整列表），
+   *          调用方必须交给 _commitAdds 合并落库，不能整体覆盖写回。
    */
   async _boxNames(names, skipped) {
     const cfg = this.cfg;
-    const shortcuts = [...(cfg.shortcuts || [])];
-    const boxed = [...(cfg.boxed || [])];
-    const hidden = [...(cfg.hidden || [])];
+    const shortcuts = [];   // 本批新增的转盘条目
+    const boxed = [];       // 本批新增的收纳记录（可恢复到 originPath）
+    const hidden = [];      // 本批新增的隐藏记录
     // 资源管理器开了「显示隐藏的文件」或「显示受保护的操作系统文件」时，
     // 隐藏属性（HIDDEN|SYSTEM）藏不住图标 → 退回移动收纳
     let hideMode = cfg.collectMode === 'hide' && !desktop.explorerHidingUnusable();
     if (cfg.collectMode === 'hide' && !hideMode) {
       console.warn('[launcher] 资源管理器开启了「显示隐藏的文件 / 受保护的操作系统文件」，隐藏属性无法让图标消失 → 本次按「移动到收纳目录」收纳');
     }
-    const existPaths = new Set(shortcuts.map(s => s.path));
-    const existIds = new Set(shortcuts.map(s => s.sysId).filter(Boolean));
+    // 去重基准 = 现有配置 ∪ 本批已收集（同一批里重名图标只收一次）
+    const existPaths = new Set([...cfg.shortcuts.map(s => s.path), ...cfg.boxed.map(b => b.boxPath)]);
+    const existIds = new Set(cfg.shortcuts.map(s => s.sysId).filter(Boolean));
     let done = 0;
     for (const name of names) {
       await new Promise((r) => setImmediate(r));
@@ -1078,19 +1151,29 @@ class LauncherHost {
   }
 
   /**
-   * 一键收纳桌面全部快捷方式（仿 Wallpaper Engine「收纳桌面图标」）：
+   * 一键收纳桌面全部快捷方式（仿 Wallpaper Engine「收纳桌面图标」）。
+   * ★ 连点屏障：整批要跑上百毫秒（逐个让出事件循环），期间第二次点击若另起一批，
+   *   两批各自看到的桌面状态不同 —— 直接复用进行中的那一次，结果与提示都只有一份。
+   */
+  boxAll() {
+    if (this._boxAllJob) return this._boxAllJob;
+    this._boxAllJob = this._boxAll().finally(() => { this._boxAllJob = null; });
+    return this._boxAllJob;
+  }
+
+  /**
    * ★ 直接枚举桌面目录的 .lnk/.url 文件（不再按图标显示名反查）——
    *   显示名 ≠ 文件名的快捷方式（如显示"腾讯QQ"文件名"QQ.lnk"）也能收全，
    *   修复"没有完全收纳进去"。
    * 公共桌面（所有用户）项普通权限删不动 → 返回 publicLeft，
    * 由设置页提供"管理员授权收纳"入口（boxPublic，UAC 一次授权批量移动）。
    */
-  async boxAll() {
+  async _boxAll() {
     const cfg = this.cfg;
-    const shortcuts = [...(cfg.shortcuts || [])];
-    const boxed = [...(cfg.boxed || [])];
-    const existPaths = new Set(shortcuts.map(s => s.path));
-    const existIds = new Set(shortcuts.map(s => s.sysId).filter(Boolean));
+    const shortcuts = [];   // 本批新增转盘条目
+    const boxed = [];       // 本批新增收纳记录
+    const existPaths = new Set([...cfg.shortcuts.map(s => s.path), ...cfg.boxed.map(b => b.boxPath)]);
+    const existIds = new Set(cfg.shortcuts.map(s => s.sysId).filter(Boolean));
     let done = 0;
     let publicLeft = 0; // 公共桌面普通权限收不进的数目（需 boxPublic 管理员授权）
 
@@ -1137,7 +1220,7 @@ class LauncherHost {
     if (sysAdded) done += sysAdded;
 
     if (done) {
-      this.applyPatch({ shortcuts, boxed });
+      this._commitAdds({ shortcuts, boxed });
       desktop.notifyShellIconRefresh();
     }
     const summary = this._boxSummary();
@@ -1219,10 +1302,6 @@ class LauncherHost {
     return new Promise((resolve) => {
       const files = this._collectShortcuts(this._publicDesktop());
       if (!files.length) return resolve({ ok: true, moved: 0, failed: 0, declined: false });
-      const cfg = this.cfg;
-      const shortcuts = [...(cfg.shortcuts || [])];
-      const boxed = [...(cfg.boxed || [])];
-      const existPaths = new Set(shortcuts.map(s => s.path));
       const pairs = files.map((f) => ({ src: f, dst: this._boxPathFor(path.basename(f)) }));
 
       const esc = (s) => `'${String(s).replace(/'/g, "''")}'`;
@@ -1248,18 +1327,17 @@ class LauncherHost {
       };
       const finish = (movedPairs, declined) => {
         cleanup();
-        let moved = 0;
+        const shortcuts = [];
+        const boxed = [];
         for (const p of movedPairs) {
           const name = path.basename(p.src, path.extname(p.src));
-          if (!existPaths.has(p.dst)) {
-            shortcuts.push({ name, path: p.dst });
-            existPaths.add(p.dst);
-          }
+          const ext = path.extname(p.dst).toLowerCase();
+          shortcuts.push({ name, path: p.dst, type: APP_EXTS.includes(ext) ? 'app' : 'shortcut' });
           boxed.push({ name, originPath: p.src, boxPath: p.dst });
-          moved++;
         }
-        if (moved) this.applyPatch({ shortcuts, boxed });
-        if (moved) desktop.notifyShellIconRefresh();
+        if (shortcuts.length) this._commitAdds({ shortcuts, boxed });
+        if (movedPairs.length) desktop.notifyShellIconRefresh();
+        const moved = shortcuts.length;
         const movedSet = new Set(movedPairs.map((p) => p.src));
         const failed = pairs.filter((p) => !movedSet.has(p.src)).length;
         console.log(`[launcher] 管理员收纳公共桌面: 成功 ${moved} / 失败 ${failed}${declined ? '（UAC 被拒绝）' : ''}`);
@@ -1338,7 +1416,7 @@ class LauncherHost {
     });
     ipcMain.handle('launcher:restore-all', () => {
       const cfg = this.cfg;
-      const { restored, failed, remaining } = this._restoreAllBoxed();
+      const { restored, failed, orphans, remaining } = this._restoreAllBoxed();
       // 恢复成功的清出转盘；失败项保留记录（文件仍在保管目录，可再次恢复）
       // ★ 用 boxed 的 boxPath 全集过滤：恢复成功的项（含从桌面收纳的）应移除，
       //   失败项(remaining)保留。否则 remaining 为空时 filter 恒真，shortcuts 残留
@@ -1355,7 +1433,7 @@ class LauncherHost {
         boxed: remaining,
         hidden: hiddenRemaining,
       });
-      return { ok: true, restored, failed };
+      return { ok: true, restored, failed, orphans };
     });
     ipcMain.handle('launcher:get', async () => {
       const cfg = this.cfg;

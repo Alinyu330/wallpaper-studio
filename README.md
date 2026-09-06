@@ -4,7 +4,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Version](https://img.shields.io/badge/version-1.12.0-7c5cff)
+![Version](https://img.shields.io/badge/version-1.13.0-7c5cff)
 
 ## 官网
 
@@ -13,10 +13,10 @@
 
 ## 下载
 
-**最新版 v1.12.1 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · 更新数据三重保护 + 转盘三连击回最前）：
+**最新版 v1.13.0 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · 收纳数据零丢失 + 空文件夹可收纳）：
 
-- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.1/WallpaperStudio-Setup-1.12.1.exe)
-- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.1/WallpaperStudio-Setup-1.12.1.exe)
+- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.13.0/WallpaperStudio-Setup-1.13.0.exe)
+- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.13.0/WallpaperStudio-Setup-1.13.0.exe)
 - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
 > 已安装旧版？客户端「设置 → 检查更新」即可应用内一键更新，无需重新下载安装包。
@@ -25,6 +25,7 @@
 
 | 版本 | 国内加速下载 | GitHub 直连 |
 |---|---|---|
+| v1.13.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.13.0/WallpaperStudio-Setup-1.13.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.13.0/WallpaperStudio-Setup-1.13.0.exe) |
 | v1.12.1 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.1/WallpaperStudio-Setup-1.12.1.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.1/WallpaperStudio-Setup-1.12.1.exe) |
 | v1.12.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.0/WallpaperStudio-Setup-1.12.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.0/WallpaperStudio-Setup-1.12.0.exe) |
 | v1.11.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.11.0/WallpaperStudio-Setup-1.11.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.11.0/WallpaperStudio-Setup-1.11.0.exe) |
@@ -49,6 +50,19 @@
 | v1.1.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) |
 
 > 各版本更新内容见下方「新增功能与修复问题」分节与 [官网更新日志](https://wallpaper-studio.pages.dev/#changelog)；更早版本（v1.0.0）见 [Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)。
+
+## v1.13.0 新增功能与修复问题
+
+**新增功能**
+
+- **空文件夹可整体收纳**：桌面上没有内容的文件夹在「一键收纳」时整体移入主存储（桌面图标消失，移除或「全部恢复到桌面」即回到原位置）；非空文件夹仍只登记引用、不搬动用户内容。镜像双保险与卸载抢救同样覆盖文件夹项
+- **「全部恢复到桌面」当场找回失联内容**：保管目录里清单未引用的历史文件（此前因下述缺陷滞留的快捷方式 / 文件）一并恢复到桌面，不必等下次启动自愈，提示中单独标注找回数量
+
+**修复问题**
+
+- 修复收纳后快捷方式 / 文件列表变空、点「全部恢复到桌面」无法恢复的问题（根因：一键收纳逐个让出事件循环跑批，期间再点一次会另起一批，旧实现按批次开始时的配置快照整体写回，后完成的一批把先完成那批的收纳记录覆盖掉 —— 文件已进保管目录、清单却是空的）。现改为按最新配置合并新增项，且连点只执行一批
+- 修复文件收纳区收不进无扩展名与白名单外类型文件（含 0 字节空文件）的问题：去掉办公文档扩展名白名单，桌面上除转盘负责的快捷方式 / 程序文件与 desktop.ini 等系统元数据之外的任意文件都能收纳
+- 修复更换安装目录或开发态 / 安装态切换后收纳记录指向别处收纳文件夹的问题（配置在数据目录两边共用，收纳文件夹随应用根目录定位，出现「文件在 A、清单指 B」）：启动自愈统一把记录改指当前主存储，实体仍留在旧位置时一并搬回
 
 ## v1.12.1 新增功能与修复问题
 
@@ -111,7 +125,7 @@
 
 - **桌面快捷方式转盘**（v1.5.0，v1.7.0/v1.8.0 增强）：快捷方式（.lnk/.url）与程序文件（.exe/.bat/.cmd）以转盘形式收纳在桌面（系统项：控制面板 / 回收站 / 网络 / 此电脑 亦可收纳）— 点击图标即可启动对应 App；按住图标条或拖动条左右拖动即可像转盘一样轮换（带惯性甩动）；拖动 ⋮ 手柄自由摆放位置；同屏数量 4~12 可调；图标取系统真实图标（无空白占位）、垂直倒影、去面板边框更沉浸；空闲自动收起为小药丸，悬停药丸展开，不遮挡窗口、不影响壁纸观感
 
-- **桌面文件收纳区**（v1.8.0 新增，v1.9.0 重构）：桌面上的普通文件（办公文档 / 媒体 / 归档）与文件夹收进独立浮层，与快捷方式转盘职责分离 — 文件夹 / 文件自动分组排列（支持按名称 / 修改时间 / 手动排序），网格列数与面板透明度可调；文件名完整两行显示；空闲先转半透明毛玻璃、再收缩为单个文件图标，悬停自动展开、点击弹出收纳内容；面板镜像倒影与调色可调；收纳的文件移动隐藏（可一键恢复），文件夹仅登记引用不移动内容、点开即进入文件夹；支持自由拖动与九宫格快捷定位
+- **桌面文件收纳区**（v1.8.0 新增，v1.9.0 重构，v1.13.0 支持全部文件类型与空文件夹）：桌面上的任意普通文件（含 0 字节空文件、无扩展名与未知类型）与文件夹收进独立浮层，与快捷方式转盘职责分离 — 文件夹 / 文件自动分组排列（支持按名称 / 修改时间 / 手动排序），网格列数与面板透明度可调；文件名完整两行显示；空闲先转半透明毛玻璃、再收缩为单个文件图标，悬停自动展开、点击弹出收纳内容；面板镜像倒影与调色可调；收纳的文件与空文件夹移动隐藏（可一键恢复），非空文件夹仅登记引用不移动内容、点开即进入文件夹；支持自由拖动与九宫格快捷定位
 
 - **应用内一键更新**（v1.8.1 新增）：检查更新发现新版本即弹出新版功能介绍窗口（更新日志直读发布页 Release Notes）；点「立即更新」在客户端内直接下载安装包（实时进度、可随时取消），下载完成自动静默安装并退出 — 全程无需跳转网页手动下载
 

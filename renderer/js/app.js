@@ -2132,7 +2132,9 @@ function bindLauncherSettings() {
   });
   $('#btn-lc-restore-all').addEventListener('click', async () => {
     const res = await window.api.restoreAllLauncher();
-    toast(`已恢复 ${res.restored} 个快捷方式到桌面原位置${res.failed ? `（${res.failed} 个失败）` : ''}`);
+    const n = (res.restored || 0) + (res.orphans || 0);
+    if (!n) toast('没有可恢复的快捷方式（保管目录为空）', 'error');
+    else toast(`已恢复 ${n} 个快捷方式到桌面${res.orphans ? `（含 ${res.orphans} 个失联项）` : ''}${res.failed ? `，${res.failed} 个失败` : ''}`);
     renderLauncherSettings();
   });
 }
@@ -2326,7 +2328,9 @@ function bindFileboxSettings() {
   });
   $('#btn-fb-restore-all').addEventListener('click', async () => {
     const res = await window.api.restoreAllFilebox();
-    toast(`已恢复 ${res.restored} 个文件到桌面原位置${res.failed ? `（${res.failed} 个失败）` : ''}`);
+    const n = (res.restored || 0) + (res.orphans || 0);
+    if (!n) toast('没有可恢复的文件（保管目录为空）', 'error');
+    else toast(`已恢复 ${n} 个文件到桌面${res.orphans ? `（含 ${res.orphans} 个失联项）` : ''}${res.failed ? `，${res.failed} 个失败` : ''}`);
     renderFileboxSettings();
   });
 }
