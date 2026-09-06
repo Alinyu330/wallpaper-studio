@@ -2519,6 +2519,8 @@ function bindSettings() {
     toast(e.target.checked ? '已开启平滑循环过渡' : '已关闭平滑循环过渡');
   });
   $('#btn-mpv-download').addEventListener('click', () => window.api.openMpvDownload());
+  $('#btn-open-license')?.addEventListener('click', () =>
+    window.api.openExternal('https://github.com/Alinyu330/wallpaper-studio/blob/main/COPYRIGHT.md'));
   $('#btn-lockscreen-use-current').addEventListener('click', () => setLockScreenFrom(state.current?.wallpaper));
   $('#btn-lockscreen-reset').addEventListener('click', async () => {
     await window.api.resetLockScreen();

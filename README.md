@@ -2,9 +2,9 @@
 
 免费开源的 Windows 桌面壁纸软件 — 让桌面动起来。
 
-![License](https://img.shields.io/badge/license-MIT-blue)
+![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Version](https://img.shields.io/badge/version-1.15.0-7c5cff)
+![Version](https://img.shields.io/badge/version-1.16.0-7c5cff)
 
 ## 官网
 
@@ -13,10 +13,10 @@
 
 ## 下载
 
-**最新版 v1.15.0 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · 搜索快捷方式一键置顶转盘）：
+**最新版 v1.16.0 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · GPL-3.0 开源并明确禁止闭源商用）：
 
-- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.15.0/WallpaperStudio-Setup-1.15.0.exe)
-- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.15.0/WallpaperStudio-Setup-1.15.0.exe)
+- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.16.0/WallpaperStudio-Setup-1.16.0.exe)
+- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.16.0/WallpaperStudio-Setup-1.16.0.exe)
 - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
 > 已安装旧版？客户端「设置 → 检查更新」即可应用内一键更新，无需重新下载安装包。
@@ -87,6 +87,7 @@
 
 | 版本 | 国内加速下载 | GitHub 直连 |
 |---|---|---|
+| v1.16.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.16.0/WallpaperStudio-Setup-1.16.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.16.0/WallpaperStudio-Setup-1.16.0.exe) |
 | v1.15.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.15.0/WallpaperStudio-Setup-1.15.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.15.0/WallpaperStudio-Setup-1.15.0.exe) |
 | v1.14.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.14.0/WallpaperStudio-Setup-1.14.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.14.0/WallpaperStudio-Setup-1.14.0.exe) |
 | v1.13.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.13.0/WallpaperStudio-Setup-1.13.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.13.0/WallpaperStudio-Setup-1.13.0.exe) |
@@ -114,6 +115,16 @@
 | v1.1.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) |
 
 > 各版本更新内容见下方「新增功能与修复问题」分节与 [官网更新日志](https://wallpaper-studio.pages.dev/#changelog)；更早版本（v1.0.0）见 [Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)。
+
+## v1.16.0 许可证变更与客户端声明
+
+**许可证与版权**
+
+- **许可证由 MIT 改为 GNU GPL-3.0-or-later，并采用「GPL + 商业授权」双许可模式**：仓库补齐 `LICENSE`（GPL-3.0 全文）与 `COPYRIGHT.md`（版权与许可声明、禁止行为清单、商业授权方式、维权声明），README 徽章与 License 章节、package.json 的 `license` / `author` / `copyright` 元数据、官网同步
+- **明确禁止闭源商用**：修改本软件后**闭源发布或销售**（含改名、换图标、换皮、增删功能、重新打包为安装包分发而不公开源代码）、去除或篡改版权声明与署名、把本软件当作自有产品上架或投放下载站 —— 均超出许可证授权范围，构成违反 GPL 与侵犯软件著作权，权利人保留依法追究的责任
+- **客户端内同样告知**：设置 → 关于 新增「许可证与版权」行（一键查看许可证全文）；安装包安装流程新增**许可协议页**，安装前即完整载明上述条款
+
+> 说明：GPL **不禁止商业使用本身** —— 免费安装使用、学习、修改照旧；它要求的是"分发修改版必须同样开源"。需要闭源商用、OEM 预装或白标版本，请通过 Issues 洽谈商业授权。
 
 ## v1.15.0 新增功能与修复问题
 
@@ -246,4 +257,12 @@ npm run build   # 生成 Windows 安装包（dist/ 目录）
 
 ## License
 
-MIT
+本项目 **壁纸工坊 Wallpaper Studio** Copyright (C) 2026 Alinyu330，以 **GNU GPL-3.0-or-later** 发布（许可证全文见 [LICENSE](LICENSE)）。
+
+- ✅ **可以自由**：安装使用（个人 / 学习 / 企业内部使用免费，无需授权）、研究修改、再分发原版或修改版 —— 但再分发必须同样以 GPL-3.0 开源、保留版权声明与署名
+- ❌ **明确禁止（超出授权范围，构成违反许可证与著作权侵权）**：修改后**闭源发布或销售**（含改名 / 换图标 / 换皮 / 重新打包安装包）、去除或篡改版权声明与署名、把本软件当作自有产品上架或投放下载站、商业使用却不履行开源义务
+- 💼 **商业授权（双许可）**：需要闭源商用、OEM 预装、白标版本或并入非 GPL 兼容产品，请通过 [Issues](https://github.com/Alinyu330/wallpaper-studio/issues) 洽谈付费商业授权
+
+完整条款、禁止行为清单与维权声明见 [COPYRIGHT.md](COPYRIGHT.md)。安装包首次运行前的许可页同样载明上述内容。
+
+> 随附的第三方组件（mpv、Electron/Chromium、Node 依赖、内置壁纸素材）各自适用其原始许可证，版权归其原作者所有。
