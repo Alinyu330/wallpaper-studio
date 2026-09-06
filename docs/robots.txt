@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://wallpaper-studio.pages.dev/sitemap.xml

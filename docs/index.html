@@ -3,8 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>壁纸工坊 Wallpaper Studio — 免费/开源的桌面壁纸软件</title>
-<meta name="description" content="壁纸工坊：免费开源的 Windows 桌面壁纸软件。支持静态图片、动态视频（MP4/AVI/MKV）、网页与 EXE 壁纸，快捷方式转盘与文件收纳区，桌面组件（时钟/信息看板/网速监控/音量）、音律动效与性能档位，播放速度/亮度/分辨率等参数自由调节，实时预览、一键设置桌面与锁屏。">
+<title>壁纸工坊 Wallpaper Studio — 免费开源的 Windows 动态壁纸软件（壁纸引擎）</title>
+<meta name="description" content="壁纸工坊 Wallpaper Studio（wallpaper-studio）：免费开源的 Windows 动态壁纸软件（壁纸引擎）。视频/图片/网页/EXE 皆可设为壁纸，桌面组件（时钟/信息看板/网速监控/音量）、快捷方式转盘与文件收纳区、音律动效与性能档位，参数精确可调，调参时窗口自动变透明。Free & open-source live wallpaper engine for Windows — a free alternative to Wallpaper Engine.">
+<meta name="keywords" content="壁纸工坊, 壁纸引擎, 壁纸软件, 动态壁纸, 视频壁纸, 桌面壁纸, 动态桌面, 桌面美化, 免费壁纸引擎, 开源壁纸软件, Wallpaper Studio, wallpaper-studio, Wallpaper-Studio, Wallpaper Engine, WallpaperEngine, live wallpaper, video wallpaper, animated wallpaper, dynamic wallpaper, desktop wallpaper, desktop customization, desktop widgets, Windows 11 动态壁纸, Windows 10 视频壁纸, Electron, mpv, 快捷方式转盘, 文件收纳, 桌面组件, 音律动效">
+<link rel="canonical" href="https://wallpaper-studio.pages.dev/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="壁纸工坊 Wallpaper Studio">
+<meta property="og:title" content="壁纸工坊 Wallpaper Studio — 免费开源的 Windows 动态壁纸软件（壁纸引擎）">
+<meta property="og:description" content="视频/图片/网页/EXE 皆可设为壁纸，桌面组件、快捷方式转盘、文件收纳、音律动效融入桌面。免费开源、开箱即用 — Wallpaper Engine 的免费开源替代。">
+<meta property="og:url" content="https://wallpaper-studio.pages.dev/">
+<meta property="og:image" content="https://wallpaper-studio.pages.dev/shot-main.png">
+<meta property="og:locale" content="zh_CN">
 <link rel="icon" href="favicon.png" type="image/png">
 <style>
 :root {
@@ -267,6 +276,23 @@ footer {
   .shot-grid { grid-template-columns: 1fr; }
 }
 </style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "壁纸工坊 Wallpaper Studio",
+  "alternateName": ["wallpaper-studio", "壁纸工坊", "壁纸引擎"],
+  "operatingSystem": "Windows 10, Windows 11",
+  "applicationCategory": "MultimediaApplication",
+  "description": "免费开源的 Windows 动态壁纸软件（壁纸引擎）：视频/图片/网页/EXE 皆可设为壁纸，桌面组件、快捷方式转盘、文件收纳、音律动效。Free & open-source live wallpaper engine for Windows.",
+  "softwareVersion": "1.17.1",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "CNY" },
+  "downloadUrl": "https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.1/WallpaperStudio-Setup-1.17.1.exe",
+  "author": { "@type": "Person", "name": "Alinyu330", "url": "https://github.com/Alinyu330" },
+  "license": "https://github.com/Alinyu330/wallpaper-studio/blob/main/LICENSE",
+  "url": "https://wallpaper-studio.pages.dev/"
+}
+</script>
 </head>
 <body>
 
@@ -301,6 +327,7 @@ footer {
       <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio" target="_blank" rel="noopener">查看源码</a>
     </div>
     <p class="cta-note"><span>Windows 10 / 11 · x64</span><span>v1.17.1 · 约 280 MB（内置全格式解码器 + 精选壁纸）</span><span>GPL-3.0 开源 · 再分发须同源开源</span><span>下载慢？试试 <a href="https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.1/WallpaperStudio-Setup-1.17.1.exe" style="color:var(--accent2)">备用加速节点</a></span><span>国内镜像：<a href="https://wallpaper-studio.pages.dev/" style="color:var(--accent2)">wallpaper-studio.pages.dev</a></span></p>
+    <p style="text-align:center;margin:16px 0 0;font-size:13.5px;color:var(--dim)">如果这个项目对你有帮助，请在 <a href="https://github.com/Alinyu330/wallpaper-studio" target="_blank" rel="noopener" style="color:var(--accent2);text-decoration:none;font-weight:600">GitHub 上给一颗 Star ⭐</a> —— 你的 Star 能让更多需要的人发现这个项目</p>
     <div class="shot-wrap">
       <img src="shot-main.png" alt="壁纸工坊主界面 — 壁纸库、实时预览与参数调节面板" loading="eager">
     </div>
@@ -959,6 +986,7 @@ footer {
       <a class="btn btn-ghost" href="#changelog">历史版本下载</a>
       <a class="btn btn-ghost" href="https://github.com/Alinyu330/wallpaper-studio/releases" target="_blank" rel="noopener">全部版本</a>
     </div>
+    <p style="text-align:center;margin:20px 0 0;font-size:14px;color:var(--dim)">如果这个项目对你有帮助，请在 <a href="https://github.com/Alinyu330/wallpaper-studio/stargazers" target="_blank" rel="noopener" style="color:var(--accent2);text-decoration:none;font-weight:600">GitHub 上给一颗 Star ⭐</a> —— 开源作者的持续更新离不开你的支持</p>
   </div>
 </section>
 
@@ -969,6 +997,7 @@ footer {
       <a href="https://wallpaper-studio.pages.dev/" title="官网主站（Cloudflare CDN）">官网</a>
       <a href="https://alinyu330.github.io/wallpaper-studio/" target="_blank" rel="noopener">GitHub Pages</a>
       <a href="https://github.com/Alinyu330/wallpaper-studio" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/Alinyu330/wallpaper-studio/stargazers" target="_blank" rel="noopener" title="如果这个项目对你有帮助，请给一颗 Star">⭐ Star</a>
       <a href="https://github.com/Alinyu330/wallpaper-studio/releases" target="_blank" rel="noopener">发布版本</a>
       <a href="https://github.com/Alinyu330/wallpaper-studio/issues" target="_blank" rel="noopener">问题反馈</a>
     </div>
