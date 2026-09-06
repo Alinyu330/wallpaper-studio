@@ -732,6 +732,31 @@
             <span class="switch" data-page-node-id="F3DocvyNqZORmmzgIHpiRm"><input type="checkbox" id="set-smooth-loop" data-page-node-id="FxYn5CrhTdGTBGPALmYQIn"><i data-page-node-id="OhtZN9LiS8Hw2GGLhUAnie"></i></span>
           </label>
         </div>
+        <div class="settings-card">
+          <div class="card-title">透视调参</div>
+          <label class="switch-row">
+            <div>
+              <div class="row-title">调参时客户端自动变透明</div>
+              <div class="row-sub">调节壁纸、桌面组件、音律动效、快捷方式转盘、文件收纳的位置与参数时，客户端窗口淡出，直接看桌面上的实时效果；停止操作 1.5 秒后自动恢复</div>
+            </div>
+            <span class="switch"><input type="checkbox" id="set-peek"><i></i></span>
+          </label>
+          <div class="switch-row">
+            <div>
+              <div class="row-title">透视强度 <span class="title-hint" id="peek-opacity-val">30%</span></div>
+              <div class="row-sub">淡出后窗口的不透明度（10~70，越小越通透）；拖动滑杆即可现场看到强度变化</div>
+            </div>
+            <input type="range" id="set-peek-opacity" min="10" max="70" step="5" style="width:150px">
+          </div>
+          <label class="switch-row">
+            <div>
+              <div class="row-title">保持透视</div>
+              <div class="row-sub">开启后调完参数窗口不自动复原，便于在透明状态下反复对比效果；关闭此开关立即恢复窗口</div>
+            </div>
+            <span class="switch"><input type="checkbox" id="set-peek-lock"><i></i></span>
+          </label>
+          <p class="hint">桌面拖动调整模式（组件 / 动效 / 转盘 / 收纳区的「调整位置」）期间窗口全程保持透明，松开保存后自动恢复。</p>
+        </div>
         <div class="settings-card" data-page-node-id="XAqt3zVFXkP8HBZgfiDQYq">
           <div class="card-title" data-page-node-id="30y52VwbMoIT5HwhE9O9fH">快捷键</div>
           <label class="switch-row" data-page-node-id="O956ipwdeAA2oQylmFgGGE">

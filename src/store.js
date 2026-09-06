@@ -37,6 +37,11 @@ const DEFAULT_CONFIG = {
     builtinSeeded: false,       // 内置壁纸是否已入库（防止用户清空库后被反复塞回）
     hotkeyPause: true,          // 全局快捷键 Ctrl+Alt+W 暂停/恢复壁纸
     smoothLoop: true,           // 平滑循环（双引擎淡入覆盖，消除循环交界跳变）
+    tunePeek: {                 // 透视调参：调节参数时主窗淡出，直接看桌面实时效果
+      enabled: true,            // 总开关（关闭后调参不再淡出）
+      opacity: 30,              // 淡出后的窗口不透明度 %（10~70，越小越透）
+      locked: false,            // 锁定透视：调参后不自动恢复，便于反复对比
+    },
     launcher: {                 // 桌面快捷方式转盘
       enabled: false,
       x: null, y: null,        // 转盘窗口左上角屏幕物理坐标；null = 默认（主显示器底部居中）
@@ -162,6 +167,7 @@ class Store {
             items: (((raw.settings || {}).filebox || {}).items) || [],
           },
           performance: { ...DEFAULT_CONFIG.settings.performance, ...((raw.settings || {}).performance || {}) },
+          tunePeek: { ...DEFAULT_CONFIG.settings.tunePeek, ...((raw.settings || {}).tunePeek || {}) },
           audioViz: { ...DEFAULT_CONFIG.settings.audioViz, ...((raw.settings || {}).audioViz || {}) },
           board: {
             ...DEFAULT_CONFIG.settings.board,

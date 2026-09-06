@@ -4,7 +4,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Version](https://img.shields.io/badge/version-1.13.0-7c5cff)
+![Version](https://img.shields.io/badge/version-1.14.0-7c5cff)
 
 ## 官网
 
@@ -13,10 +13,10 @@
 
 ## 下载
 
-**最新版 v1.13.0 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · 收纳数据零丢失 + 空文件夹可收纳）：
+**最新版 v1.14.0 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · 调参时客户端自动变透明）：
 
-- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.13.0/WallpaperStudio-Setup-1.13.0.exe)
-- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.13.0/WallpaperStudio-Setup-1.13.0.exe)
+- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.14.0/WallpaperStudio-Setup-1.14.0.exe)
+- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.14.0/WallpaperStudio-Setup-1.14.0.exe)
 - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
 > 已安装旧版？客户端「设置 → 检查更新」即可应用内一键更新，无需重新下载安装包。
@@ -25,6 +25,7 @@
 
 | 版本 | 国内加速下载 | GitHub 直连 |
 |---|---|---|
+| v1.14.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.14.0/WallpaperStudio-Setup-1.14.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.14.0/WallpaperStudio-Setup-1.14.0.exe) |
 | v1.13.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.13.0/WallpaperStudio-Setup-1.13.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.13.0/WallpaperStudio-Setup-1.13.0.exe) |
 | v1.12.1 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.1/WallpaperStudio-Setup-1.12.1.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.1/WallpaperStudio-Setup-1.12.1.exe) |
 | v1.12.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.0/WallpaperStudio-Setup-1.12.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.12.0/WallpaperStudio-Setup-1.12.0.exe) |
@@ -50,6 +51,14 @@
 | v1.1.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) |
 
 > 各版本更新内容见下方「新增功能与修复问题」分节与 [官网更新日志](https://wallpaper-studio.pages.dev/#changelog)；更早版本（v1.0.0）见 [Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)。
+
+## v1.14.0 新增功能与修复问题
+
+**新增功能**
+
+- **透视调参 — 调参数时客户端自动变透明**：调节壁纸、桌面组件、音律动效、快捷方式转盘、文件收纳各自的位置与各项参数时（拖滑杆、改数值、点预设、点九宫格），客户端窗口立即淡出到设定的不透明度，桌面上的真实效果一眼可见，停止操作 1.5 秒后自动复原，调完即所见
+- **桌面拖动调整模式全程透视**：组件 / 音律动效 / 转盘 / 收纳区点「调整位置」后，整段拖动期间客户端保持透明不抢视线，松手保存即自动恢复；淡出后的窗口仍可正常点击，不需要先退出调整模式
+- **透视强度与锁定可调**（设置 → 透视调参）：淡出后的窗口不透明度 10~70 可调（越小越通透，拖动强度滑杆即可现场预览），并提供「保持透视」锁定（调完参数窗口不复原，便于在透明状态下反复对比）与总开关；关闭开关时窗口立即恢复不透明
 
 ## v1.13.0 新增功能与修复问题
 
@@ -140,6 +149,8 @@
 - **循环无感升级**（v1.6.0）：只在视频结尾定格后开始溶解（静止帧叠加，肉眼无感）；结尾 70ms 高频轮询 + 淡入 33ms 专用步进，定格停顿压缩到 0.1s 级、淡入 \~30fps 平滑无跳变，长时间循环稳定如一
 
 - **参数精确调节**：播放速度（0.25×–4×）、音量、亮度、对比度、饱和度；每项参数均有固定调整点一键跳转 + 数值精确输入
+
+- **透视调参**（v1.14.0 新增）：调节壁纸 / 桌面组件 / 音律动效 / 快捷方式转盘 / 文件收纳的位置与参数时，客户端窗口自动变透明，桌面上的实时效果直接可见，停止操作 1.5 秒后复原；桌面拖动调整模式期间全程保持透明；强度 10~70 可调并支持「保持透视」锁定
 
 - **实时预览**：按主显示器真实比例预览；预览区可放大缩小；支持弹出独立预览窗口，参数实时同步
 

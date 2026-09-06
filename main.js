@@ -1472,6 +1472,14 @@ function setupIpc() {
     if (mainWindow.isMaximized()) mainWindow.unmaximize(); else mainWindow.maximize();
   });
   ipcMain.on('win:close', () => mainWindow.hide());
+  // 透视调参：调参时把主窗整体淡出（Windows 走分层窗口，淡出后仍可正常点击），
+  // 停止调参后由渲染层发回 1 恢复不透明。
+  ipcMain.on('win:set-opacity', (_e, v) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const o = Number(v);
+    if (!Number.isFinite(o)) return;
+    try { mainWindow.setOpacity(Math.min(1, Math.max(0.1, o))); } catch (_) {}
+  });
 
   // 打开文件所在位置
   ipcMain.handle('shell:show-in-folder', (_e, p) => shell.showItemInFolder(p));

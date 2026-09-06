@@ -74,6 +74,8 @@ contextBridge.exposeInMainWorld('api', {
   minimize: () => ipcRenderer.send('win:minimize'),
   maximize: () => ipcRenderer.send('win:maximize'),
   close: () => ipcRenderer.send('win:close'),
+  // 透视调参：调节参数时把主窗淡出以便直接看桌面效果（0.1~1）
+  setWindowOpacity: (v) => ipcRenderer.send('win:set-opacity', v),
   // 事件订阅（返回取消函数）
   on: (channel, cb) => {
     const listener = (_e, payload) => cb(payload);

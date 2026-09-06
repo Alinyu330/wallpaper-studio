@@ -139,6 +139,7 @@ async function init() {
       setAdjustBtnUi('#btn-av-adjust', '#av-adjust-hint', avAdjusting, '动效');
       if (!on) renderAudioVizSettings();
     } else {
+      peekHold(`组件:${key}`, !!on);
       wgAdjustingKey = on ? key : (wgAdjustingKey === key ? null : wgAdjustingKey);
       renderWidgetsSettings();
     }
@@ -1216,6 +1217,7 @@ function highlightXyPresets() {
 
 /** 「调整位置」按钮与提示文案同步（主进程状态回传后调用） */
 function setAdjustBtnUi(btnId, hintId, on, noun = '目标') {
+  peekHold(noun, !!on);
   const btn = $(btnId);
   if (btn) btn.textContent = on ? '结束调整' : '开始调整';
   const hint = $(hintId);
@@ -2445,6 +2447,7 @@ function renderSettingsPage() {
   $('#set-smooth-loop').checked = state.settings.smoothLoop !== false;
   buildPerfAdv($('#perf-adv'));
   syncPerfTierUi();
+  paintPeekUi();
 }
 
 function bindSettings() {
@@ -2958,6 +2961,94 @@ function bindWindowControls() {
   $('#btn-close').addEventListener('click', () => window.api.close());
 }
 
+// ---------- 透视调参 ----------
+// 调节壁纸 / 桌面组件 / 音律动效 / 快捷方式转盘 / 文件收纳的位置与参数时，
+// 客户端窗口整体淡出，让下面的桌面实时效果直接可见；停止操作后自动恢复。
+const PEEK_IDLE_MS = 1500;
+const PEEK_SCOPE = '.settings-card, #params-panel';
+const PEEK_INPUT = 'input[type="range"], input[type="number"], input[type="checkbox"]';
+const PEEK_PICKER = '.preset-chip, .seg button, .pos-cell';
+const peek = { pulsing: false, applied: 1, holders: new Set(), timer: 0 };
+
+const peekCfg = () => state.settings?.tunePeek || {};
+
+/** 把「该不该淡出」折算成窗口不透明度下发（同值不重复发） */
+function peekSync() {
+  const cfg = peekCfg();
+  const fade = !!cfg.enabled && (peek.pulsing || peek.holders.size > 0);
+  const pct = Math.min(70, Math.max(10, Number(cfg.opacity) || 30));
+  const target = fade ? pct / 100 : 1;
+  if (target === peek.applied) return;
+  peek.applied = target;
+  window.api.setWindowOpacity(target);
+}
+
+/** 一次调参动作：淡出，空闲 PEEK_IDLE_MS 后恢复；「保持透视」时不自动恢复 */
+function peekPulse() {
+  if (!peekCfg().enabled) return;
+  clearTimeout(peek.timer);
+  peek.pulsing = true;
+  peekSync();
+  if (!peekCfg().locked) {
+    peek.timer = setTimeout(() => { peek.pulsing = false; peekSync(); }, PEEK_IDLE_MS);
+  }
+}
+
+/** 桌面拖动调整模式（组件 / 动效 / 转盘 / 收纳区）：整段拖动期间保持淡出 */
+function peekHold(name, on) {
+  if (on) peek.holders.add(name); else peek.holders.delete(name);
+  peekSync();
+}
+
+function paintPeekUi() {
+  const sw = $('#set-peek');
+  const rng = $('#set-peek-opacity');
+  const lock = $('#set-peek-lock');
+  const val = $('#peek-opacity-val');
+  const c = peekCfg();
+  if (sw) sw.checked = !!c.enabled;
+  if (rng) rng.value = Math.min(70, Math.max(10, Number(c.opacity) || 30));
+  if (lock) lock.checked = !!c.locked;
+  if (val) val.textContent = `${rng ? rng.value : 30}%`;
+}
+
+function bindPeek() {
+  const sw = $('#set-peek');
+  const rng = $('#set-peek-opacity');
+  const lock = $('#set-peek-lock');
+  const save = (patch) => {
+    state.settings.tunePeek = { ...peekCfg(), ...patch };
+    window.api.updateSettings({ tunePeek: state.settings.tunePeek });
+    paintPeekUi();
+    peekSync();
+  };
+  paintPeekUi();
+  sw?.addEventListener('change', () => {
+    if (!sw.checked) { clearTimeout(peek.timer); peek.pulsing = false; peek.holders.clear(); }
+    save({ enabled: sw.checked });
+    toast(sw.checked ? '已开启透视调参：调节参数时窗口自动变透明' : '已关闭透视调参');
+  });
+  rng?.addEventListener('input', () => save({ opacity: Number(rng.value) }));
+  lock?.addEventListener('change', () => {
+    if (!lock.checked) { clearTimeout(peek.timer); peek.pulsing = false; }
+    save({ locked: lock.checked });
+    toast(lock.checked ? '已锁定透视：调完参数窗口保持透明，便于反复对比' : '已解除锁定，调参停止后自动恢复窗口');
+  });
+
+  // 委托监听：只有命中「调参控件」才淡出。总开关与锁定开关本身排除，
+  // 否则刚把透视打开窗口就闪没，看不清点在哪个开关上。
+  const onTune = (e) => {
+    const t = e.target;
+    if (!t || !t.closest) return;
+    if (t.id === 'set-peek' || t.id === 'set-peek-lock') return;
+    const hit = e.type === 'click' ? t.closest(PEEK_PICKER) : (t.matches && t.matches(PEEK_INPUT));
+    if (hit && t.closest(PEEK_SCOPE)) peekPulse();
+  };
+  for (const type of ['input', 'change', 'click']) {
+    document.addEventListener(type, onTune, true);
+  }
+}
+
 // ---------- Toast ----------
 let toastTimer = null;
 function toast(msg, type = '') {
@@ -2987,4 +3078,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   safeBind('bindLauncherSettings', bindLauncherSettings);
   safeBind('bindFileboxSettings', bindFileboxSettings);
   safeBind('bindAudioVizSettings', bindAudioVizSettings);
+  safeBind('bindPeek', bindPeek);
 });
