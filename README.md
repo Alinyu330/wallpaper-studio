@@ -6,7 +6,7 @@
 
 ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Version](https://img.shields.io/badge/version-1.17.1-7c5cff)
+![Version](https://img.shields.io/badge/version-1.17.2-7c5cff)
 
 ## 官网
 
@@ -15,10 +15,10 @@
 
 ## 下载
 
-**最新版 v1.17.1 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · GPL-3.0 开源并明确禁止闭源商用）：
+**最新版 v1.17.2 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · GPL-3.0 开源并明确禁止闭源商用）：
 
-- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.1/WallpaperStudio-Setup-1.17.1.exe)
-- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.1/WallpaperStudio-Setup-1.17.1.exe)
+- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.2/WallpaperStudio-Setup-1.17.2.exe)
+- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.2/WallpaperStudio-Setup-1.17.2.exe)
 - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
 > 已安装旧版？客户端「设置 → 检查更新」即可应用内一键更新，无需重新下载安装包。
@@ -89,6 +89,7 @@
 
 | 版本 | 国内加速下载 | GitHub 直连 |
 |---|---|---|
+| v1.17.2 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.2/WallpaperStudio-Setup-1.17.2.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.2/WallpaperStudio-Setup-1.17.2.exe) |
 | v1.17.1 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.1/WallpaperStudio-Setup-1.17.1.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.1/WallpaperStudio-Setup-1.17.1.exe) |
 | v1.17.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.0/WallpaperStudio-Setup-1.17.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.0/WallpaperStudio-Setup-1.17.0.exe) |
 | v1.16.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.16.0/WallpaperStudio-Setup-1.16.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.16.0/WallpaperStudio-Setup-1.16.0.exe) |
@@ -119,6 +120,14 @@
 | v1.1.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) |
 
 > 各版本更新内容见下方「新增功能与修复问题」分节与 [官网更新日志](https://wallpaper-studio.pages.dev/#changelog)；更早版本（v1.0.0）见 [Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)。
+
+## v1.17.2 卸载后开机自启残留修复
+
+**修复问题**
+
+- 修复卸载客户端后重启电脑，「客户端突然启动、壁纸还在播放」的问题 —— 根因是卸载器清理开机自启时删错了注册表值名：Electron 在 Windows 上写入 `HKCU\...\Run` 的登录项**值名是应用 ID（AppUserModelId）**（本应用为 `com.alinyu.wallpaperstudio`，未设自定义 ID 的历史版本为 `electron.app.壁纸工坊`），而旧卸载器删除的是应用名「壁纸工坊 / wallpaper-studio」—— 从未命中真实登录项，卸载后自启项必然残留
+- 修复「设置里已关闭开机自启，重启后客户端仍自启」的问题 —— `setLoginItemSettings` 只管理当前值名，历史版本写错值名的残留项关不掉；现客户端启动时自动清理「历史值名 + 数据指向本应用 exe」的残留项（与自启开关状态无关），卸载器侧同步按真实值名静态删除 + 枚举 Run 键按安装路径前缀兜底
+- 多安装环境互不误伤：卸载 A 处安装不会清掉 B 处安装的自启项（按安装路径精确匹配）；本修复已用 NSIS 隔离模拟 + 注册表探针双向验证（应删全删、应留全留）
 
 ## v1.17.1 透视恢复修复
 
