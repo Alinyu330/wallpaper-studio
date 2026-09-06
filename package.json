@@ -25,6 +25,11 @@
   "dependencies": {
     "koffi": "^2.9.0"
   },
+  "overrides": {
+    "config-file-ts": {
+      "glob": "^10.5.0"
+    }
+  },
   "build": {
     "appId": "com.alinyu.wallpaperstudio",
     "productName": "壁纸工坊",
