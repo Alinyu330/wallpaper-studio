@@ -11,9 +11,13 @@ $ErrorActionPreference = 'Stop'
 $dest = if ($env:MPV_DEST) { $env:MPV_DEST } else { Join-Path $PSScriptRoot '..\assets\mpv' }
 $mpvExe = Join-Path $dest 'mpv.exe'
 
-# Pinned mpv release tag. v0.41.0 assets are immutable; the rolling "git-release"
+# Pinned mpv release. v0.41.0 assets are immutable; the rolling "git-release"
 # nightly is a prerelease and is deliberately not used.
 $pinTag = if ($env:MPV_TAG) { $env:MPV_TAG } else { 'v0.41.0' }
+
+# NOTE: the official Windows asset under a *stable* tag still reports a dev
+# build string, so the tag and the reported version are intentionally separate.
+$pinVersion = if ($env:MPV_VERSION) { $env:MPV_VERSION } else { 'v0.41.0-dev-g41f6a6450' }
 
 function Get-MpvVersion($exe) {
   if (-not (Test-Path $exe)) { return '' }
@@ -25,11 +29,11 @@ function Get-MpvVersion($exe) {
 
 if (Test-Path $mpvExe) {
   $have = Get-MpvVersion $mpvExe
-  if ($have -eq $pinTag) {
+  if ($have -eq $pinVersion) {
     Write-Host "mpv $have present: $mpvExe (matches pin)" -ForegroundColor Green
     exit 0
   }
-  Write-Host "existing mpv is '$(if ($have) { $have } else { 'unknown' })' but pinned is '$pinTag' - re-downloading" -ForegroundColor Yellow
+  Write-Host "existing mpv is '$(if ($have) { $have } else { 'unknown' })' but pinned is '$pinVersion' - re-downloading" -ForegroundColor Yellow
 }
 
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
@@ -87,5 +91,5 @@ Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
 
 if (-not (Test-Path $mpvExe)) { throw 'unexpected: mpv.exe still missing' }
 $got = Get-MpvVersion $mpvExe
-if ($got -ne $pinTag) { throw "downloaded mpv reports '$(if ($got) { $got } else { 'unknown' })' but pin requires '$pinTag'" }
+if ($got -ne $pinVersion) { throw "downloaded mpv reports '$(if ($got) { $got } else { 'unknown' })' but pin requires '$pinVersion'" }
 Write-Host "mpv $got ready: $mpvExe" -ForegroundColor Green
