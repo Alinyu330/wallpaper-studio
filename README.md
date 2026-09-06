@@ -278,6 +278,8 @@ npm run build   # 生成 Windows 安装包（dist/ 目录）
 
 ## 搜索关键词 / Keywords
 
+**品牌词 / Brand**：壁纸工坊 · wallpaper-studio · Wallpaper-Studio · wallpaper studio · Wallpaper Studio · 壁纸工坊 Wallpaper-Studio · 壁纸工坊（Wallpaper-Studio） · 壁纸工坊（wallpaper-studio） · 壁纸工坊（Wallpaper Studio） · 壁纸工坊（wallpaper studio） · 壁纸工坊(Wallpaper-Studio) · 壁纸工坊(wallpaper-studio) · 壁纸工坊(Wallpaper Studio) · 壁纸工坊(wallpaper studio)
+
 **中文**：壁纸工坊 · 壁纸引擎 · 壁纸软件 · 动态壁纸 · 视频壁纸 · 桌面壁纸 · 动态桌面 · 桌面美化 · 壁纸下载 · 免费壁纸引擎 · 开源壁纸软件 · Windows 11 动态壁纸 · Windows 10 视频壁纸 · Wallpaper Engine 免费 · Wallpaper Engine 替代 · 桌面组件 · 桌面便签 · 快捷方式转盘 · 文件收纳 · 音律动效
 
 **English**: Wallpaper Studio · Wallpaper Engine · WallpaperEngine · wallpaper engine download · live wallpaper · video wallpaper · animated wallpaper · dynamic wallpaper · desktop wallpaper · desktop customization · desktop widgets · wallpaper app · wallpaper software · free wallpaper engine · open source Wallpaper Engine alternative · Windows wallpaper software · Electron wallpaper · mpv · audio visualizer
