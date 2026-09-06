@@ -1,22 +1,42 @@
-# get-mpv.ps1 - Download mpv player into assets/mpv/ (for local development)
+# get-mpv.ps1 - Download the pinned mpv player into assets/mpv/ (for local development)
 # The repo does NOT include the mpv binary (exceeds GitHub 100MB file limit).
 # Run this after cloning:
 #   powershell -ExecutionPolicy Bypass -File scripts/get-mpv.ps1
 # Override destination for testing: $env:MPV_DEST = 'C:\temp\mpv'
+# Bump the pinned release with:      $env:MPV_TAG = 'v0.42.0'
+# The pin keeps local and CI build inputs identical; an existing binary that does
+# not report the pinned version is replaced rather than silently reused.
 
 $ErrorActionPreference = 'Stop'
 $dest = if ($env:MPV_DEST) { $env:MPV_DEST } else { Join-Path $PSScriptRoot '..\assets\mpv' }
 $mpvExe = Join-Path $dest 'mpv.exe'
 
+# Pinned mpv release tag. v0.41.0 assets are immutable; the rolling "git-release"
+# nightly is a prerelease and is deliberately not used.
+$pinTag = if ($env:MPV_TAG) { $env:MPV_TAG } else { 'v0.41.0' }
+
+function Get-MpvVersion($exe) {
+  if (-not (Test-Path $exe)) { return '' }
+  try {
+    $line = (& $exe --version 2>$null | Select-Object -First 1)
+    return ("" + $line -replace '^mpv\s+', '' -replace '\s+Copyright.*$', '').Trim()
+  } catch { return '' }
+}
+
 if (Test-Path $mpvExe) {
-  Write-Host "mpv already present: $mpvExe (delete the folder to force update)" -ForegroundColor Green
-  exit 0
+  $have = Get-MpvVersion $mpvExe
+  if ($have -eq $pinTag) {
+    Write-Host "mpv $have present: $mpvExe (matches pin)" -ForegroundColor Green
+    exit 0
+  }
+  Write-Host "existing mpv is '$(if ($have) { $have } else { 'unknown' })' but pinned is '$pinTag' - re-downloading" -ForegroundColor Yellow
 }
 
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
-Write-Host 'Fetching latest mpv release info...'
-$release = Invoke-RestMethod 'https://api.github.com/repos/mpv-player/mpv/releases/latest'
+Write-Host "Fetching mpv release $pinTag ..."
+$release = Invoke-RestMethod "https://api.github.com/repos/mpv-player/mpv/releases/tags/$pinTag"
+if (-not $release -or -not $release.assets) { throw "release tag $pinTag not found" }
 $assets = $release.assets
 
 # Asset naming changed across versions:
@@ -66,4 +86,6 @@ Remove-Item $tmp -Force -ErrorAction SilentlyContinue
 Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
 
 if (-not (Test-Path $mpvExe)) { throw 'unexpected: mpv.exe still missing' }
-Write-Host "mpv ready: $mpvExe" -ForegroundColor Green
+$got = Get-MpvVersion $mpvExe
+if ($got -ne $pinTag) { throw "downloaded mpv reports '$(if ($got) { $got } else { 'unknown' })' but pin requires '$pinTag'" }
+Write-Host "mpv $got ready: $mpvExe" -ForegroundColor Green
