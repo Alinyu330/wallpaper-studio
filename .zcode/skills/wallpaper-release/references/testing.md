@@ -81,6 +81,8 @@ module.exports = async (ctx) => {
 
 ## 5. 已知坑（历史实测）
 
+- **computer-use 操作前必须核对实例身份**：用户可能自己开着 dev 实例（`electron.exe D:\WallPaper`，父进程 explorer、真实 AppData、内存中是旧代码）。测试实例的判定标准：命令行带 `--remote-debugging-port=9223`、子进程 `--user-data-dir=...tmp-smoke-data`。GUI 操作前用 `Get-CimInstance Win32_Process` 核对 PID；前置窗口用 `[Microsoft.VisualBasic.Interaction]::AppActivate(<pid>)`（两实例窗口标题相同，不能按标题激活）。
+- **contextBridge 对象不可写，CDP 断言无法包装 `window.api.*`**：赋值会静默失败（非严格模式），且用「函数名为空」校验包装是否生效会被 contextBridge 的匿名透传函数骗过。改读渲染层内部状态镜像（如 `peek.applied` 在 `peekSync` 每次下发前同步赋值，忠实记录下发的透明度），再配 OS 级全屏截图验证真实窗口淡出 / 复原效果；哨兵值 -1 会意外满足 `<1` 类断言，比较必须用显式区间。
 - **本地构建卡死在 packaging**：残留 `dist/win-unpacked` 会让 electron-builder 无限期挂起。处置：终止进程树 `MSYS_NO_PATHCONV=1 taskkill /F /T /PID <主进程>`（Git Bash 下 `//F` 写法失效）→ `rm -rf dist/win-unpacked` → 重跑（有缓存 1 分钟内完成）。
 - **构建前必须确认 `assets/mpv/` 存在**（没有则先 `npm run get-mpv`），否则安装包缺视频内核。
 - **应用启动即退出**：多为单实例锁冲突（用了与正式实例相同的数据目录）或端口被占。本脚本已用隔离数据目录规避锁冲突；换端口用 `--port`。
