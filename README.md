@@ -6,7 +6,7 @@
 
 ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Version](https://img.shields.io/badge/version-1.17.2-7c5cff)
+![Version](https://img.shields.io/badge/version-1.18.0-7c5cff)
 
 ## 官网
 
@@ -15,10 +15,10 @@
 
 ## 下载
 
-**最新版 v1.17.2 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · GPL-3.0 开源并明确禁止闭源商用）：
+**最新版 v1.18.0 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · GPL-3.0 开源并明确禁止闭源商用）：
 
-- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.2/WallpaperStudio-Setup-1.17.2.exe)
-- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.2/WallpaperStudio-Setup-1.17.2.exe)
+- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.0/WallpaperStudio-Setup-1.18.0.exe)
+- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.0/WallpaperStudio-Setup-1.18.0.exe)
 - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
 > 已安装旧版？客户端「设置 → 检查更新」即可应用内一键更新，无需重新下载安装包。
@@ -45,7 +45,7 @@
 
 - **应用内一键更新**（v1.8.1 新增）：检查更新发现新版本即弹出新版功能介绍窗口（更新日志直读发布页 Release Notes）；点「立即更新」在客户端内直接下载安装包（实时进度、可随时取消），下载完成自动静默安装并退出 — 全程无需跳转网页手动下载
 
-- **音律动效**（v1.7.0，v1.9.0 重写）：系统音频实时频谱可视化，随音乐律动；绘制改为「离屏辉光层 + 两次合成」，每帧上百次高斯模糊填充降为 2 次图像合成，帧率可限（15/24/30/60/不限）；镜像倒影与主体同层绘制，彻底消除倒影区残影 / 撕裂；条形频谱 + 霓虹样式 + 渐变色、大小缩放、灵敏度调节，融入壁纸不突兀
+- **音律动效**（v1.7.0，v1.9.0 重写，v1.18.0 参数与交互）：系统音频实时频谱可视化，随音乐律动；绘制走「离屏辉光层 + 两次合成」，每帧上百次高斯模糊填充降为 2 次图像合成，帧率可限（15/24/30/60/不限）；镜像倒影与主体同层绘制，彻底消除倒影区残影 / 撕裂。样式：频谱条 / 波浪 / 圆环 / 山峦 / 圆点 / 同心环 / LED块 / 霓虹。**v1.18.0 新增**：每种样式可调**数量**（柱数 / 灯管数 / 采样点 / 峰点数 / 列数 / 放射条数 / 环数，0 = 自动）、**高度**（0.3~2.0）与**宽度**（柱状类为内容宽度占窗口比例，圆环类为整体尺寸）；**鼠标划过交互** —— 光标附近柱子拉高、波形起涟漪、山体隆起、点阵与 LED 光圈内额外点亮、同心环出现跟手亮段、圆环按角向拉长，另有光标光晕与反馈圆环（动效层仍鼠标穿透，桌面图标照常点击）；渐变方式扩展为**纯色 / 亮色 / 方向多色**，多色支持 8 个方向与 2~6 种自定义颜色（含彩虹 / 日落 / 极光 / 霓虹 / 海洋 / 蜜桃 6 组预设），颜色沿方向依次排布
 
 - **桌面 DIY 组件**（v1.2.0，v1.7.0 重构，v1.9.0~v1.11.0 持续增强，v1.17.0 看板编辑修复）：时钟（12/24 小时制点击切换）、信息看板（日历 / 天气按 IP 自动定位 / 待办，桌面直接编辑）、系统状态监控（网速 / CPU / GPU / 内存）、音量控制条、音律动效 — 每个组件独立小窗口，无边框融入壁纸；毛玻璃 / 液态玻璃样式与全局调色；新增「调整模式」：客户端一键进入拖动调整、桌面默认只显示不误触；组件 / 音律动效 / 转盘均支持九宫格快速定位与拖动吸附
 
@@ -89,6 +89,7 @@
 
 | 版本 | 国内加速下载 | GitHub 直连 |
 |---|---|---|
+| v1.18.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.0/WallpaperStudio-Setup-1.18.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.0/WallpaperStudio-Setup-1.18.0.exe) |
 | v1.17.2 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.2/WallpaperStudio-Setup-1.17.2.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.2/WallpaperStudio-Setup-1.17.2.exe) |
 | v1.17.1 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.1/WallpaperStudio-Setup-1.17.1.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.1/WallpaperStudio-Setup-1.17.1.exe) |
 | v1.17.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.0/WallpaperStudio-Setup-1.17.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.0/WallpaperStudio-Setup-1.17.0.exe) |
@@ -120,6 +121,25 @@
 | v1.1.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) |
 
 > 各版本更新内容见下方「新增功能与修复问题」分节与 [官网更新日志](https://wallpaper-studio.pages.dev/#changelog)；更早版本（v1.0.0）见 [Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)。
+
+## v1.18.0 音律动效参数、鼠标交互与方向多色渐变
+
+**新增功能**
+
+- 音律动效「数量 / 高度 / 宽度」参数（8 种样式各自生效）：数量 = 元素个数（频谱条柱数 8~160、霓虹灯管数 8~128、波浪采样点 32~256、山峦峰点数 8~160、圆点列数 6~64、LED块列数 6~56、圆环放射条数 16~180、同心环环数 1~6），填 0 即按样式默认值自动；高度 = 内容高度系数 0.3~2.0（纵向缩放）；宽度 —— 柱状 / 波浪 / 点阵类为内容宽度占窗口比例 0.2~1.0（同一数量下越宽柱子越粗），圆环 / 同心环为整体尺寸系数 0.3~2.0（圆形样式由宽度统一控制尺寸，「高度」自动置灰并给出说明）。切换样式后滑杆范围、固定调整点与说明文字自动对应
+- 音律动效鼠标划过交互：鼠标扫过动效时产生对应反馈 —— 光标附近的柱子被拉高（≤1.3 倍）、波形叠加从光标扩散的涟漪、山体局部隆起并加粗顶部亮线、圆点与 LED 块在光圈内额外点亮、同心环出现跟手亮段、圆环按角向拉长，另有通用的光标光晕与反馈圆环。交互强度 0.2~2.0 可调，可整体开关。**动效层仍然保持鼠标穿透**（位置由主进程光标轮询推送，不接管鼠标事件），桌面图标照常点击、不挡任何操作
+- 音律动效方向多色渐变：渐变方式扩展为「纯色 / 亮色 / 方向多色」；方向多色支持 **8 个方向**（→ ← ↓ ↑ 与四个斜向）与 **2~6 种颜色**自定义（点色块改色、✕ 删色、＋ 加色），并附彩虹 / 日落 / 极光 / 霓虹 / 海洋 / 蜜桃 6 组配色预设。颜色沿指定方向依次排布 —— 从左往右、从上往下都能依次呈现多种颜色（山体填充与顶部亮线同源铺色）
+
+**修复与优化**
+
+- 修复动效窗创建后输入轮询最长延迟约 4 秒才启动的问题 —— 这段时间里桌面组件点不动、动效划过也没有反馈；现窗口创建即拉起轮询（本次功能测试实测发现并修复）
+- 数量 / 高度 / 宽度调大后内容不再溢出窗口：超出部分与倒影统一等比回收，主体与倒影水面线始终对齐，不会出现倒影错位或裁切
+- 兼容性：旧配置的 `gradient` 字段继续生效（未设新的渐变方式时按旧字段推导），「纯色 / 亮色 + 默认参数」下的观感与 v1.17.2 保持一致，升级无需任何手动调整
+
+**测试**
+
+- 真机功能测试 33 项全部通过：应用启动与 8 个页面、新控件齐全与随样式联动、真实 UI 操作落盘到 config.json、动效窗创建与画布初始化、真实鼠标移入 / 移出 / 窗内移动的交互推送（含 DPI 缩放换算校验）、动效窗鼠标穿透不变、关闭动效后窗口销毁、渲染进程与 engine.log 零错误
+- 渲染层离线验证 100 项全部通过：数量 / 高度 / 宽度递增、8 个方向的渐变走向与色标、山体填充取向、交互开关成对断言、8 样式 × 8 方向无异常、主进程交互推送的进出 / 节流 / 开关互斥
 
 ## v1.17.2 卸载后开机自启残留修复
 

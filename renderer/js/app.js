@@ -1599,6 +1599,8 @@ function bindBoardEditor() {
 // ---------- 音律动效 ----------
 const AV_DEFAULTS = {
   enabled: false, style: 'bars', color: '#7c5cff', gradient: true,
+  gradType: 'auto', gradDir: 'lr', gradColors: [],
+  count: 0, height: 1, width: 0, hover: true, hoverStrength: 1,
   opacity: 0.85, size: 1, pos: 'bottom', posX: null, posY: null,
   mirror: true, sensitivity: 1.2,
   brightness: 100, contrast: 100, saturate: 100, mirrorOpacity: 22, fps: 30,
@@ -1614,6 +1616,88 @@ const AV_COLORS = [
   { c: '#ff5c8a', n: '霓虹粉' },
   { c: '#f4f6ff', n: '月光白' },
 ];
+
+/**
+ * 各样式「数量」的取值范围与文案。
+ * ★ 必须与 renderer/widgets.html 的 AV_STYLE_PARAMS 保持一致（渲染页读的是同一份语义，
+ *   改一边必须同步另一边，否则设置页显示的「自动值」与动效实际用的值会对不上）。
+ */
+const AV_STYLE_PARAMS = {
+  bars:     { count: { label: '柱数', def: 64, min: 8, max: 160, step: 1 } },
+  neon:     { count: { label: '灯管数', def: 48, min: 8, max: 128, step: 1 } },
+  wave:     { count: { label: '采样点', def: 192, min: 32, max: 256, step: 8 } },
+  mountain: { count: { label: '峰点数', def: 64, min: 8, max: 160, step: 1 } },
+  dots:     { count: { label: '列数', def: 32, min: 6, max: 64, step: 1 } },
+  blocks:   { count: { label: '列数', def: 28, min: 6, max: 56, step: 1 } },
+  circle:   { count: { label: '放射条数', def: 96, min: 16, max: 180, step: 1 } },
+  rings:    { count: { label: '环数', def: 3, min: 1, max: 6, step: 1 } },
+};
+const AV_CIRCULAR = (st) => st === 'circle' || st === 'rings';
+const AV_SPAN_DEF = 0.86;   // 柱状类默认内容宽度占窗口比例（与渲染页同值）
+/* 渐变方向（8 个方向：→ ← ↓ ↑ 与四个斜向） */
+const AV_GRAD_DIRS = [
+  { k: 'lr', n: '→', t: '从左往右' }, { k: 'rl', n: '←', t: '从右往左' },
+  { k: 'tb', n: '↓', t: '从上往下' }, { k: 'bt', n: '↑', t: '从下往上' },
+  { k: 'tlbr', n: '↘', t: '左上往右下' }, { k: 'bltr', n: '↗', t: '左下往右上' },
+  { k: 'trbl', n: '↙', t: '右上往左下' }, { k: 'brtl', n: '↖', t: '右下往左上' },
+];
+/* 方向多色的内置配色预设 */
+const AV_GRAD_PRESETS = [
+  { n: '彩虹', c: ['#ff4d6d', '#ffb15c', '#ffe066', '#34d399', '#4f8cff', '#a855f7'] },
+  { n: '日落', c: ['#ff5c8a', '#ff8f4d', '#ffd166'] },
+  { n: '极光', c: ['#22d3ee', '#34d399', '#a3e635'] },
+  { n: '霓虹', c: ['#7c5cff', '#ff5c8a', '#22d3ee'] },
+  { n: '海洋', c: ['#0ea5e9', '#22d3ee', '#7c5cff'] },
+  { n: '蜜桃', c: ['#ff9a8b', '#ffd3a5', '#f4f6ff'] },
+];
+const AV_GRAD_FALLBACK = ['#7c5cff', '#4f8cff', '#22d3ee', '#34d399']; // 未自定义时的默认序列
+
+/** 渐变方式：与渲染页 avGradMode 同逻辑（旧字段 gradient 作为兜底） */
+function avGradMode(av) {
+  const t = av && av.gradType;
+  if (t === 'none' || t === 'auto' || t === 'dir') return t;
+  return (av && av.gradient === false) ? 'none' : 'auto';
+}
+/** 多色序列（不足 2 色时以默认序列补齐显示） */
+function avGradColors(av) {
+  const list = Array.isArray(av && av.gradColors)
+    ? av.gradColors.filter((x) => /^#[0-9a-f]{6}$/i.test(String(x)))
+    : [];
+  return list.length >= 2 ? list.slice(0, 6) : AV_GRAD_FALLBACK.slice();
+}
+
+/** 当前样式下「数量 / 高度 / 宽度」的滑杆范围、默认值与文案 */
+function avParamSpec(style) {
+  const st = AV_STYLE_PARAMS[style] ? style : 'bars';
+  const cnt = AV_STYLE_PARAMS[st].count;
+  const circular = AV_CIRCULAR(st);
+  return {
+    count: {
+      min: 0, max: cnt.max, step: cnt.step,
+      val: (v) => (v > 0 ? `${v}` : '自动'),
+      sub: `0 = 自动（${cnt.label}默认 ${cnt.def}，可调 ${cnt.min}~${cnt.max}）`,
+      presets: [0, cnt.def, Math.round((cnt.def + cnt.max) / 2), cnt.max],
+    },
+    height: {
+      min: 0.3, max: 2, step: 0.05, off: circular,
+      val: (v) => `${Number(v).toFixed(2)}×`,
+      sub: circular
+        ? '圆环 / 同心环是圆形样式，纵向不单独缩放 —— 尺寸统一用下方「宽度」调（此项对该样式不生效）'
+        : '0.3~2.0 内容高度系数（纵向）。调大后若超窗口会被自动等比回收，不会裁切',
+      presets: [0.6, 0.8, 1, 1.3, 1.6],
+    },
+    width: {
+      min: circular ? 0.3 : 0.2, max: circular ? 2 : 1, step: 0.02,
+      val: (v) => (circular
+        ? `${Number(v > 0 ? v : 1).toFixed(2)}×`
+        : `${Math.round((v > 0 ? v : AV_SPAN_DEF) * 100)}%`),
+      sub: circular
+        ? '0.3~2.0 整体尺寸系数（0 = 自动 1.00×）：半径与放射长度等比缩放'
+        : `0.2~1.0 内容宽度占窗口比例（0 = 自动 ${Math.round(AV_SPAN_DEF * 100)}%）。数量不变时越宽柱子越粗，越窄越细`,
+      presets: circular ? [0.6, 0.8, 1, 1.4, 1.8] : [0.3, 0.5, 0.7, AV_SPAN_DEF, 1],
+    },
+  };
+}
 
 /* 九宫格快速定位槽位 → 音律动效中心点（屏幕百分比 posX/posY） */
 const AV_GRID = {
@@ -1634,8 +1718,47 @@ function renderAudioVizSettings() {
   $$('#av-style button').forEach(b => b.classList.toggle('active', b.dataset.style === av.style));
   // 位置：手动拖动过（posY 非空）则预设不亮，由拖动位置接管
   $$('#av-pos button').forEach(b => b.classList.toggle('active', av.posY == null && b.dataset.pos === av.pos));
-  $$('#av-gradient button').forEach(b => b.classList.toggle('active', (b.dataset.gradient === 'on') === !!av.gradient));
+  // 渐变：方式（纯色 / 亮色 / 方向多色）+ 方向 + 多色序列（方向行在非纯色时可用）
+  const gmode = avGradMode(av);
+  $$('#av-gradtype button').forEach(b => b.classList.toggle('active', b.dataset.gradtype === gmode));
+  $$('#av-graddir button').forEach(b => b.classList.toggle('active', b.dataset.graddir === (av.gradDir || 'lr')));
   $('#av-color').value = av.color;
+  // 数量 / 高度 / 宽度：范围与文案随样式变化（圆形样式高度不生效）
+  const pspec = avParamSpec(av.style);
+  for (const key of ['count', 'height', 'width']) {
+    const sp = pspec[key];
+    const slider = $(`#av-${key}`), num = $(`#av-${key}-num`);
+    if (!slider) continue;
+    const cur = Number(av[key]);
+    const v = Number.isFinite(cur) && cur > 0 ? cur : (key === 'count' ? 0 : (key === 'width' ? (AV_CIRCULAR(av.style) ? 1 : AV_SPAN_DEF) : 1));
+    slider.min = sp.min; slider.max = sp.max; slider.step = sp.step;
+    num.min = sp.min; num.max = sp.max; num.step = sp.step;
+    slider.disabled = !!sp.off;
+    num.disabled = !!sp.off;
+    $(`#av-${key}-row`).style.opacity = sp.off ? 0.5 : 1;
+    slider.value = v;
+    if (document.activeElement !== num) num.value = v;
+    $(`#av-${key}-val`).textContent = sp.val(v);
+    const subEl = $(`#av-${key}-sub`);
+    if (subEl) subEl.textContent = key === 'count' ? ` ${sp.sub}` : `（${sp.sub}）`;
+    renderPresetRow($(`#av-${key}-presets`), sp.presets, (p) => {
+      // 滑杆值即生效值：数量 0 表示自动，其余按原值写入
+      $('#av-' + key).value = p;
+      $(`#av-${key}-num`).value = p;
+      saveAudioViz({ [key]: p });
+      renderAudioVizSettings();
+    });
+    highlightPresetRow($(`#av-${key}-presets`), v);
+  }
+  renderAvGradColors(av);
+  renderAvGradPresets();
+  // 鼠标交互
+  $('#av-hover').checked = av.hover !== false;
+  $('#av-hoverstr-row').style.opacity = av.hover === false ? 0.5 : 1;
+  const hstr = Math.max(0.2, Math.min(2, Number(av.hoverStrength) || 1));
+  $('#av-hoverstr').value = hstr;
+  if (document.activeElement !== $('#av-hoverstr-num')) $('#av-hoverstr-num').value = hstr;
+  $('#av-hoverstr-val').textContent = hstr.toFixed(1) + '×';
   const syncNum = (id, v) => {
     const el = $(id);
     if (document.activeElement !== el) el.value = v;
@@ -1671,6 +1794,109 @@ function renderAudioVizSettings() {
   highlightXyPresets();
   syncAvGrid(av, circular);
   renderAvColors(av.color);
+}
+
+/** 当前生效的音律动效配置（默认值 + 已存配置） */
+function avNow() {
+  return { ...AV_DEFAULTS, ...(state.settings.audioViz || {}) };
+}
+
+/** 渐变方式联动：非纯色才有方向可用；多色序列行只在「方向多色」时出现 */
+function avSyncGradRows(av) {
+  const mode = avGradMode(av);
+  const dirRow = $('#av-graddir-row');
+  if (dirRow) dirRow.style.opacity = mode === 'none' ? 0.5 : 1;
+  const showCols = mode === 'dir';
+  const colRow = $('#av-gradcolors-row');
+  const preRow = $('#av-gradpresets');
+  if (colRow) colRow.classList.toggle('hidden', !showCols);
+  if (preRow) preRow.classList.toggle('hidden', !showCols);
+}
+
+/** 多色序列说明文案（不含重建 DOM，色块拖动取色时不闪） */
+function avUpdateGradHint(av, n) {
+  const hint = $('#av-gradcolors-hint');
+  if (!hint) return;
+  const dir = AV_GRAD_DIRS.find((d) => d.k === (av.gradDir || 'lr')) || AV_GRAD_DIRS[0];
+  hint.textContent = `${n} 色 · ${dir.t}依次排布`;
+}
+
+/**
+ * 多色序列编辑器：2~6 个色块（点色块改色、× 删色、＋ 加色）。
+ * ★ 色块 input 事件只更新取值 + 文案，不重建 DOM —— 重建会把正在使用的
+ *   系统取色器所属元素换掉，取色框会闪退。
+ */
+function renderAvGradColors(av) {
+  const host = $('#av-gradcolors');
+  if (!host) return;
+  const list = avGradColors(av);
+  const dir = AV_GRAD_DIRS.find((d) => d.k === (av.gradDir || 'lr')) || AV_GRAD_DIRS[0];
+  host.innerHTML = '';
+  list.forEach((c, i) => {
+    const wrap = document.createElement('span');
+    wrap.className = 'av-gradcolor';
+    const inp = document.createElement('input');
+    inp.type = 'color';
+    inp.value = c;
+    inp.title = `第 ${i + 1} 色（${dir.t}）`;
+    inp.addEventListener('input', () => {
+      const next = avGradColors(avNow()).slice();
+      next[i] = inp.value;
+      if (next.length < 2) next.push(c);
+      saveAudioViz({ gradColors: next, gradType: 'dir' });
+      avUpdateGradHint(avNow(), next.length);
+    });
+    wrap.appendChild(inp);
+    const del = document.createElement('button');
+    del.className = 'av-gradcolor-del';
+    del.textContent = '×';
+    del.title = '删除这一色';
+    del.disabled = list.length <= 2;
+    del.addEventListener('click', () => {
+      const next = avGradColors(avNow()).slice();
+      if (next.length <= 2) { toast('方向多色至少保留 2 种颜色', 'error'); return; }
+      next.splice(i, 1);
+      saveAudioViz({ gradColors: next, gradType: 'dir' });
+      renderAvGradColors(avNow());
+    });
+    wrap.appendChild(del);
+    host.appendChild(wrap);
+  });
+  if (list.length < 6) {
+    const add = document.createElement('button');
+    add.className = 'av-gradcolor-add';
+    add.textContent = '＋';
+    add.title = '再加一种颜色';
+    add.addEventListener('click', () => {
+      const next = avGradColors(avNow()).slice();
+      if (next.length >= 6) { toast('最多 6 种颜色', 'error'); return; }
+      next.push(next[next.length - 1]);
+      saveAudioViz({ gradColors: next, gradType: 'dir' });
+      renderAvGradColors(avNow());
+    });
+    host.appendChild(add);
+  }
+  avUpdateGradHint(av, list.length);
+  avSyncGradRows(av);
+}
+
+/** 多色配色预设（点一下整组替换） */
+function renderAvGradPresets() {
+  const row = $('#av-gradpresets');
+  if (!row) return;
+  row.innerHTML = '';
+  for (const p of AV_GRAD_PRESETS) {
+    const b = document.createElement('button');
+    b.className = 'preset-chip';
+    b.textContent = p.n;
+    b.title = p.c.join(' → ');
+    b.style.borderColor = p.c[0];
+    b.addEventListener('click', () => {
+      saveAudioViz({ gradColors: p.c.slice(), gradType: 'dir' });
+      renderAudioVizSettings();
+    });
+    row.appendChild(b);
+  }
 }
 
 /** 常用配色色板 */
@@ -1837,10 +2063,21 @@ function bindAudioVizSettings() {
       xyRow.appendChild(b);
     }
   }
-  $$('#av-gradient button').forEach(b => {
+  // 渐变方式：纯色 / 亮色 / 方向多色（同时写旧字段 gradient，兼容老配置与旧渲染逻辑）
+  $$('#av-gradtype button').forEach(b => {
     b.addEventListener('click', () => {
-      $$('#av-gradient button').forEach(x => x.classList.toggle('active', x === b));
-      saveAudioViz({ gradient: b.dataset.gradient === 'on' });
+      const t = b.dataset.gradtype;
+      $$('#av-gradtype button').forEach(x => x.classList.toggle('active', x === b));
+      saveAudioViz({ gradType: t, gradient: t !== 'none' });
+      renderAudioVizSettings();
+    });
+  });
+  // 渐变方向：→ ← ↓ ↑ + 四个斜向（亮色 / 方向多色都生效）
+  $$('#av-graddir button').forEach(b => {
+    b.addEventListener('click', () => {
+      $$('#av-graddir button').forEach(x => x.classList.toggle('active', x === b));
+      saveAudioViz({ gradDir: b.dataset.graddir });
+      renderAudioVizSettings();
     });
   });
   $('#av-color').addEventListener('input', (e) => {
@@ -1874,6 +2111,30 @@ function bindAudioVizSettings() {
   bindAvSlider('#av-opacity', 'opacity', v => Math.round(v) + '%', $('#av-opacity-presets'), [30, 50, 70, 85, 100]);
   bindAvSlider('#av-size', 'size', v => v.toFixed(1) + '×', $('#av-size-presets'), [0.5, 0.8, 1, 1.5, 2]);
   bindAvSlider('#av-sens', 'sensitivity', v => v.toFixed(1), $('#av-sens-presets'), [0.5, 1, 1.5, 2, 3]);
+  // 数量 / 高度 / 宽度：范围与语义随样式变化（avParamSpec），滑杆与数字输入双向同步
+  const bindAvParam = (key) => {
+    const apply = (raw) => {
+      const sp = avParamSpec(avNow().style)[key];
+      let v = parseFloat(raw);
+      if (!Number.isFinite(v)) return;
+      v = Math.min(sp.max, Math.max(sp.min, v));
+      v = Number((Math.round(v / sp.step) * sp.step).toFixed(4)); // 对齐步长
+      saveAudioViz({ [key]: v });
+      renderAudioVizSettings();
+    };
+    $(`#av-${key}`).addEventListener('input', (e) => apply(e.target.value));
+    const num = $(`#av-${key}-num`);
+    num.addEventListener('change', () => apply(num.value));
+    num.addEventListener('keydown', (e) => { if (e.key === 'Enter') { apply(num.value); e.target.blur(); } });
+  };
+  ['count', 'height', 'width'].forEach(bindAvParam);
+  // 鼠标划过交互（开关 + 强度）
+  $('#av-hover').addEventListener('change', (e) => {
+    saveAudioViz({ hover: e.target.checked });
+    renderAudioVizSettings();
+    toast(e.target.checked ? '鼠标划过交互已开启：把鼠标移到动效上即可看到反馈' : '鼠标划过交互已关闭');
+  });
+  bindAvSlider('#av-hoverstr', 'hoverStrength', v => Number(v).toFixed(1) + '×', $('#av-hoverstr-presets'), [0.5, 1, 1.5, 2]);
   $('#av-mirror').addEventListener('change', (e) => saveAudioViz({ mirror: e.target.checked }));
   $$('#av-mirrormode button').forEach(b => {
     b.addEventListener('click', () => {

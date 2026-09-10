@@ -77,9 +77,17 @@ const DEFAULT_CONFIG = {
     },
     audioViz: {                 // 音律动效（系统声音频谱可视化）
       enabled: false,
-      style: 'bars',            // bars 频谱条 / wave 波浪 / circle 圆环
+      style: 'bars',            // bars 频谱条 / wave 波浪 / circle 圆环 / mountain 山峦 / dots 圆点 / rings 同心环 / blocks LED块 / neon 霓虹
       color: '#7c5cff',         // 主色
-      gradient: true,           // 渐变色（主色 → 辅色）
+      gradient: true,           // 渐变色（主色 → 辅色）——旧字段，gradType 未设时作为兜底
+      gradType: 'auto',         // 渐变方式：none 纯色 / auto 主色→亮色 / dir 方向多色序列
+      gradDir: 'lr',            // 渐变方向：lr 左→右 / rl 右→左 / tb 上→下 / bt 下→上 / tlbr trbl bltr brtl 四个斜向
+      gradColors: [],           // 方向多色序列（2~6 个 #rrggbb；空 = 用内置默认序列）
+      count: 0,                 // 元素数量（0 = 按样式默认：柱/点/列/环数等）
+      height: 1,                // 高度系数 0.3~2（圆形样式由宽度统一控制整体尺寸）
+      width: 0,                 // 宽度：柱状类 = 内容宽度占窗口比例 0.2~1（0 = 默认 0.86）；圆形类 = 整体尺寸系数 0.3~2（0 = 默认 1）
+      hover: true,              // 鼠标划过交互（窗口保持鼠标穿透，不抢桌面图标点击）
+      hoverStrength: 1,         // 交互强度 0.2~2
       opacity: 0.85,            // 不透明度 0.2~1
       size: 0.6,                // 大小缩放 0.5~2
       pos: 'bottom',            // 垂直预设 bottom / top（圆环忽略，居中）

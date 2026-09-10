@@ -705,6 +705,11 @@
     if (window.wallpaperHost.onPerfPause) {
       window.wallpaperHost.onPerfPause((v) => { if (IS_AVIZ) avSetPerfPaused(v && v.on); });
     }
+    // 鼠标划过交互：位置由主进程 30ms 光标轮询推送（动效窗保持鼠标穿透，
+    // 页面收不到 DOM 鼠标事件，也不该收 —— 否则会吞掉组件后方桌面图标的点击）
+    if (IS_AVIZ && window.wallpaperHost.onAvHover) {
+      window.wallpaperHost.onAvHover((v) => avSetHover(v));
+    }
     window.wallpaperHost.onWeather((w) => {
       weather = w;
       if (PART === 'board') renderBoard();
@@ -753,7 +758,26 @@
     // 捕获 Windows 系统混音（主进程 setDisplayMediaRequestHandler 已授权 loopback），
     // WebAudio Analyser 频谱分析 + Canvas 绘制；窗口即动效条带，几何随窗口尺寸。
     // 样式：bars 频谱条 / wave 波浪 / circle 圆环 / mountain 山峦 /
-    //       dots 圆点 / rings 同心环 / blocks LED 块
+    //       dots 圆点 / rings 同心环 / blocks LED 块 / neon 霓虹
+    //
+    // ★ 数量 / 高度 / 宽度（v1.18.0）：各样式族语义 ——
+    //   - 数量 count：元素个数（柱数/灯管数/采样点/峰点/列数/放射条数/环数），
+    //     0 = 自动用该样式默认值；取值范围见 AV_STYLE_PARAMS（设置页同源）。
+    //   - 高度 height：内容高度系数（柱状类纵向缩放，折进 avGeom 的 maxH/maxAmp）。
+    //   - 宽度 width：柱状/波浪/点阵类 = 内容宽度占窗口比例（avSpanPx）；
+    //     圆环/同心环 = 整体尺寸系数（avCircK，圆形样式没有独立纵向缩放）。
+    //   两者都折进 avGeom 而不是画的时候乘 —— avAxis / avMirrorAxis 也读这几个
+    //   值，倒影水面线必须与主体同步收紧，否则调大后主体与倒影会错位。
+    //
+    // ★ 鼠标交互（v1.18.0）：动效窗常驻鼠标穿透（否则会吞掉条带覆盖区域上
+    //   桌面图标的点击），页面收不到 DOM 鼠标事件 → 由主进程 30ms 光标轮询
+    //   推送光标相对窗口的位置（preload onAvHover）。各样式在光标附近做局部
+    //   增强：柱子拉高 / 波形涟漪 / 山体隆起 / 点阵聚光 / 环上跟手亮段，
+    //   外加通用的光标光晕 + 反馈圆环（画在主画布，不进倒影层）。
+    //
+    // ★ 渐变（v1.18.0）：none 纯色 / auto 主色→亮色 / dir 方向多色序列。
+    //   dir 模式用一条「整片方向渐变」—— canvas 渐变按绘制位置取色，所有形状
+    //   自然在自己所在处拿到对应颜色，于是从左往右 / 从上往下依次呈现多色。
     //
     // ★ 性能（v1.9.0）：绘制路径彻底不用 canvas shadowBlur。
     //   旧实现每根柱、每个点都单独带一次阴影 —— 频谱条开镜像是 128 次高斯模糊
@@ -775,13 +799,35 @@
       freq: null, wave: null,
       raf: 0, restartTimer: null, failCount: 0, spin: 0,
       _peak: 0, _lastError: null, _devAt: 0, _blkPeaks: null,
-      _ring0: 0, _ring1: 0, _ring2: 0,
+      _rings: null,        // 同心环各环能量（长度随「环数」变化）
       _lastTs: 0,          // 帧率节流：上一次实际绘制的时间戳
       _prevTs: 0,          // 帧率节流：上一个 rAF 时间戳
       _rafDt: 0,           // rAF 间隔滑动平均 = 估算的显示器刷新周期
       _grads: new Map(),   // 渐变缓存（配置/尺寸变化时清空）
-      _circG: null,        // 圆环 96 个放射渐变的整组缓存
+      _circG: null,        // 圆环放射渐变的整组缓存（仅「亮色」模式用）
+      // 鼠标交互（位置由主进程 30ms 光标轮询推送：窗口保持鼠标穿透，
+      // 不抢桌面图标的点击，见 src/widgets-host.js _pushAvHover）
+      hoverIn: false,      // 光标是否在窗口内
+      hx: 0, hy: 0,        // 光标在窗口内的 CSS 坐标
+      hoverK: 0,           // 进入/离开的缓动强度 0~1
+      _hk: 0,              // 本帧实际生效的交互强度（已乘 hoverStrength）
     };
+    // ---------- 各样式「数量 / 高度 / 宽度」参数表 ----------
+    // ★ 与 renderer/js/app.js 的 AV_STYLE_PARAMS 必须保持一致（设置页滑杆范围同源）
+    const AV_STYLE_PARAMS = {
+      bars:     { count: { label: '柱数', def: 64,  min: 8,  max: 160, step: 1 } },
+      neon:     { count: { label: '灯管数', def: 48, min: 8, max: 128, step: 1 } },
+      wave:     { count: { label: '采样点', def: 192, min: 32, max: 256, step: 8 } },
+      mountain: { count: { label: '峰点数', def: 64, min: 8,  max: 160, step: 1 } },
+      dots:     { count: { label: '列数', def: 32,   min: 6,  max: 64,  step: 1 } },
+      blocks:   { count: { label: '列数', def: 28,   min: 6,  max: 56,  step: 1 } },
+      circle:   { count: { label: '放射条数', def: 96, min: 16, max: 180, step: 1 } },
+      rings:    { count: { label: '环数', def: 3,    min: 1,  max: 6,   step: 1 } },
+    };
+    const AV_CIRCULAR = (st) => st === 'circle' || st === 'rings';
+    const AV_SPAN_DEF = 0.86;    // 柱状类默认内容宽度占窗口比例
+    /** 方向多色序列的内置默认配色（用户未自定义时） */
+    const AV_GRAD_FALLBACK = ['#7c5cff', '#4f8cff', '#22d3ee', '#34d399'];
     // 辉光离屏层（懒建，停用动效时释放）
     let avLayer = null, avLctx = null;
     // ctx.filter 在极老内核上可能不支持，探测一次决定走合成还是直绘
@@ -822,6 +868,141 @@
       av._circG = null;
     }
 
+    // ---------- 数量 / 高度 / 宽度（按样式生效） ----------
+
+    /** 当前样式的数量（0 = 自动 → 该样式默认值；越界钳到样式范围内） */
+    function avCount() {
+      const st = av.cfg.style || 'bars';
+      const spec = (AV_STYLE_PARAMS[st] || AV_STYLE_PARAMS.bars).count;
+      const n = Math.round(numOr(av.cfg.count, 0));
+      return n > 0 ? Math.min(spec.max, Math.max(spec.min, n)) : spec.def;
+    }
+    /** 高度系数：圆形样式（圆环/同心环）不参与纵向单独缩放，由宽度统一控制尺寸 */
+    function avHeightK() {
+      const st = av.cfg.style || 'bars';
+      if (AV_CIRCULAR(st)) return 1;
+      return Math.min(2, Math.max(0.3, numOr(av.cfg.height, 1)));
+    }
+    /** 内容宽度（px）：柱状类 = 窗口宽度占比；圆形类不用（见 avCircK） */
+    function avSpanPx(W) {
+      const st = av.cfg.style || 'bars';
+      if (AV_CIRCULAR(st)) return W * AV_SPAN_DEF;
+      const w = numOr(av.cfg.width, 0);
+      const r = w > 0 ? w : AV_SPAN_DEF;
+      return W * Math.min(1, Math.max(0.2, r));
+    }
+    /** 圆形样式整体尺寸系数（宽度即为「整体尺寸」；0 = 默认 1） */
+    function avCircK() {
+      const st = av.cfg.style || 'bars';
+      if (!AV_CIRCULAR(st)) return 1;
+      const w = numOr(av.cfg.width, 0);
+      return w > 0 ? Math.min(2, Math.max(0.3, w)) : 1;
+    }
+    const avClamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+
+    // ---------- 渐变（纯色 / 亮色 / 方向多色） ----------
+
+    /** 渐变方式：none 纯色 / auto 主色→亮色 / dir 方向多色序列 */
+    function avGradMode() {
+      const c = av.cfg;
+      const t = c.gradType;
+      if (t === 'none' || t === 'auto' || t === 'dir') return t;
+      return c.gradient === false ? 'none' : 'auto';   // 兼容旧字段
+    }
+    /** 方向多色序列（2~6 色；非法/不足 2 色时用内置默认序列） */
+    function avGradColors() {
+      const list = Array.isArray(av.cfg.gradColors)
+        ? av.cfg.gradColors.filter((x) => /^#[0-9a-f]{6}$/i.test(String(x)))
+        : [];
+      return list.length >= 2 ? list.slice(0, 6) : AV_GRAD_FALLBACK;
+    }
+    /** 当前配色序列（rgb 数组），按渐变方式决定 1 / 2 / N 色 */
+    function avPalette() {
+      const mode = avGradMode();
+      if (mode === 'dir') return avGradColors().map(avHexToRgb);
+      if (mode === 'auto') return [avHexToRgb(av.cfg.color), avLighten(avHexToRgb(av.cfg.color), 0.5)];
+      return [avHexToRgb(av.cfg.color)];
+    }
+    /** 方向 → 渐变端点（矩形外框两端；lr 左→右、tb 上→下 等 8 个方向） */
+    function avGradEnds(dir, box) {
+      const [x0, y0, x1, y1] = box;
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+      switch (dir) {
+        case 'rl': return [x1, cy, x0, cy];
+        case 'tb': return [cx, y0, cx, y1];
+        case 'bt': return [cx, y1, cx, y0];
+        case 'tlbr': return [x0, y0, x1, y1];
+        case 'trbl': return [x1, y0, x0, y1];
+        case 'bltr': return [x0, y1, x1, y0];
+        case 'brtl': return [x1, y1, x0, y0];
+        default: return [x0, cy, x1, cy];   // lr 左→右
+      }
+    }
+    /**
+     * 内容色（渐变或纯色）。
+     * ★ 关键：canvas 渐变按「绘制位置」取色 —— 所以只需按内容外框建一条方向渐变，
+     *   整片形状（每根柱 / 每个点 / 每段波形）自然在自己所在处拿到对应颜色，
+     *   这正是「从左往右 / 从上往下依次显示多种不同颜色」。
+     * @param {CanvasRenderingContext2D} ctx 实际绘制的 ctx（辉光层或主画布）
+     * @param {number[]} box [x0,y0,x1,y1] 内容外框
+     * @param {number} [a] 统一透明度（面填充用；线/柱保持 1）
+     */
+    function avFieldStyle(ctx, box, a) {
+      const pal = avPalette();
+      const alpha = a === undefined ? 1 : a;
+      if (pal.length === 1) return avRgba(pal[0], alpha);
+      const dir = String(av.cfg.gradDir || 'lr');
+      const n = pal.length;
+      const stops = pal.map((rgb, i) => [i / (n - 1), avRgba(rgb, alpha)]);
+      const [sx, sy, ex, ey] = avGradEnds(dir, box);
+      // 缓存 key 带 ctx 归属：辉光层与主画布各自持有一份（避免跨 ctx 复用）
+      const tag = ctx === g2d ? 'g' : 'l';
+      const key = `fd|${tag}|${dir}|${box.map((v) => Math.round(v)).join(',')}|${stops.map((s) => s[1]).join(',')}`;
+      return avLinGrad(ctx, key, sx, sy, ex, ey, stops);
+    }
+
+    // ---------- 鼠标交互（划过时的局部增强 / 涟漪 / 光晕跟随） ----------
+
+    /** 一维影响权重：以光标水平位置为中心做高斯衰减（柱状类样式用） */
+    function avHoverX(x, radius) {
+      const k = av._hk || 0;
+      if (k <= 0.001) return 0;
+      const d = (x - av.hx) / radius;
+      return k * Math.exp(-d * d * 1.1);
+    }
+    /** 二维影响权重（圆环/同心环/点阵用） */
+    function avHover2(x, y, radius) {
+      const k = av._hk || 0;
+      if (k <= 0.001) return 0;
+      const dx = (x - av.hx) / radius, dy = (y - av.hy) / radius;
+      const d2 = dx * dx + dy * dy;
+      return d2 > 8 ? 0 : k * Math.exp(-d2 * 0.9);
+    }
+    /** 光标光晕 + 反馈圆环：所有样式的通用交互反馈，画在主画布（不进倒影层） */
+    function avHoverHalo(g) {
+      const k = av._hk || 0;
+      if (k <= 0.01) return;
+      const rgb = avPalette()[0];
+      const R = Math.min(g.W, g.H) * 0.20 * (0.92 + 0.14 * k);
+      const hx = avClamp(av.hx, 0, g.W), hy = avClamp(av.hy, 0, g.H);
+      g2d.save();
+      const grd = g2d.createRadialGradient(hx, hy, 0, hx, hy, R * 1.9);
+      grd.addColorStop(0, avRgba(rgb, 0.30 * k));
+      grd.addColorStop(0.45, avRgba(rgb, 0.11 * k));
+      grd.addColorStop(1, avRgba(rgb, 0));
+      g2d.fillStyle = grd;
+      g2d.beginPath();
+      g2d.arc(hx, hy, R * 1.9, 0, TAU);
+      g2d.fill();
+      // 反馈圆环：随强度内收，给「划过有反应」一个明确的视觉锚点
+      g2d.strokeStyle = avRgba(rgb, 0.45 * k);
+      g2d.lineWidth = Math.max(1.5, R * 0.035);
+      g2d.beginPath();
+      g2d.arc(hx, hy, R * (1.28 - 0.34 * k), 0, TAU);
+      g2d.stroke();
+      g2d.restore();
+    }
+
     function avResizeCanvas() {
       const W = window.innerWidth, H = window.innerHeight;
       let dpr = Math.min(window.devicePixelRatio || 1, 1.5);
@@ -855,21 +1036,42 @@
       return c.mirror !== false && Math.min(1, Math.max(0, numOr(c.mirrorOpacity, 22) / 100)) > 0.01;
     }
 
-    /** 几何：窗口即条带，内容居中（缩放已由窗口尺寸体现） */
+    /**
+     * 几何：窗口即条带，内容居中（缩放已由窗口尺寸体现）。
+     * ★ 数量/高度/宽度：高度系数与圆形尺寸系数折进这里（而不是画的时候乘），
+     *   因为 avAxis / avMirrorAxis 也读这几个值 —— 倒影水面线必须与主体同步收紧，
+     *   否则调高后倒影会与主体错位。
+     */
     function avGeom() {
       const W = window.innerWidth, H = window.innerHeight;
       const m = Math.min(W, H);
-      const g = { W, H, cx: W / 2, cy: H / 2, maxH: H * 0.66, maxAmp: H * 0.36, R: m * 0.30, maxLen: m * 0.20 };
-      if (!avMirrorOn()) return g;
-      // 开倒影：水面线抬到 0.62H，主体等比收紧到「水面线以上放得下」，下方 0.38H 留给倒影
+      const ky = avHeightK(), kc = avCircK();
+      const g = {
+        W, H, cx: W / 2, cy: H / 2,
+        maxH: H * 0.66 * ky,
+        maxAmp: H * 0.36 * ky,
+        R: m * 0.30 * kc,
+        maxLen: m * 0.20 * kc,
+        span: avSpanPx(W),      // 柱状类内容宽度（px）
+      };
+      // 内容不得溢出窗口：开倒影时水面线抬到 0.62H（下方 0.38H 留给倒影），
+      // 不开倒影则整窗可用。高度/宽度调大后由这里统一等比回收，避免裁切。
       const axis = H * 0.62;
-      const a0 = avAxis(g, av.cfg.style);
-      const k = Math.min(1, (axis - 3) / a0.up);
+      const avail = avMirrorOn() ? axis - 3 : H - 6;
+      const k = Math.min(1, avail / avAxis(g, av.cfg.style).up);
       if (k < 1) {
         g.maxH *= k; g.maxAmp *= k; g.R *= k; g.maxLen *= k;
       }
-      g.cy = axis - avAxis(g, av.cfg.style).off;
+      g.cy = avMirrorOn() ? axis - avAxis(g, av.cfg.style).off : H / 2;
       return g;
+    }
+
+    /** 主进程推来的光标位置/进出状态 → 交互强度由绘制循环缓动（av.hoverK → av._hk） */
+    function avSetHover(v) {
+      if (!v) return;
+      if (Number.isFinite(v.x)) av.hx = v.x;
+      if (Number.isFinite(v.y)) av.hy = v.y;
+      av.hoverIn = !!v.in;
     }
 
     async function avStartCapture() {
@@ -938,6 +1140,8 @@
       av.failCount = 0;
       av._peak = 0;
       av._blkPeaks = null;
+      av._rings = null;
+      av.hoverK = 0; av._hk = 0; av.hoverIn = false;
       g2d.clearRect(0, 0, avCanvas.width, avCanvas.height);
       // 释放辉光层：停用动效后不该继续占着这张与窗口等大的位图
       if (avLayer) { avLayer.width = 0; avLayer.height = 0; }
@@ -950,6 +1154,9 @@
     function avApplyConfig(c) {
       const prevOn = av.on;
       av.cfg = c || {};
+      // 数量/宽度/方向/配色都可能变：渐变按几何+配色做 key，这里统一清一次，
+      // 避免旧 key 白占缓存（缓存上限 64，超了会整表清空）
+      avDropCaches();
       const want = !!av.cfg.enabled;
       av.on = want;
       if (want) {
@@ -1137,6 +1344,12 @@
       const alpha = Math.min(1, Math.max(0.2, Number(c.opacity) || 0.85));
       const rgb = avHexToRgb(c.color);
       const rgb2 = c.gradient === false ? rgb : avLighten(rgb, 0.5);
+      // 鼠标交互强度：进入/离开各按 0.16 缓动（离开后自然回落，不留残留）
+      const want = (c.hover !== false && av.hoverIn) ? 1 : 0;
+      av.hoverK += (want - av.hoverK) * 0.16;
+      if (av.hoverK < 0.004) av.hoverK = 0;
+      const hs0 = Math.min(2, Math.max(0.2, numOr(c.hoverStrength, 1)));
+      av._hk = av.hoverK * hs0;
       g2d.clearRect(0, 0, g.W, g.H);
 
       const st = c.style;
@@ -1165,43 +1378,47 @@
         av.analyser.getByteFrequencyData(av.freq);
         avDrawBars(g, rgb, rgb2, sens, alpha);
       }
+      // 鼠标交互反馈：通用光晕/反馈环画在主画布（不进倒影层 → 倒影里不出现「假光标」）
+      avHoverHalo(g);
       // 倒影统一在合成阶段做（翻转同一张发光层 → 任何样式都能完整复刻动效）
       avReflection(g, alpha);
     }
 
-    /** 频谱条几何（bars 与 neon 共用） */
+    /** 频谱条几何（bars 与 neon 共用）；宽度参数决定内容宽度，数量决定柱数 */
     function avBarsLayout(g, N) {
       const { maxH } = g;
       const baseline = g.cy + maxH / 2;
-      const totalW = g.W * 0.86;
+      const totalW = g.span;
       const bw = totalW / N;
       const barW = Math.max(2, bw * 0.62);
       const x0 = g.cx - totalW / 2;
-      return {
-        baseline, totalW, bw, barW, x0,
-        r: Math.min(barW / 2, 3),
-        mirMax: Math.max(0, g.H - baseline - 2),
-      };
+      return { baseline, totalW, bw, barW, x0, r: Math.min(barW / 2, 3), mirMax: Math.max(0, g.H - baseline - 2) };
     }
-    function avBarHeights(g, N, sens) {
+    function avBarHeights(g, N, sens, L) {
       const usable = Math.floor(av.freq.length * 0.75);
       const hs = new Float32Array(N);
+      const hov = av._hk > 0.001;
+      const rad = Math.max(60, L.totalW * 0.18);
       for (let i = 0; i < N; i++) {
-        const v = Math.pow(avBarValue(i, N, usable), 1.15) * sens;
-        hs[i] = Math.max(2.5, Math.min(1, v) * g.maxH);
+        let v = Math.pow(avBarValue(i, N, usable), 1.15) * sens;
+        // 鼠标交互：光标附近的柱子被「拉高」（上限 1.3 倍，几何侧已留出余量）
+        if (hov) {
+          const x = L.x0 + i * L.bw + L.bw / 2;
+          v *= 1 + 0.9 * avHoverX(x, rad);
+        }
+        hs[i] = Math.max(2.5, Math.min(1.3, v) * g.maxH);
       }
       return hs;
     }
 
     /** 频谱条：垂直居中于窗口（倒影由 avReflection 统一叠加） */
     function avDrawBars(g, rgb, rgb2, sens, alpha) {
-      const N = 64;
+      const N = avCount();
       const L = avBarsLayout(g, N);
-      const hs = avBarHeights(g, N, sens);
+      const hs = avBarHeights(g, N, sens, L);
       avComposite(g, alpha, 7, (ctx) => {
-        ctx.fillStyle = avLinGrad(ctx, `bars|${L.x0.toFixed(1)}|${L.totalW.toFixed(1)}`,
-          L.x0, 0, L.x0 + L.totalW, 0, [[0, avRgba(rgb, 1)], [1, avRgba(rgb2, 1)]]);
-        // 64 根柱合并成一条 path 一次填充（无重叠，nonzero 绕向下与逐根填充等价）
+        ctx.fillStyle = avFieldStyle(ctx, [L.x0, L.baseline - g.maxH, L.x0 + L.totalW, L.baseline]);
+        // 全部柱合并成一条 path 一次填充（无重叠，nonzero 绕向下与逐根填充等价）
         ctx.beginPath();
         for (let i = 0; i < N; i++) {
           const x = L.x0 + i * L.bw + (L.bw - L.barW) / 2;
@@ -1213,13 +1430,12 @@
 
     /** 霓虹：粗圆头能量柱 + 三趟递增半径模糊以 lighter 叠加 → 强发光灯管观感 */
     function avDrawNeon(g, rgb, rgb2, sens, alpha) {
-      const N = 48;
+      const N = avCount();
       const L = avBarsLayout(g, N);
-      const hs = avBarHeights(g, N, sens);
+      const hs = avBarHeights(g, N, sens, L);
       const barW = Math.max(3, L.barW * 0.8);
       const draw = (ctx) => {
-        ctx.fillStyle = avLinGrad(ctx, `neon|${L.x0.toFixed(1)}|${L.totalW.toFixed(1)}`,
-          L.x0, 0, L.x0 + L.totalW, 0, [[0, avRgba(rgb, 1)], [1, avRgba(rgb2, 1)]]);
+        ctx.fillStyle = avFieldStyle(ctx, [L.x0, L.baseline - g.maxH, L.x0 + L.totalW, L.baseline]);
         ctx.beginPath();
         for (let i = 0; i < N; i++) {
           const x = L.x0 + i * L.bw + (L.bw - barW) / 2;
@@ -1247,66 +1463,98 @@
       g2d.restore();
     }
 
-    /** 波浪：时域波形曲线，基线过窗口中心 */
+    /** 波浪：时域波形曲线，基线过窗口中心；数量 = 采样点数（越少越「方块化」） */
     function avDrawWave(g, rgb, rgb2, sens, alpha) {
       const maxAmp = g.maxAmp;
       const baseline = g.cy;
-      const x0 = g.W * 0.07;
-      const span = g.W * 0.86;
+      const span = g.span;
+      const x0 = g.cx - span / 2;
+      const N = avCount();
+      const hov = av._hk > 0.001;
+      const rad = Math.max(70, span * 0.16);
+      const ph = av.spin * 46;            // 涟漪相位（av.spin 每帧推进）
       avComposite(g, alpha, 9, (ctx) => {
-        ctx.strokeStyle = avLinGrad(ctx, `wave|${g.W.toFixed(1)}`, 0, 0, g.W, 0,
-          [[0, avRgba(rgb, 1)], [1, avRgba(rgb2, 1)]]);
+        ctx.strokeStyle = avFieldStyle(ctx, [x0, baseline - maxAmp, x0 + span, baseline + maxAmp]);
         ctx.lineWidth = 3;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.beginPath();
         const n = av.wave.length;
-        const step = Math.max(1, Math.floor(n / 256));
-        for (let i = 0, k = 0; i < n; i += step, k++) {
+        for (let k = 0; k < N; k++) {
+          const i = N === 1 ? 0 : Math.round((k / (N - 1)) * (n - 1));
           const v = (av.wave[i] - 128) / 128;
-          const x = x0 + (i / (n - 1)) * span;
-          const y = baseline - v * maxAmp * sens;
+          const x = x0 + (k / (N - 1)) * span;
+          let y = baseline - v * maxAmp * sens;
+          // 鼠标交互：光标附近振幅放大，并叠加一圈从光标位置扩散的涟漪
+          if (hov) {
+            const hv = avHoverX(x, rad);
+            if (hv > 0.002) {
+              y -= maxAmp * (0.45 * hv * Math.sin((x - av.hx) * 0.045 - ph) + 0.18 * hv * v);
+            }
+          }
+          y = avClamp(y, 3, g.H - 3);
           if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
         }
         ctx.stroke();
       });
     }
 
-    /** 圆环：以窗口中心为圆心的旋转放射频谱环 */
+    /** 圆环：以窗口中心为圆心的旋转放射频谱环；数量 = 放射条数 */
     function avDrawCircle(g, rgb, rgb2, sens, alpha) {
       const { cx, cy, R, maxLen } = g;
-      const N = 96;
+      const N = avCount();
+      const mode = avGradMode();
       av.spin += 0.0016;
       const usable = Math.floor(av.freq.length * 0.75);
       const lw = Math.max(2, (TAU * R / N) * 0.55);
+      const half = Math.max(1, Math.round(N / 2));
+      // 鼠标交互：光标方向上的放射条被拉长（角向高斯）
+      const hov = av._hk > 0.001 && R > 1;
+      let hAng = 0;
+      if (hov) {
+        const dx0 = av.hx - cx, dy0 = av.hy - cy;
+        hAng = (dx0 || dy0) ? Math.atan2(dy0, dx0) : 0;
+      }
+      const wrapPi = (a) => { let v = a % TAU; if (v > Math.PI) v -= TAU; if (v < -Math.PI) v += TAU; return v; };
       avComposite(g, alpha, 6, (ctx) => {
-        // 96 个放射渐变整组缓存：旧实现每帧新建 96 个，是圆环样式的主要开销。
-        // ★ 必须在实际绘制的 ctx（辉光层）上创建，不能建在 g2d 上再跨 context 用。
-        const tag = ctx === g2d ? 'g' : 'l';
-        const key = `${tag}|${rgb.join()}|${rgb2.join()}|${cx.toFixed(1)}|${cy.toFixed(1)}|${R.toFixed(1)}|${maxLen.toFixed(1)}`;
-        if (!av._circG || av._circG.key !== key) {
-          const arr = new Array(N);
-          for (let i = 0; i < N; i++) {
-            const a = (i / N) * TAU;
-            const c = Math.cos(a), s = Math.sin(a);
-            const gr = ctx.createLinearGradient(cx + c * R, cy + s * R, cx + c * (R + maxLen), cy + s * (R + maxLen));
-            gr.addColorStop(0, avRgba(rgb, 0.95));
-            gr.addColorStop(1, avRgba(rgb2, 0.95));
-            arr[i] = gr;
+        // 「亮色」模式沿用逐条放射渐变（保原观感）；「方向多色」用整片方向渐变，
+        // 每条放射条按自己所在位置取色 → 多色沿指定方向依次铺开。
+        let grads = null, field = null;
+        if (mode === 'dir') {
+          field = avFieldStyle(ctx, [cx - R - maxLen, cy - R - maxLen, cx + R + maxLen, cy + R + maxLen]);
+        } else {
+          // 逐条放射渐变整组缓存：旧实现每帧新建 96 个，是圆环样式的主要开销。
+          // ★ 必须在实际绘制的 ctx（辉光层）上创建，不能建在 g2d 上再跨 context 用。
+          const tag = ctx === g2d ? 'g' : 'l';
+          const key = `${tag}|${N}|${rgb.join()}|${rgb2.join()}|${cx.toFixed(1)}|${cy.toFixed(1)}|${R.toFixed(1)}|${maxLen.toFixed(1)}`;
+          if (!av._circG || av._circG.key !== key) {
+            const arr = new Array(N);
+            for (let i = 0; i < N; i++) {
+              const a = (i / N) * TAU;
+              const c = Math.cos(a), s = Math.sin(a);
+              const gr = ctx.createLinearGradient(cx + c * R, cy + s * R, cx + c * (R + maxLen), cy + s * (R + maxLen));
+              gr.addColorStop(0, avRgba(rgb, 0.95));
+              gr.addColorStop(1, avRgba(rgb2, 0.95));
+              arr[i] = gr;
+            }
+            av._circG = { key, arr };
           }
-          av._circG = { key, arr };
+          grads = av._circG.arr;
         }
-        const grads = av._circG.arr;
         // 旋转用查表偏移实现：第 i 根的角度是 spin + i/N*TAU，对应渐变下标 spinIdx + i
         const spinIdx = ((Math.round(av.spin / TAU * N) % N) + N) % N;
         ctx.lineWidth = lw;
         ctx.lineCap = 'round';
         for (let i = 0; i < N; i++) {
-          const v = Math.pow(avBarValue(i % (N / 2), N / 2, usable), 1.15) * sens; // 左右对称
-          const len = Math.max(2, Math.min(1, v) * maxLen);
+          const v = Math.pow(avBarValue(i % half, half, usable), 1.15) * sens; // 左右对称
+          let len = Math.max(2, Math.min(1, v) * maxLen);
           const ang = av.spin + (i / N) * TAU;
+          if (hov) {
+            const d = wrapPi(ang - hAng);
+            len *= 1 + 0.85 * av._hk * Math.exp(-(d * d) / 0.42);
+          }
           const c = Math.cos(ang), s = Math.sin(ang);
-          ctx.strokeStyle = grads[(i + spinIdx) % N];
+          ctx.strokeStyle = field || grads[(i + spinIdx) % N];
           ctx.beginPath();
           ctx.moveTo(cx + c * R, cy + s * R);
           ctx.lineTo(cx + c * (R + len), cy + s * (R + len));
@@ -1331,18 +1579,47 @@
       g2d.restore();
     }
 
-    /** 山峦：频谱填充面积图 + 顶部亮线（低频在左，随节奏起伏） */
+    /**
+     * 山体填充（纯色 / 亮色模式）：竖直方向按色序渐变 + 逐级降低透明度。
+     * 这两种模式下填充保留「越靠近地面越淡」的纵向淡出 —— 所以不跟方向渐变走轴，
+     * 而是把当前色序按纵向堆叠（末色在顶）。「方向多色」模式改用方向场渐变，
+     * 见 avDrawMountain（填充与顶部亮线同源铺色）。
+     */
+    function avFillVertical(ctx, key, box, pal) {
+      // 色序倒序：末色在顶、首色在底 —— 「亮色」模式即「顶部亮色 → 底部主色」，
+      // 与旧实现（rgb2 → rgb）逐字节一致，开倒影/改宽度时的观感不漂移。
+      const n = pal.length;
+      const seq = n === 1 ? [pal[0], pal[0]] : pal.slice().reverse();
+      const stops = seq.map((rgb, i) => {
+        const t = i / (seq.length - 1);
+        return [t, avRgba(rgb, 0.55 - 0.47 * t)];
+      });
+      const [x0, y0, x1, y1] = box;
+      const tag = ctx === g2d ? 'g' : 'l';
+      const kk = `${key}|${tag}|${box.map((v) => Math.round(v)).join(',')}|${stops.map((s) => s[1]).join(',')}`;
+      return avLinGrad(ctx, kk, x0, y0, x1, y1, stops);
+    }
+
+    /** 山峦：频谱填充面积图 + 顶部亮线（低频在左，随节奏起伏）；数量 = 峰点数 */
     function avDrawMountain(g, rgb, rgb2, sens, alpha) {
-      const N = 64;
+      const N = avCount();
       const { maxH } = g;
       const baseline = g.cy + maxH / 2;
-      const x0 = g.W * 0.07, span = g.W * 0.86;
+      const span = g.span;
+      const x0 = g.cx - span / 2;
       const usable = Math.floor(av.freq.length * 0.75);
+      const mode = avGradMode();
+      const pal = avPalette();
+      const hov = av._hk > 0.001;
+      const rad = Math.max(70, span * 0.18);
+      // 鼠标交互：光标附近的峰被抬升（局部「隆起」）
       const pts = [];
       for (let i = 0; i < N; i++) {
-        const v = Math.pow(avBarValue(i, N, usable), 1.15) * sens;
-        const h = Math.max(2, Math.min(1, v) * maxH);
-        pts.push([x0 + (i / (N - 1)) * span, baseline - h]);
+        let v = Math.pow(avBarValue(i, N, usable), 1.15) * sens;
+        const x = x0 + (i / (N - 1)) * span;
+        if (hov) v *= 1 + 0.85 * avHoverX(x, rad);
+        const h = Math.max(2, Math.min(1.3, v) * maxH);
+        pts.push([x, baseline - h]);
       }
       avComposite(g, alpha, 8, (ctx) => {
         ctx.beginPath();
@@ -1350,36 +1627,58 @@
         for (const [x, y] of pts) ctx.lineTo(x, y);
         ctx.lineTo(x0 + span, baseline);
         ctx.closePath();
-        ctx.fillStyle = avLinGrad(ctx, `mtnfill|${baseline.toFixed(1)}|${maxH.toFixed(1)}`,
-          0, baseline - maxH, 0, baseline,
-          [[0, avRgba(rgb2, 0.55)], [1, avRgba(rgb, 0.08)]]);
+        ctx.fillStyle = mode === 'dir'
+          // 方向多色：填充也跟着方向铺色（多色依次排开，与顶部亮线同源）
+          ? avFieldStyle(ctx, [x0, baseline - maxH, x0 + span, baseline], 0.5)
+          : avFillVertical(ctx, 'mtnfill', [0, baseline - maxH, 0, baseline], pal);
         ctx.fill();
-        ctx.strokeStyle = avLinGrad(ctx, `mtnline|${x0.toFixed(1)}|${span.toFixed(1)}`,
-          x0, 0, x0 + span, 0, [[0, avRgba(rgb, 1)], [1, avRgba(rgb2, 1)]]);
+        ctx.strokeStyle = avFieldStyle(ctx, [x0, baseline - maxH, x0 + span, baseline]);
         ctx.lineWidth = 2.5;
         ctx.lineJoin = 'round';
         ctx.beginPath();
         pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
         ctx.stroke();
+        // 光标附近加粗的一段亮线：强化「划过这里」的方向感
+        if (hov) {
+          const near = pts.filter(([x]) => Math.abs(x - av.hx) < rad * 0.5);
+          if (near.length > 1) {
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = avRgba(avLighten(pal[pal.length - 1], 0.25), 0.9);
+            ctx.beginPath();
+            near.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+            ctx.stroke();
+          }
+        }
       });
     }
 
-    /** 圆点：列×行点阵矩阵，列能量点亮对应数量的点 */
+    /** 圆点：列×行点阵矩阵，列能量点亮对应数量的点；数量 = 列数，宽度 = 内容宽度 */
     function avDrawDots(g, rgb, rgb2, sens, alpha) {
-      const cols = 32, rows = 12;
+      const cols = avCount(), rows = 12;
       const { maxH } = g;
       const baseline = g.cy + maxH / 2;
-      const totalW = g.W * 0.86;
+      const totalW = g.span;
       const cw = totalW / cols;
       const rh = maxH / rows;
       const x0 = g.cx - totalW / 2;
       const usable = Math.floor(av.freq.length * 0.75);
       const rDot = Math.max(1.6, Math.min(cw, rh) * 0.28);
-      // 先算每列点亮数，两趟绘制共用 —— 旧实现在内层循环里逐次改
-      // fillStyle/shadowBlur（32×12 = 384 次状态写/帧 + 上百次高斯模糊）
+      const hov = av._hk > 0.001;
+      const rad = Math.max(60, totalW * 0.16);
+      // 鼠标交互：光标附近的「聚光」—— 除列高增强外，光圈内的格子额外点亮
       const lit = new Uint8Array(cols);
+      const hot = new Uint8Array(cols * rows);
       for (let i = 0; i < cols; i++) {
-        lit[i] = Math.round(Math.min(1, Math.pow(avBarValue(i, cols, usable), 1.15) * sens) * rows);
+        const x = x0 + i * cw + cw / 2;
+        let v = Math.pow(avBarValue(i, cols, usable), 1.15) * sens;
+        if (hov) v *= 1 + 0.8 * avHoverX(x, rad);
+        lit[i] = Math.round(Math.min(1, v) * rows);
+        if (hov) {
+          for (let r = lit[i]; r < rows; r++) {
+            const y = baseline - (r + 0.5) * rh;
+            if (avHover2(x, y, rad * 0.7) > 0.26) hot[i * rows + r] = 1;
+          }
+        }
       }
       const dot = (ctx, i, r) => {
         const x = x0 + i * cw + cw / 2;
@@ -1387,53 +1686,83 @@
         ctx.moveTo(x + rDot, y); // arc 前必须 moveTo，否则子路径之间会连出直线
         ctx.arc(x, y, rDot, 0, TAU);
       };
-      // 暗格：不发光，直接一条 path 批量填到主画布
+      // 暗格：不发光，直接一条 path 批量填到主画布（聚光格留给辉光层）
       g2d.save();
       g2d.globalAlpha = alpha;
       g2d.fillStyle = 'rgba(255,255,255,0.08)';
       g2d.beginPath();
-      for (let i = 0; i < cols; i++) for (let r = lit[i]; r < rows; r++) dot(g2d, i, r);
+      for (let i = 0; i < cols; i++) for (let r = lit[i]; r < rows; r++) { if (!hot[i * rows + r]) dot(g2d, i, r); }
       g2d.fill();
       g2d.restore();
-      // 亮格：一条 path 批量填进辉光层
+      // 亮格：一条 path 批量填进辉光层（聚光格用更亮的色序末色，单独一条 path）
       avComposite(g, alpha, 5, (ctx) => {
-        ctx.fillStyle = avLinGrad(ctx, `dots|${x0.toFixed(1)}|${totalW.toFixed(1)}`,
-          x0, 0, x0 + totalW, 0, [[0, avRgba(rgb, 1)], [1, avRgba(rgb2, 1)]]);
+        ctx.fillStyle = avFieldStyle(ctx, [x0, baseline - maxH, x0 + totalW, baseline]);
         ctx.beginPath();
         for (let i = 0; i < cols; i++) for (let r = 0; r < lit[i]; r++) dot(ctx, i, r);
         ctx.fill();
+        if (hov) {
+          const pal = avPalette();
+          ctx.fillStyle = avRgba(avLighten(pal[pal.length - 1], 0.3), 0.95);
+          ctx.beginPath();
+          for (let i = 0; i < cols; i++) {
+            for (let r = lit[i]; r < rows; r++) if (hot[i * rows + r]) dot(ctx, i, r);
+          }
+          ctx.fill();
+        }
       });
     }
 
-    /** 同心环：低/中/高三环随各自频段能量脉动（响亮时开口收拢） */
+    /** 同心环：各环随各自频段能量脉动（响亮时开口收拢）；数量 = 环数 */
     function avDrawRings(g, rgb, rgb2, sens, alpha) {
       const { cx, cy, R } = g;
+      const N = avCount();
+      const mode = avGradMode();
+      const pal = avPalette();
       const usable = Math.floor(av.freq.length * 0.75);
+      if (!av._rings || av._rings.length !== N) av._rings = new Float32Array(N);
       const levels = [];
-      for (let b = 0; b < 3; b++) {
+      for (let b = 0; b < N; b++) {
         let sum = 0, n = 0;
-        const lo = Math.floor(usable * b / 3), hi = Math.floor(usable * (b + 1) / 3);
+        const lo = Math.floor(usable * b / N), hi = Math.floor(usable * (b + 1) / N);
         for (let i = lo; i < hi; i += 4) { sum += av.freq[i]; n++; }
         const raw = Math.min(1, (sum / Math.max(1, n) / 255) * sens);
-        const key = '_ring' + b;
-        av[key] = Math.max(raw, (av[key] || 0) * 0.90); // 平滑回落
-        levels.push(av[key]);
+        av._rings[b] = Math.max(raw, (av._rings[b] || 0) * 0.90); // 平滑回落
+        levels.push(av._rings[b]);
       }
       av.spin += 0.0012;
-      const radii = [0.52, 0.76, 1.0];
+      // 鼠标交互：环整体微涨，且光标方向上的弧段被「点亮」
+      const hov = av._hk > 0.001 && R > 1;
+      let hAng = 0;
+      if (hov) {
+        const dx0 = av.hx - cx, dy0 = av.hy - cy;
+        hAng = (dx0 || dy0) ? Math.atan2(dy0, dx0) : 0;
+      }
       avComposite(g, alpha, 10, (ctx) => {
         ctx.lineCap = 'round';
-        for (let b = 0; b < 3; b++) {
+        const field = mode === 'dir'
+          ? avFieldStyle(ctx, [cx - R * 1.2, cy - R * 1.2, cx + R * 1.2, cy + R * 1.2])
+          : null;
+        for (let b = 0; b < N; b++) {
           const level = levels[b];
-          const r = R * radii[b] * (1 + level * 0.16);
-          ctx.strokeStyle = b % 2 ? avRgba(rgb2, 0.9) : avRgba(rgb, 0.9);
-          ctx.lineWidth = Math.max(2.5, R * (0.10 - b * 0.022)) * (0.8 + level * 0.9);
+          const t = N === 1 ? 1 : b / (N - 1);
+          const r = R * (0.52 + 0.48 * t) * (1 + level * 0.16 + (hov ? 0.05 * av._hk : 0));
+          ctx.strokeStyle = field || (b % 2 ? avRgba(rgb2, 0.9) : avRgba(rgb, 0.9));
+          ctx.lineWidth = Math.max(2.5, R * (0.10 - 0.055 * t)) * (0.8 + level * 0.9);
           ctx.beginPath();
           // 旋转开口环：能量越高缺口越小（环"合拢"）
           const gap = (0.55 - level * 0.4) * Math.PI;
           const dir = av.spin * (b % 2 ? -1 : 1);
           ctx.arc(cx, cy, r, dir + gap / 2 + b, dir + TAU - gap / 2 + b);
           ctx.stroke();
+          if (hov) {
+            // 跟手亮段：以光标角为中心的一段弧，随环号错开（有层次）
+            const jit = b * 0.14;
+            ctx.strokeStyle = avRgba(avLighten(pal[pal.length - 1], 0.2), 0.85 * av._hk);
+            ctx.lineWidth *= 1.8;
+            ctx.beginPath();
+            ctx.arc(cx, cy, r, hAng - 0.46 + jit, hAng + 0.46 + jit);
+            ctx.stroke();
+          }
         }
       });
       // 中心光晕半径/透明度随能量每帧变化，不缓存（每帧仅 1 个渐变）
@@ -1449,31 +1778,41 @@
       g2d.restore();
     }
 
-    /** LED 块：块状能量柱 + 峰值保持下落点 */
+    /** LED 块：块状能量柱 + 峰值保持下落点；数量 = 列数，宽度 = 内容宽度 */
     function avDrawBlocks(g, rgb, rgb2, sens, alpha) {
-      const cols = 28, rows = 14;
+      const cols = avCount(), rows = 14;
       const { maxH } = g;
       const baseline = g.cy + maxH / 2;
-      const totalW = g.W * 0.86;
+      const totalW = g.span;
       const cw = totalW / cols, rh = maxH / rows;
       const x0 = g.cx - totalW / 2;
       const usable = Math.floor(av.freq.length * 0.75);
       if (!av._blkPeaks || av._blkPeaks.length !== cols) av._blkPeaks = new Float32Array(cols);
       const bw = cw * 0.66, bh = rh * 0.62;
       const rr = Math.min(2.5, bh / 2);
-      // 先算每列的点亮数与峰值格，三趟绘制共用 —— 旧实现在内层循环里逐次改
-      // fillStyle/shadowBlur（28×14 = 392 次状态写/帧 + 上百次高斯模糊）
+      const hov = av._hk > 0.001;
+      const rad = Math.max(60, totalW * 0.16);
+      // 鼠标交互：光标附近列高增强 + 光圈内的空格额外点亮
       const lit = new Uint8Array(cols), peak = new Uint8Array(cols);
+      const hot = new Uint8Array(cols * rows);
       for (let i = 0; i < cols; i++) {
-        const v = Math.pow(avBarValue(i, cols, usable), 1.15) * sens;
+        const x = x0 + i * cw + cw / 2;
+        let v = Math.pow(avBarValue(i, cols, usable), 1.15) * sens;
+        if (hov) v *= 1 + 0.8 * avHoverX(x, rad);
         lit[i] = Math.round(Math.min(1, v) * rows);
         av._blkPeaks[i] = Math.max(lit[i], av._blkPeaks[i] - 0.08);
         peak[i] = Math.round(av._blkPeaks[i]);
+        if (hov) {
+          for (let r = lit[i]; r < rows; r++) {
+            const y = baseline - (r + 1) * rh + rh / 2;
+            if (avHover2(x, y, rad * 0.7) > 0.26) hot[i * rows + r] = 1;
+          }
+        }
       }
       const cell = (ctx, i, r) => {
         ctx.roundRect(x0 + i * cw + (cw - bw) / 2, baseline - (r + 1) * rh + (rh - bh) / 2, bw, bh, rr);
       };
-      // 暗格：不发光，一条 path 批量填到主画布（峰值格留给辉光层）
+      // 暗格：不发光，一条 path 批量填到主画布（峰值格与聚光格留给辉光层）
       g2d.save();
       g2d.globalAlpha = alpha;
       g2d.fillStyle = 'rgba(255,255,255,0.07)';
@@ -1482,15 +1821,15 @@
         for (let r = 0; r < rows; r++) {
           if (r < lit[i]) continue;
           if (peak[i] > lit[i] && r === peak[i] - 1) continue;
+          if (hot[i * rows + r]) continue;
           cell(g2d, i, r);
         }
       }
       g2d.fill();
       g2d.restore();
-      // 亮格 + 峰值格：进辉光层（各一条 path）
+      // 亮格 + 峰值格 + 聚光格：进辉光层（各一条 path）
       avComposite(g, alpha, 5, (ctx) => {
-        ctx.fillStyle = avLinGrad(ctx, `blocks|${x0.toFixed(1)}|${totalW.toFixed(1)}`,
-          x0, 0, x0 + totalW, 0, [[0, avRgba(rgb, 1)], [1, avRgba(rgb2, 1)]]);
+        ctx.fillStyle = avFieldStyle(ctx, [x0, baseline - maxH, x0 + totalW, baseline]);
         ctx.beginPath();
         for (let i = 0; i < cols; i++) for (let r = 0; r < lit[i]; r++) cell(ctx, i, r);
         ctx.fill();
@@ -1498,6 +1837,15 @@
         ctx.beginPath();
         for (let i = 0; i < cols; i++) if (peak[i] > lit[i]) cell(ctx, i, peak[i] - 1);
         ctx.fill();
+        if (hov) {
+          const pal = avPalette();
+          ctx.fillStyle = avRgba(avLighten(pal[pal.length - 1], 0.3), 0.9);
+          ctx.beginPath();
+          for (let i = 0; i < cols; i++) {
+            for (let r = lit[i]; r < rows; r++) if (hot[i * rows + r]) cell(ctx, i, r);
+          }
+          ctx.fill();
+        }
       });
     }
 

@@ -1229,6 +1229,9 @@ function setupIpc() {
   });
 
   // 同时提供 HTTP 控制端点（避免需要启动第二个 Electron 进程触发）
+  // 端口可被 WP_DEBUG_PORT 覆盖：本机正式实例常驻时（占着默认 7851），
+  // 测试实例改用一个空闲端口，避免 /state、/capture 被常驻实例应答（读到别人的状态）。
+  const DEBUG_PORT = Number(process.env.WP_DEBUG_PORT) || 7851;
   try {
     const http = require('http');
     http.createServer(async (req, res) => {
@@ -1237,8 +1240,9 @@ function setupIpc() {
         const r = await captureDebugScreens();
         res.end(JSON.stringify(r, null, 2));
       } else if (req.url === '/state') {
-        // 组件输入状态诊断：inputOn/rects 数/编辑焦点/光标位置与命中
-        const out = { cursor: desktop.getCursorPos(), parts: {} };
+        // 组件输入状态诊断：inputOn/rects 数/编辑焦点/光标位置与命中；
+        // 音律动效另有 hoverOn/hoverLast（鼠标交互位置推送的实况，见 widgets-host._pushAvHover）
+        const out = { cursor: desktop.getCursorPos(), avizPerfPaused: !!widgetsHost.avizPerfPaused, parts: {} };
         if (widgetsHost) {
           for (const [k, p] of widgetsHost.parts) {
             out.parts[k] = {
@@ -1247,6 +1251,9 @@ function setupIpc() {
               rect: p.hwnd ? desktop.getWindowRectScreen(p.hwnd) : null,
               hitNow: p.hwnd ? desktop.cursorInRects(p.hwnd, p.rects) : null,
               firstRects: (p.rects || []).slice(0, 4),
+              hoverOn: !!p.hoverOn, hoverLast: p.hoverLast || null,
+              hoverCur: p.hoverCur || null, hoverRect: p.hoverRect || null,
+              adjusting: !!p.adjusting, dragging: !!p.dragging,
             };
           }
         }
@@ -1290,7 +1297,7 @@ function setupIpc() {
       } else {
         res.end('{"ok":true}');
       }
-    }).listen(7851, '127.0.0.1', () => console.log('[debug] HTTP 控制端点已启用 http://127.0.0.1:7851/capture'));
+    }).listen(DEBUG_PORT, '127.0.0.1', () => console.log(`[debug] HTTP 控制端点已启用 http://127.0.0.1:${DEBUG_PORT}/capture`));
   } catch (e) { console.warn('[debug] HTTP 端点启动失败:', e.message); }
 
   async function captureDebugScreens() {

@@ -321,7 +321,7 @@
           <div class="switch-row" data-page-node-id="DRJ3gPpp0iLgdaLPqqWAkJ">
             <div data-page-node-id="4PayYE4H1ElE2bFS86KREB">
               <div class="row-title" data-page-node-id="XcAnJlzSCUoWaoDrL4JFBo">动效样式</div>
-              <div class="row-sub" data-page-node-id="XV4DtTXXMWJdTCE2Bv9Xob">频谱条：能量柱 · 波浪：波形曲线 · 圆环：旋转放射环 · 山峦：填充山脉 · 圆点：点阵矩阵 · 同心环：三频同心 · LED块：复古电平块 · 霓虹：强发光灯管</div>
+              <div class="row-sub" data-page-node-id="XV4DtTXXMWJdTCE2Bv9Xob">频谱条：能量柱 · 波浪：波形曲线 · 圆环：旋转放射环 · 山峦：填充山脉 · 圆点：点阵矩阵 · 同心环：多频同心 · LED块：复古电平块 · 霓虹：强发光灯管。下方「数量 / 高度 / 宽度」随样式生效，改样式后文案与取值范围会自动对应</div>
             </div>
             <div class="seg" id="av-style" style="flex-wrap:wrap; max-width:300px; justify-content:flex-end" data-page-node-id="9LRlvyHcxki8Ctwid766wa">
               <button data-style="bars" data-page-node-id="aQvdEhhDUDIHnHFkcg2mWI">频谱条</button>
@@ -334,6 +334,30 @@
               <button data-style="neon" data-page-node-id="nUTFaeTwf27gfJifjC4T91">霓虹</button>
             </div>
           </div>
+          <div class="switch-row" id="av-count-row" data-page-node-id="av-count-row">
+            <div data-page-node-id="av-count-label">
+              <div class="row-title">数量 <span class="title-hint" id="av-count-val"></span></div>
+              <div class="row-sub"><input type="number" id="av-count-num" min="0" max="180" step="1" style="width:64px"> <span id="av-count-sub">（0 = 按样式自动）</span></div>
+            </div>
+            <input type="range" id="av-count" min="0" max="180" step="1" style="width:150px">
+          </div>
+          <div class="preset-row" id="av-count-presets"></div>
+          <div class="switch-row" id="av-height-row" data-page-node-id="av-height-row">
+            <div data-page-node-id="av-height-label">
+              <div class="row-title">高度 <span class="title-hint" id="av-height-val"></span></div>
+              <div class="row-sub"><input type="number" id="av-height-num" min="0.3" max="2" step="0.05" style="width:64px"> ×<span id="av-height-sub">（0.3~2.0，圆环类样式由宽度统一控制尺寸）</span></div>
+            </div>
+            <input type="range" id="av-height" min="0.3" max="2" step="0.05" style="width:150px">
+          </div>
+          <div class="preset-row" id="av-height-presets"></div>
+          <div class="switch-row" id="av-width-row" data-page-node-id="av-width-row">
+            <div data-page-node-id="av-width-label">
+              <div class="row-title">宽度 <span class="title-hint" id="av-width-val"></span></div>
+              <div class="row-sub"><input type="number" id="av-width-num" min="0.2" max="1" step="0.02" style="width:64px"> <span id="av-width-sub"></span></div>
+            </div>
+            <input type="range" id="av-width" min="0.2" max="1" step="0.02" style="width:150px">
+          </div>
+          <div class="preset-row" id="av-width-presets"></div>
           <div class="switch-row" id="av-pos-row" data-page-node-id="kJj3mDdruzwc0cFZnarRbk">
             <div data-page-node-id="zZb3du863aNkA9EqCgMxdW">
               <div class="row-title" data-page-node-id="IbdnZuBKoUmqrXdC21R9wz">显示位置</div>
@@ -371,18 +395,43 @@
           <div class="preset-row" id="av-xy-presets" title="点击快速设置到对应角落/居中" data-page-node-id="BYxqgSvqCTmk4l0AARhdnL"></div>
           <div class="switch-row" data-page-node-id="NlyygNnrwyuRYPiXBr2TxL">
             <div data-page-node-id="6f25ptDNTpVOjzaJ1z7PX2">
-              <div class="row-title" data-page-node-id="DwUoZCHGZHaPLAD1kwDpXo">颜色</div>
-              <div class="row-sub" data-page-node-id="zRNHdp5ZTZxLgTGsms7DRt">点击色板快速切换常用配色，或用取色器自定义（渐变模式下向亮色过渡）</div>
+              <div class="row-title" data-page-node-id="DwUoZCHGZHaPLAD1kwDpXo">颜色与渐变</div>
+              <div class="row-sub" data-page-node-id="zRNHdp5ZTZxLgTGsms7DRt">点色板快速切换常用配色，或用取色器自定义。渐变方式：纯色 = 单一主色；亮色 = 主色向亮色过渡；方向多色 = 2~6 种颜色沿指定方向依次排布（左→右、上→下等 8 个方向）</div>
             </div>
             <div class="av-color-row" data-page-node-id="pbtihkIyigyeMxBDjCnP1F">
               <input type="color" id="av-color" value="#7c5cff" data-page-node-id="Ce2DoaX4VkRFCY23Nsih3M">
-              <div class="seg" id="av-gradient" data-page-node-id="QsEVI5iH1ojwKJbovuCnZa">
-                <button data-gradient="on" data-page-node-id="kCaMBLKAH3g7neewNv5s1B">渐变</button>
-                <button data-gradient="off" data-page-node-id="hPfZ7rR2eHsrmfhqAj1rDl">纯色</button>
+              <div class="seg" id="av-gradtype" data-page-node-id="QsEVI5iH1ojwKJbovuCnZa">
+                <button data-gradtype="none" data-page-node-id="hPfZ7rR2eHsrmfhqAj1rDl">纯色</button>
+                <button data-gradtype="auto" data-page-node-id="kCaMBLKAH3g7neewNv5s1B">亮色</button>
+                <button data-gradtype="dir" data-page-node-id="av-gradtype-dir">方向多色</button>
               </div>
             </div>
           </div>
           <div class="preset-row" id="av-colors" data-page-node-id="Ew4AolsqM0SdB7SrJCU4Bq"></div>
+          <div class="switch-row" id="av-graddir-row" data-page-node-id="av-graddir-row">
+            <div data-page-node-id="av-graddir-label">
+              <div class="row-title">渐变方向</div>
+              <div class="row-sub" id="av-graddir-sub">颜色沿该方向依次排布：动效形状在自己所在的位置取色，于是「从左往右 / 从上往下」依次显示不同颜色</div>
+            </div>
+            <div class="seg" id="av-graddir" style="flex-wrap:wrap; max-width:220px; justify-content:flex-end" data-page-node-id="av-graddir-seg">
+              <button data-graddir="lr" title="从左往右">→</button>
+              <button data-graddir="rl" title="从右往左">←</button>
+              <button data-graddir="tb" title="从上往下">↓</button>
+              <button data-graddir="bt" title="从下往上">↑</button>
+              <button data-graddir="tlbr" title="左上 → 右下">↘</button>
+              <button data-graddir="bltr" title="左下 → 右上">↗</button>
+              <button data-graddir="trbl" title="右上 → 左下">↙</button>
+              <button data-graddir="brtl" title="右下 → 左上">↖</button>
+            </div>
+          </div>
+          <div class="switch-row" id="av-gradcolors-row" data-page-node-id="av-gradcolors-row">
+            <div data-page-node-id="av-gradcolors-label">
+              <div class="row-title">多色序列 <span class="title-hint" id="av-gradcolors-hint"></span></div>
+              <div class="row-sub" id="av-gradcolors-sub">按方向依次排布的 2~6 种颜色（点色块改色，「＋」加一色，右键或「－」删一色）</div>
+            </div>
+            <div class="av-color-row" id="av-gradcolors" data-page-node-id="av-gradcolors-list"></div>
+          </div>
+          <div class="preset-row" id="av-gradpresets" data-page-node-id="av-gradpresets"></div>
           <div class="switch-row" data-page-node-id="ubAoxwAtUUYrdsDNhq4mlI">
             <div data-page-node-id="rKhlssRxedDY1O8sAneeW9">
               <div class="row-title" data-page-node-id="0hA5PeeU6EGunXc6QGM6C5">不透明度 <span class="title-hint" id="av-opacity-val" data-page-node-id="hz5jXuaB0uuDFFbXncT3qR"></span></div>
@@ -407,6 +456,21 @@
             <input type="range" id="av-sens" min="0.5" max="3" step="0.1" style="width:150px" data-page-node-id="cinGJrYXmnZB2uANZCFW7T">
           </div>
           <div class="preset-row" id="av-sens-presets" data-page-node-id="wIskn57EP6Y5ztXJWKt2ca"></div>
+          <label class="switch-row" data-page-node-id="av-hover-row">
+            <div data-page-node-id="av-hover-label">
+              <div class="row-title">鼠标划过交互</div>
+              <div class="row-sub" id="av-hover-sub">鼠标划过动效时产生对应反馈：光标附近柱/点被拉高点亮、波形起涟漪、山体隆起、环上出现跟手亮段，并有光晕与反馈圆环。动效窗保持鼠标穿透，桌面图标照常点击（不会挡住操作）</div>
+            </div>
+            <span class="switch" data-page-node-id="av-hover-switch"><input type="checkbox" id="av-hover" data-page-node-id="av-hover-input"><i data-page-node-id="av-hover-i"></i></span>
+          </label>
+          <div class="switch-row" id="av-hoverstr-row" data-page-node-id="av-hoverstr-row">
+            <div data-page-node-id="av-hoverstr-label">
+              <div class="row-title">交互强度 <span class="title-hint" id="av-hoverstr-val"></span></div>
+              <div class="row-sub"><input type="number" id="av-hoverstr-num" min="0.2" max="2" step="0.1" style="width:64px">（0.2~2.0，越大划过时的局部增强越明显）</div>
+            </div>
+            <input type="range" id="av-hoverstr" min="0.2" max="2" step="0.1" style="width:150px">
+          </div>
+          <div class="preset-row" id="av-hoverstr-presets" data-page-node-id="av-hoverstr-presets"></div>
           <label class="switch-row" data-page-node-id="3mnKUENS0ODRXFZfPii5kr">
             <div data-page-node-id="r60vBNP4F9vY7JTkT8G4Yj">
               <div class="row-title" data-page-node-id="7Ofjv0lofRwp4UqBDV0sCv">倒影</div>
@@ -796,7 +860,7 @@
           <div class="switch-row" data-page-node-id="lTlJ0SLiBIKl1wRdnG5ByC">
             <div data-page-node-id="AdNVHec1jGCKf17AkIxqoy">
               <div class="row-title" data-page-node-id="qHwJaiIEzZAkSyDk9acL7G">关于</div>
-              <div class="row-sub" id="about-version" data-page-node-id="H2XSgCQCOd87UQWQVzVCad">壁纸工坊 v1.8.0 — 静态 / 动态 / 网页 / EXE 壁纸 · 平滑轮换过渡 · 音律动效 · 桌面组件 · 快捷方式收纳转盘 · 桌面与锁屏</div>
+              <div class="row-sub" id="about-version" data-page-node-id="H2XSgCQCOd87UQWQVzVCad">壁纸工坊 v1.18.0 — 静态 / 动态 / 网页 / EXE 壁纸 · 平滑轮换过渡 · 音律动效 · 桌面组件 · 快捷方式收纳转盘 · 桌面与锁屏</div>
             </div>
           </div>
           <div class="switch-row" data-page-node-id="EAXAMNvvxRIAE2Zf7FsS5F">

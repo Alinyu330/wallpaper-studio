@@ -1068,6 +1068,41 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
   box-shadow: 0 0 0 3px rgba(124,92,255,.35);
   transform: scale(1.12);
 }
+/* 方向多色序列：色块 + 删色 + 加色 */
+#av-gradcolors { flex-wrap: wrap; max-width: 280px; justify-content: flex-end; gap: 14px; }
+.av-gradcolor { position: relative; display: inline-flex; }
+.av-gradcolor input[type="color"] {
+  width: 34px; height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg2);
+  padding: 2px;
+  cursor: pointer;
+}
+.av-gradcolor-del {
+  position: absolute; top: -7px; right: -7px;
+  width: 16px; height: 16px; padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg2);
+  color: var(--text-dim);
+  font-size: 11px; line-height: 1;
+  cursor: pointer;
+}
+.av-gradcolor-del:hover { color: #fff; border-color: var(--accent); background: var(--accent); }
+.av-gradcolor-del:disabled { opacity: .3; cursor: default; }
+.av-gradcolor-del:disabled:hover { color: var(--text-dim); border-color: var(--border); background: var(--bg2); }
+.av-gradcolor-add {
+  width: 34px; height: 26px;
+  border-radius: 8px;
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px; cursor: pointer;
+}
+.av-gradcolor-add:hover { color: var(--text); border-color: var(--accent); }
+/* 方向按钮：箭头紧凑排布 */
+#av-graddir button { min-width: 34px; padding: 4px 6px; }
 /* 实时音频电平表 */
 .av-meter {
   display: flex; align-items: flex-end; gap: 2.5px;

@@ -195,6 +195,11 @@ class WidgetsHost {
       this._syncInputTimer();
     });
     this.parts.set(key, p);
+    // 立刻拉起输入轮询（光标命中 / 音律动效交互位置推送都靠它）。
+    // ★ 必须在这里补一次：_syncNow 里那次 _syncInputTimer() 跑在创建窗口之前，
+    //   那时 parts 还是空的（不建定时器），下一个建定时器的时机是看门狗（约 4s）——
+    //   期间组件点不动、动效划过无反馈（v1.18.0 功能测试实测到的真实缺陷）。
+    this._syncInputTimer();
   }
 
   _destroyPart(key) {
@@ -471,6 +476,8 @@ class WidgetsHost {
       this.inputTimer = setInterval(() => {
         for (const p of this.parts.values()) {
           if (!p.win || p.win.isDestroyed() || !p.hwnd) continue;
+          // 音律动效：鼠标交互位置推送（在命中判定之前，且与穿透状态无关）
+          if (p.key === 'aviz') this._pushAvHover(p);
           const hit = p.adjusting || p.interacting || p.dragging || desktop.cursorInRects(p.hwnd, p.rects);
           if (hit !== p.inputOn) {
             p.inputOn = hit;
@@ -484,6 +491,57 @@ class WidgetsHost {
       clearInterval(this.inputTimer);
       this.inputTimer = null;
     }
+  }
+
+  /**
+   * 音律动效「鼠标划过」交互：位置来源 = 主进程已有的 30ms 光标轮询。
+   *
+   * 为什么不走 DOM 鼠标事件：动效窗为了不吞掉组件后方桌面图标的点击，常驻
+   * setIgnoreMouseEvents(true)（鼠标穿透），页面拿不到任何 mouse 事件。若为了
+   * 交互改成可点击，动效条带覆盖区域（底部/顶部整条）上的桌面图标就点不动了 ——
+   * 代价远大于收益。这里改成主进程只读光标坐标（GetCursorPos）算出光标相对窗口
+   * 的位置推给渲染页，穿透状态完全不变，桌面图标照常可点。
+   *
+   * 节流：光标静止（坐标没变）直接返回；窗口矩形最多 800ms 取一次（koffi 调用）；
+   * 位移 < 3px 不发；离开窗口只发一次 {in:false}。
+   */
+  _pushAvHover(p) {
+    const av = this.store.settings.audioViz || {};
+    const off = !av.enabled || av.hover === false || p.adjusting || p.dragging || this.avizPerfPaused;
+    if (off) {
+      // 清掉光标缓存：否则「关掉交互 → 光标没动 → 重新打开」时，
+      // 位置没变会被当成「光标静止」早退，要等用户再动一下鼠标才有反馈。
+      p.hoverCur = null;
+      if (p.hoverOn) { p.hoverOn = false; this._sendAvHover(p, { in: false }); }
+      return;
+    }
+    const cur = desktop.getCursorPos();
+    if (!cur) return;
+    // 光标静止：不重复取窗口矩形、不重复发（绝大多数时间都走这条早退）
+    if (p.hoverCur && p.hoverCur.x === cur.x && p.hoverCur.y === cur.y) return;
+    p.hoverCur = cur;
+    const now = Date.now();
+    if (!p.hoverRect || now - (p.hoverRectAt || 0) > 800) {
+      p.hoverRect = desktop.getWindowRectScreen(p.hwnd);
+      p.hoverRectAt = now;
+    }
+    const r = p.hoverRect;
+    if (!r) return;
+    const inside = cur.x >= r.x && cur.x < r.x + r.w && cur.y >= r.y && cur.y < r.y + r.h;
+    if (!inside) {
+      if (p.hoverOn) { p.hoverOn = false; this._sendAvHover(p, { in: false }); }
+      return;
+    }
+    const sf = screen.getPrimaryDisplay().scaleFactor || 1;
+    const x = (cur.x - r.x) / sf, y = (cur.y - r.y) / sf;
+    if (p.hoverOn && p.hoverLast && Math.abs(p.hoverLast.x - x) < 3 && Math.abs(p.hoverLast.y - y) < 3) return;
+    p.hoverOn = true;
+    p.hoverLast = { x, y };
+    this._sendAvHover(p, { in: true, x, y });
+  }
+
+  _sendAvHover(p, payload) {
+    try { if (p.win && !p.win.isDestroyed()) p.win.webContents.send('aviz:hover', payload); } catch (_) {}
   }
 
   // ---------- 调整模式（客户端按钮进入 → 桌面按住该窗口拖动 → 松手自动保存退出） ----------

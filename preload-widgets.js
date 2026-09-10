@@ -8,6 +8,10 @@ contextBridge.exposeInMainWorld('wallpaperHost', {
   onAdjust: (cb) => ipcRenderer.on('widgets:adjust-mode', (_e, v) => cb(v)), // {on} 调整模式开关
   onWeather: (cb) => ipcRenderer.on('wallpaper-weather', (_e, w) => cb(w)), // 看板天气（主进程 30min 刷新）
   onPerfPause: (cb) => ipcRenderer.on('aviz:perf-pause', (_e, v) => cb(v)), // {on} 上层有最大化/全屏窗口
+  // 音律动效鼠标交互：窗口常驻鼠标穿透（否则会吞掉组件后方桌面图标的点击），
+  // 页面拿不到 DOM 鼠标事件，改由主进程 30ms 光标轮询推送光标相对窗口的位置。
+  // v = {in:boolean, x?:number, y?:number}（CSS px，窗口左上角为原点）
+  onAvHover: (cb) => ipcRenderer.on('aviz:hover', (_e, v) => cb(v)),
   // 页面 → 主进程
   // ★ ready：渲染页加载完、IPC 监听器已注册后主动通知主进程（launcher 同款双保险时序，
   //   防止主进程早发的配置丢失 → cfg=null → 组件不渲染）
