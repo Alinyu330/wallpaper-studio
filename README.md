@@ -6,7 +6,7 @@
 
 ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Version](https://img.shields.io/badge/version-1.19.0-7c5cff)
+![Version](https://img.shields.io/badge/version-1.20.0-7c5cff)
 
 ## 官网
 
@@ -15,10 +15,12 @@
 
 ## 下载
 
-**最新版 v1.19.0 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · GPL-3.0 开源并明确禁止闭源商用）：
+**最新版 v1.20.0 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · GPL-3.0 开源并明确禁止闭源商用）：
 
-- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.19.0/WallpaperStudio-Setup-1.19.0.exe)
-- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.19.0/WallpaperStudio-Setup-1.19.0.exe)
+> 本版修复：信息看板天气城市**搜不到区县（县/区/旗/镇）**的问题；修复城市搜索框**输入被异常打断、无法一次输完**的问题（常去城市搜索框此前完全未生效）。
+
+- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.20.0/WallpaperStudio-Setup-1.20.0.exe)
+- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.20.0/WallpaperStudio-Setup-1.20.0.exe)
 - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
 > 已安装旧版？客户端「设置 → 检查更新」即可应用内一键更新，无需重新下载安装包。
@@ -47,7 +49,7 @@
 
 - **音律动效**（v1.7.0，v1.9.0 重写，v1.18.0 参数与交互）：系统音频实时频谱可视化，随音乐律动；绘制走「离屏辉光层 + 两次合成」，每帧上百次高斯模糊填充降为 2 次图像合成，帧率可限（15/24/30/60/不限）；镜像倒影与主体同层绘制，彻底消除倒影区残影 / 撕裂。样式：频谱条 / 波浪 / 圆环 / 山峦 / 圆点 / 同心环 / LED块 / 霓虹。**v1.18.0 新增**：每种样式可调**数量**（柱数 / 灯管数 / 采样点 / 峰点数 / 列数 / 放射条数 / 环数，0 = 自动）、**高度**（0.3~2.0）与**宽度**（柱状类为内容宽度占窗口比例，圆环类为整体尺寸）；**鼠标划过交互** —— 光标附近柱子拉高、波形起涟漪、山体隆起、点阵与 LED 光圈内额外点亮、同心环出现跟手亮段、圆环按角向拉长，另有光标光晕与反馈圆环（动效层仍鼠标穿透，桌面图标照常点击）；渐变方式扩展为**纯色 / 亮色 / 方向多色**，多色支持 8 个方向与 2~6 种自定义颜色（含彩虹 / 日落 / 极光 / 霓虹 / 海洋 / 蜜桃 6 组预设），颜色沿方向依次排布
 
-- **桌面 DIY 组件**（v1.2.0，v1.7.0 重构，v1.9.0~v1.11.0 持续增强，v1.17.0 看板编辑修复，v1.18.1 客户端看板输入修复，v1.19.0 天气地名到区县，v1.19.0 常去城市）：时钟（12/24 小时制点击切换）、信息看板（日历 / 天气按 IP 自动定位（省 · 市 · 区县三级地名，可再加一座常去城市同屏显示）/ 待办，桌面直接编辑）、系统状态监控（网速 / CPU / GPU / 内存）、音量控制条、音律动效 — 每个组件独立小窗口，无边框融入壁纸；毛玻璃 / 液态玻璃样式与全局调色；新增「调整模式」：客户端一键进入拖动调整、桌面默认只显示不误触；组件 / 音律动效 / 转盘均支持九宫格快速定位与拖动吸附
+- **桌面 DIY 组件**（v1.2.0，v1.7.0 重构，v1.9.0~v1.11.0 持续增强，v1.17.0 看板编辑修复，v1.18.1 客户端看板输入修复，v1.19.0 天气地名到区县，v1.20.0 区县搜索与城市搜索输入修复）：时钟（12/24 小时制点击切换）、信息看板（日历 / 天气按 IP 自动定位（省 · 市 · 区县三级地名，城市可搜到县 / 区 / 旗 / 镇，可再加一座常去城市同屏显示）/ 待办，桌面直接编辑）、系统状态监控（网速 / CPU / GPU / 内存）、音量控制条、音律动效 — 每个组件独立小窗口，无边框融入壁纸；毛玻璃 / 液态玻璃样式与全局调色；新增「调整模式」：客户端一键进入拖动调整、桌面默认只显示不误触；组件 / 音律动效 / 转盘均支持九宫格快速定位与拖动吸附
 
 - **点选 / 框选收纳**（v1.6.0，v1.7.0 增强）：全屏选择器直接点选或拖框选择桌面快捷方式，一键收纳进转盘 — 原桌面图标随之隐藏（实际移动文件到应用数据目录保管）；支持回收站、此电脑等系统项收纳与过滤无效文件；从转盘移除、一键"全部恢复"或关闭功能时，自动移回桌面原位置（恢复显示）
 
@@ -89,6 +91,7 @@
 
 | 版本 | 国内加速下载 | GitHub 直连 |
 |---|---|---|
+| v1.20.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.20.0/WallpaperStudio-Setup-1.20.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.20.0/WallpaperStudio-Setup-1.20.0.exe) |
 | v1.19.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.19.0/WallpaperStudio-Setup-1.19.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.19.0/WallpaperStudio-Setup-1.19.0.exe) |
 | v1.18.1 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.1/WallpaperStudio-Setup-1.18.1.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.1/WallpaperStudio-Setup-1.18.1.exe) |
 | v1.18.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.0/WallpaperStudio-Setup-1.18.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.0/WallpaperStudio-Setup-1.18.0.exe) |
@@ -123,6 +126,24 @@
 | v1.1.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) |
 
 > 各版本更新内容见下方「新增功能与修复问题」分节与 [官网更新日志](https://wallpaper-studio.pages.dev/#changelog)；更早版本（v1.0.0）见 [Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)。
+
+## v1.20.0 区县搜索修复 + 城市搜索输入修复
+
+**修复问题**
+
+- 修复信息看板天气城市**输入区（县）名识别不到**的问题 —— 此前城市搜索只查 Open-Meteo 城市库，而它的地名库只到「市 / 地级以上区」，县级单位基本没有收录：输入「保德县」「忻府区」「五台县」一律提示「没有匹配的城市」。现改为**多源搜索**：识别到区县 / 乡镇关键字（县 / 区 / 旗 / 镇 / 乡 / 街道 / 苏木 / 自治州…）时优先走 Photon（基于 OpenStreetMap，中文区县覆盖完整），否则优先走 Open-Meteo（市级结果更规范），任一源为空自动用另一源兜底。搜索结果统一拼成「省 · 市 · 区县」三级，并按「与输入贴合度 → 行政中心优先 → 人口降序」排序
+- 修复城市搜索**输入被异常打断、无法一次输完**的问题 —— 两处根因：① 搜索请求有竞态，防抖期间连续键入会并发多个请求，先发的若后到会用过期结果覆盖新列表（列表闪一下变成别的城市）；② 列表重建时可能丢失输入框焦点与正在键入的字符。现对每次查询编号、并按「请求序号 + 当前输入值」双重校验，过期回包直接丢弃；列表重建后若输入框原本有焦点则主动拉回，且结果列表不再抢占输入
+- 修复**常去城市搜索框与「清除常去城市」按钮完全无效**的问题 —— 客户端「设置 → 桌面组件 → 信息看板内容 → 常去城市」下的搜索框与清除按钮此前在页面上可见，但渲染层从未绑定任何事件（搜索框打字毫无反应、清除按钮点击无效果），同时也缺少对应的主进程处理分支。现已补齐：搜索框可正常搜索并设为常去城市，清除按钮可清除（未设置时给出提示）
+- 修复桌面看板**点击「常去城市」行编辑后无法保存**的问题 —— 桌面看板提交的 `favorite-set` / `favorite-clear` 操作在主进程组件宿主侧没有对应分支，会静默返回失败，表现为「选了城市但看板不显示、清除也清不掉」。现已补齐这两条操作，并与主城市一样触发天气重拉与看板高度重算
+- 过滤城市搜索结果中的非行政区划条目 —— OSM 数据里混有法院 / 委员会 / 学校 / 机场 / 公司等兴趣点，此前会作为「城市」出现在候选列表；现只保留行政层级地名（place / boundary）
+- 规范超长民族文字地名 —— 内蒙古 / 新疆等地的条目会带上大段民族文字注解（如「内蒙古自治区 ᠦᠪᠦᠷ ᠮᠣᠩᠭᠤᠯ …」），现已裁掉注解段，只保留中文名
+
+**测试**
+
+- 天气地名与真实定位 / 搜索链路 84 项全部通过，含新增区县搜索回归：保德县 / 忻府区 / 五台县 / 朝阳区 均能搜到且首条命中、结果含三级地名、坐标可用；市级搜索不混入法院机构等 POI；民族文字地名已裁短
+- 城市搜索输入连续性 17 项全部通过（真实设置页 + 桩数据）：连续键入区县名不丢字、焦点不被抢走、回包后输入与焦点保持、**乱序回包（慢的旧请求不覆盖新结果）**、同步回推期间输入不丢字、常去城市搜索与清除按钮生效且正确落盘
+- 信息看板真实渲染 94 项、真机功能测试 48 项（含 8 项本次修复的真机回归：逐字键入区县名 → 真实网络搜索 → 选中落盘 → 常去城市设置 / 清除）全部通过
+- 回归：音律动效绘制 36 项、组件宿主交互 15 项、设置页真实渲染 49 项 — 全部 0 失败、0 控制台错误
 
 ## v1.19.0 信息看板天气地名精确到区县 + 常去城市
 
