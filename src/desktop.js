@@ -536,9 +536,14 @@ function ensureChildOnTop(parentHwnd, className) {
 // （壁纸带/图标之上、所有应用窗口之下），看门狗周期性重申。
 // Chromium 顶层窗口正常走 DComp 呈现，不存在冻结问题。
 
+/** 当前前台窗口 HWND（0 = 无前台窗口/查询失败） */
+function getForegroundHwnd() {
+  return Number(BigIntAsInt(GetForegroundWindow())) || 0;
+}
+
 /** 当前前台窗口所属进程 PID（0 = 无前台窗口/查询失败） */
 function getForegroundPid() {
-  const fg = Number(BigIntAsInt(GetForegroundWindow()));
+  const fg = getForegroundHwnd();
   if (!fg) return 0;
   return getWindowPid(fg);
 }
@@ -1303,6 +1308,7 @@ module.exports = {
   ensureLauncherOverlay,
   setNoActivate,
   forceForeground,
+  getForegroundHwnd,
   getForegroundPid,
   moveWindowToScreen,
   resizeWindowToScreen,

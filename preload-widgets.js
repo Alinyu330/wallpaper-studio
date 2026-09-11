@@ -8,6 +8,9 @@ contextBridge.exposeInMainWorld('wallpaperHost', {
   onAdjust: (cb) => ipcRenderer.on('widgets:adjust-mode', (_e, v) => cb(v)), // {on} 调整模式开关
   onWeather: (cb) => ipcRenderer.on('wallpaper-weather', (_e, w) => cb(w)), // 看板天气（主进程 30min 刷新）
   onPerfPause: (cb) => ipcRenderer.on('aviz:perf-pause', (_e, v) => cb(v)), // {on} 上层有最大化/全屏窗口
+  // 主进程收尾请求：用户已切到客户端界面 → 关掉看板编辑器（否则主进程的编辑
+  // 焦点守卫会持续抢前台，客户端完全无法输入）
+  onBoardExitEdit: (cb) => ipcRenderer.on('board:exit-edit', () => cb()),
   // 音律动效鼠标交互：窗口常驻鼠标穿透（否则会吞掉组件后方桌面图标的点击），
   // 页面拿不到 DOM 鼠标事件，改由主进程 30ms 光标轮询推送光标相对窗口的位置。
   // v = {in:boolean, x?:number, y?:number}（CSS px，窗口左上角为原点）

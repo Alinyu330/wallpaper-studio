@@ -3361,8 +3361,12 @@ function peekSync() {
   const fade = !!cfg.enabled && (peek.pulsing || peek.holders.size > 0);
   const pct = Math.min(70, Math.max(10, Number(cfg.opacity) || 30));
   const target = fade ? pct / 100 : 1;
-  // 淡出值靠去重少发几条无所谓；「复原 1」一旦被去重吞掉就是永久卡在透明态，必须无条件送达。
-  if (fade && target === peek.applied) return;
+  // 目标值没变就不重复下发。SetLayeredWindowAttributes 每次调用都会给窗口加上
+  // WS_EX_LAYERED（Electron 只加不减），而对账在每次窗口获得焦点时都会跑 ——
+  // 一次多余的「复原 1」下发就会把客户端窗口永久变成分层窗口。
+  // （曾经的去重把「复原 1」也吞掉才导致卡在透明态，这里只按目标值去重，
+  //   复原请求与淡出请求一样，值变了就一定会下发。）
+  if (target === peek.applied) return;
   peek.applied = target;
   window.api.setWindowOpacity(target);
 }
@@ -3399,8 +3403,13 @@ async function peekReconcile() {
   if (live.filebox) keep.add('收纳区');
   for (const k of live.widgets || []) keep.add(k === 'aviz' ? '动效' : `组件:${k}`);
   peek.holders = keep;
-  peek.applied = -1;
-  peekSync();
+  // 只有「可能正停在淡出态」时才强制重推一次（本地记录 <1、或当前确有淡出持有者）：
+  // 这时必须无条件送达复原值，否则会永久卡在透明态。正常态（记录已是 1 且无持有者）
+  // 不重复下发 —— 每次获得焦点都刷一遍窗口不透明度是没必要的窗口状态改动。
+  if (peek.applied < 1 || keep.size > 0) {
+    peek.applied = -1;
+    peekSync();
+  }
 }
 
 /** 逃生门：窗口淡到几乎看不见时，按 Esc 结束全部调整模式、立刻恢复显示 */

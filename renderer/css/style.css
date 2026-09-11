@@ -354,6 +354,38 @@ input[type="number"] {
   color: var(--text); border-radius: 6px;
   padding: 3px 8px; font-family: inherit;
 }
+/* ---------- 文本 / 日期输入 ---------- */
+/* body 上有全局 user-select:none（防拖动选中文字），输入框必须显式放开，
+   否则鼠标无法定位光标 / 框选已输入内容。 */
+input, textarea { user-select: text; -webkit-user-select: text; }
+/* 信息看板内容（城市搜索 / 添加日程 / 添加待办）原本没有任何样式，
+   在深色界面里是浏览器默认的白底黑字输入框，与整体观感割裂。 */
+.switch-row input[type="text"],
+.switch-row input[type="date"] {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 9px;
+  font-family: inherit;
+  font-size: 12.5px;
+}
+.switch-row input[type="text"]::placeholder { color: var(--text-dim); }
+.switch-row input[type="text"]:hover,
+.switch-row input[type="date"]:hover { border-color: #2f3550; }
+.switch-row input[type="text"]:focus,
+.switch-row input[type="date"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(124, 92, 255, .16);
+}
+/* 深色主题下 datetime 日历按钮在部分 Chromium 版本仍是深色图标 → 反色 */
+.switch-row input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(.75);
+  cursor: pointer;
+}
+/* 空状态提示在列表容器里的内边距 */
+.lc-list .hint { padding: 10px 2px; margin: 0; }
 
 /* ---------- 开关 ---------- */
 .switch { position: relative; display: inline-block; flex-shrink: 0; }

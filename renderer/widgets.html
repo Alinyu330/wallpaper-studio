@@ -619,13 +619,29 @@
     // 真正离开靠 Esc / 点看板其它位置 / 提交成功收尾。
     window.addEventListener('blur', () => {
       if (!editing) return;
-      if (Date.now() - (editing.at || 0) > 1600) return;
+      if (Date.now() - (editing.at || 0) > 1600) {
+        // ★ 抖动窗口已过 = 用户主动切走（点桌面空白 / 切到客户端 / 其它应用）。
+        // 桌面看板编辑器判不了「点窗口外面」（覆盖层鼠标穿透，窗口外点击收不到），
+        // 旧实现在这里直接 return，编辑器会永久留在编辑态：主进程的编辑焦点
+        // 守卫于是每 150ms 抢一次前台 —— 客户端随后完全无法输入（点击搜索栏
+        // 「被取消」、打字无反应）。这里延迟确认后收尾关闭。
+        if (closeEditor.blurTimer) clearTimeout(closeEditor.blurTimer);
+        closeEditor.blurTimer = setTimeout(() => {
+          closeEditor.blurTimer = null;
+          if (!editing) return;
+          if (document.hasFocus()) return; // 只是瞬时抖动，焦点已自己回来
+          closeEditor();
+        }, 260);
+        return;
+      }
       if (closeEditor.refocusTimer) clearTimeout(closeEditor.refocusTimer);
       closeEditor.refocusTimer = setTimeout(() => {
         closeEditor.refocusTimer = null;
         if (editing && Date.now() - (editing.at || 0) <= 1600 && refocusSafe()) window.wallpaperHost.boardFocus();
       }, 120);
     });
+    // 主进程收尾请求（客户端窗口获得焦点 / 编辑守卫发现前台已切成本应用其它界面）
+    window.wallpaperHost.onBoardExitEdit?.(() => { if (editing) closeEditor(); });
     }
 
     // ---------- 交互 ----------

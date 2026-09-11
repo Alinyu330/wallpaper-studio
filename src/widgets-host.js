@@ -206,6 +206,7 @@ class WidgetsHost {
     const p = this.parts.get(key);
     if (!p) return;
     this._stopEditGuard(p);
+    p.editingFocus = false;
     this.parts.delete(key);
     console.log(`[widgets] destroy ${key} hwnd=${p.hwnd} stack=`, new Error().stack);
     try { if (p.win && !p.win.isDestroyed()) p.win.close(); } catch (_) {}
@@ -218,6 +219,11 @@ class WidgetsHost {
    * 守卫周期性检查：焦点不在编辑窗口、且前台属于本进程（自己人误抢）→
    * 立即抢回；前台在外部进程 = 用户主动切走，尊重不抢（渲染侧 blur 会
    * 收尾关编辑器）。
+   * ★ 前台在「本应用的客户端界面」（主窗/预览窗）不在此列：那是用户在客户端
+   *   里操作，必须放手并收尾结束编辑会话。旧实现只判断「前台 PID 是不是本进程」，
+   *   把同进程的客户端也当成「自己人误抢」，每 150ms 把前台抢回桌面看板 ——
+   *   表现为客户端输入框点了能聚焦（:focus-within 仍生效）却完全打不了字，
+   *   输入法组词被反复取消（「点击后就取消、无法输入」的根因）。
    */
   _startEditGuard(p) {
     this._stopEditGuard(p);
@@ -225,6 +231,10 @@ class WidgetsHost {
       if (!p.editingFocus || !p.win || p.win.isDestroyed()) { this._stopEditGuard(p); return; }
       try {
         if (p.win.isFocused()) return;
+        if (this.hooks.isOwnUiForeground && this.hooks.isOwnUiForeground()) {
+          this.exitBoardEditing('客户端界面获得前台');
+          return;
+        }
         if (desktop.getForegroundPid() === process.pid) {
           desktop.forceForeground(p.hwnd);
           p.win.webContents.focus();
@@ -236,6 +246,34 @@ class WidgetsHost {
 
   _stopEditGuard(p) {
     if (p && p.editGuardTimer) { clearInterval(p.editGuardTimer); p.editGuardTimer = null; }
+  }
+
+  /**
+   * 收尾结束桌面看板的编辑会话（主进程侧状态 + 渲染页编辑器）。
+   * 触发：客户端主窗获得焦点 / 编辑守卫发现前台已切到本应用其它界面。
+   * 桌面看板编辑器没有「点窗口外面」可判断（覆盖层鼠标穿透，窗口外点击收不到），
+   * 用户切走后编辑器会一直留在编辑态 → 守卫每 150ms 抢一次前台，把整个客户端
+   * 的键盘输入废掉。这里保证「切走 = 一定收尾」。
+   * @param {string} reason 便于现场取证的原因
+   * @returns {boolean} 本次是否真的结束了一个编辑会话
+   */
+  exitBoardEditing(reason = '') {
+    const p = this.parts.get('board');
+    if (!p || !p.win || p.win.isDestroyed()) return false;
+    const had = !!p.editingFocus;
+    try {
+      p.editingFocus = false;
+      this._stopEditGuard(p);
+      // 编辑期间摘掉了 WS_EX_NOACTIVATE（让键盘/IME 能进来），结束必须装回去
+      if (p.hwnd) {
+        desktop.setNoActivate(p.hwnd, true);
+        desktop.ensureLauncherOverlay(p.hwnd);
+      }
+      // 通知渲染页关掉编辑器（它可能还开着输入框；幂等，渲染页自行判断）
+      p.win.webContents.send('board:exit-edit');
+    } catch (_) {}
+    if (had) console.log(`[widgets] 看板编辑会话已收尾（${reason || '未知原因'}）`);
+    return had;
   }
 
   destroyAll() {

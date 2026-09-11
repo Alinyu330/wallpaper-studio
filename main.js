@@ -1068,6 +1068,59 @@ function notifyMain(channel, payload) {
   }
 }
 
+// ---------- 客户端窗口键盘焦点守卫 ----------
+// 背景（本机多次实测 + 历史版本确认过的根因）：视频壁纸在「循环交界」交替渲染槽
+// （杀旧 mpv / 新槽接替）等时刻，Windows 会把前台「重新分配」给本应用的其它窗口
+// （壁纸窗 / 转盘 / 收纳区 / 组件窗）。此后客户端窗口虽然照常能点、输入框也能显示
+// 焦点态（:focus-within 仍然成立），但键击与输入法候选窗都派发给了那个窗口 ——
+// 表现为「点了搜索栏 / 看板输入框就打不了字、刚打字就被取消」。
+// 处理：客户端失焦后短延时复查，只要前台是被「本应用自己的桌面覆盖层」拿走的
+// （前台若是外部程序 = 用户主动切走，尊重不动），立即把前台还给客户端。
+// 与桌面看板编辑的焦点守卫（widgets-host）是同一套思路，这里补上客户端这一侧。
+let mainFocusGuardTimer = null;
+
+/** 本应用全部「桌面覆盖层」窗口的 HWND（这些窗口不承载用户输入） */
+function ownOverlayHwnds() {
+  const out = new Set();
+  if (wallpaperHwnd) out.add(wallpaperHwnd);
+  for (const host of [launcherHost, fileboxHost]) {
+    const w = host && host.win;
+    if (w && !w.isDestroyed()) {
+      try { out.add(Number(w.getNativeWindowHandle().readBigInt64LE(0))); } catch (_) {}
+    }
+  }
+  if (widgetsHost) {
+    for (const p of widgetsHost.parts.values()) if (p.hwnd) out.add(p.hwnd);
+  }
+  return out;
+}
+
+function setupMainWindowFocusGuard() {
+  if (!mainWindow) return;
+  const reclaim = () => {
+    mainFocusGuardTimer = null;
+    if (isQuitting || !mainWindow || mainWindow.isDestroyed()) return;
+    if (!mainWindow.isVisible() || mainWindow.isMinimized()) return; // 收起/最小化时不需要抢
+    if (mainWindow.isFocused()) return;
+    const fg = desktop.getForegroundHwnd();
+    if (!fg) return;
+    if (!ownOverlayHwnds().has(fg)) return; // 前台上不是本应用覆盖层 → 用户主动切走
+    let h = 0;
+    try { h = Number(mainWindow.getNativeWindowHandle().readBigInt64LE(0)); } catch (_) {}
+    if (!h || h === fg) return;
+    console.log(`[focus] 客户端前台被本应用覆盖层抢占（hwnd=${fg}），已抢回`);
+    desktop.forceForeground(h);
+    try { mainWindow.webContents.focus(); } catch (_) {}
+  };
+  mainWindow.on('blur', () => {
+    if (mainFocusGuardTimer) clearTimeout(mainFocusGuardTimer);
+    mainFocusGuardTimer = setTimeout(reclaim, 80);
+  });
+  mainWindow.on('focus', () => {
+    if (mainFocusGuardTimer) { clearTimeout(mainFocusGuardTimer); mainFocusGuardTimer = null; }
+  });
+}
+
 // ---------- 检查更新（静默，无弹窗） ----------
 /** 推送更新状态给主界面（文字提示 / 亮点提示由渲染层呈现） */
 function pushUpdateStatus(result) {
@@ -1478,6 +1531,10 @@ function setupIpc() {
     });
     previewWindow.loadFile(path.join(__dirname, 'renderer', 'preview.html'));
     previewWindow.on('closed', () => { previewWindow = null; });
+    // 同主窗：预览窗获得焦点也要收尾桌面看板编辑会话（见 createMainWindow 注释）
+    previewWindow.on('focus', () => {
+      try { widgetsHost?.exitBoardEditing('预览窗口获得焦点'); } catch (_) {}
+    });
     return { ok: true };
   });
 
@@ -1679,6 +1736,21 @@ if (gotLock) {
       onWeatherReload: () => { syncWeatherService(); if (weatherService) weatherService.reload(); },
       // 调整模式状态变化 → 主界面按钮复位（拖动落位自动退出时）
       onAdjustState: (key, on) => notifyMain('widgets:adjust-state', { key, on }),
+      // 前台窗口是不是「本应用的客户端界面」（主窗/预览窗）。
+      // 看板编辑守卫据此判断「用户已切到客户端」——只比对进程 PID 会把同进程的
+      // 客户端也当成覆盖层互抢，把键盘输入从客户端抢回桌面看板。
+      isOwnUiForeground: () => {
+        try {
+          const fg = desktop.getForegroundHwnd();
+          if (!fg) return false;
+          for (const w of [mainWindow, previewWindow]) {
+            if (!w || w.isDestroyed()) continue;
+            const h = Number(w.getNativeWindowHandle().readBigInt64LE(0));
+            if (h && h === fg) return true;
+          }
+        } catch (_) {}
+        return false;
+      },
     });
     // 转盘调整模式状态变化 → 主界面按钮复位
     launcherHost.onAdjustState = (on) => notifyMain('launcher:adjust-state', { on });
@@ -1690,6 +1762,7 @@ if (gotLock) {
     fileboxHost.onCreateJob = (job) => resetWallpaperBand(job);
     createWallpaperWindow();
     createMainWindow();
+    setupMainWindowFocusGuard();
     setupIpc();
     createTray();
 
