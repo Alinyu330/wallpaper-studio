@@ -1511,8 +1511,6 @@ function renderBoardEditor() {
 const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-let bdCityTimer = null;
-let bdFavTimer = null;
 function bindBoardEditor() {
   const sec = (key) => (e) => saveBoard({ sections: { [key]: e.target.checked } });
   $('#bd-sec-calendar').addEventListener('change', sec('calendar'));
@@ -1568,37 +1566,109 @@ function bindBoardEditor() {
     toast('已清除已完成待办');
   });
 
-  // 城市搜索：400ms 防抖，主进程代拉 Open-Meteo geocoding
-  $('#bd-city-q').addEventListener('input', (e) => {
-    const q = e.target.value.trim();
-    if (bdCityTimer) clearTimeout(bdCityTimer);
-    const list = $('#bd-city-list');
-    if (!q) { list.innerHTML = ''; return; }
-    bdCityTimer = setTimeout(async () => {
-      const res = await window.api.geocodeCity(q);
-      list.innerHTML = '';
-      for (const r of (res || [])) {
-        const row = document.createElement('div');
-        row.className = 'lc-item';
-        row.style.cursor = 'pointer';
-        row.innerHTML = `<span class="lc-name">${escHtml(r.name)}</span>`;
-        row.addEventListener('click', () => {
-          saveBoard({ weather: { cityName: r.name, lat: r.lat, lon: r.lon, tz: r.tz, manual: true } });
-          list.innerHTML = '';
-          $('#bd-city-q').value = '';
-          toast(`看板天气已切到 ${r.name}`);
-        });
-        list.appendChild(row);
-      }
-      if (!(res || []).length) list.innerHTML = '<p class="hint">没有匹配的城市</p>';
-    }, 400);
+  // ---------- 城市搜索（天气城市 / 常去城市 共用一套逻辑）----------
+  // ★ 打断输入的两个已知原因，这里都堵住：
+  //   ① 回包竞态：400ms 防抖期间连续键入会并发多个请求，先发的若后到，
+  //      会用过期结果覆盖新列表（表现为「列表闪一下变成别的城市」）。
+  //      用「请求序号 + 当前输入值」双重校验，过期回包直接丢弃。
+  //   ② 渲染抢焦点：列表重建若发生在新字符落键之前，输入会被吞。
+  //      回包后只在输入框仍有焦点时才动 DOM，并在焦点丢失时主动拉回。
+  bindCitySearch({
+    input: '#bd-city-q', list: '#bd-city-list',
+    timerKey: 'city',
+    pick: (r) => {
+      saveBoard({ weather: { cityName: r.name, lat: r.lat, lon: r.lon, tz: r.tz, manual: true } });
+      toast(`看板天气已切到 ${r.name}`);
+    },
+  });
+  bindCitySearch({
+    input: '#bd-fav-q', list: '#bd-fav-list',
+    timerKey: 'fav',
+    pick: (r) => {
+      saveBoard({ weather: { favorite: { cityName: r.name, lat: r.lat, lon: r.lon, tz: r.tz } } });
+      toast(`常去城市已设为 ${r.name}`);
+    },
   });
   // 恢复自动定位：清掉手动城市，天气服务回到按 IP 定位
   $('#bd-city-auto').addEventListener('click', () => {
     saveBoard({ weather: { cityName: '', lat: null, lon: null, tz: 'auto', manual: false } });
     toast('已恢复按 IP 自动定位');
   });
+  // 清除常去城市：看板天气块随之少一行（主进程会重算窗口高度）
+  $('#bd-fav-clear').addEventListener('click', () => {
+    const fv = (bdNow().weather || {}).favorite || {};
+    if (!fv.cityName) { toast('当前未设置常去城市', 'error'); return; }
+    saveBoard({ weather: { favorite: { cityName: '', lat: null, lon: null, tz: 'auto' } } });
+    $('#bd-fav-list').innerHTML = '';
+    $('#bd-fav-q').value = '';
+    toast('已清除常去城市');
+  });
   renderBoardEditor();
+}
+
+/**
+ * 城市搜索框绑定：防抖查询 + 竞态丢弃 + 焦点保全。
+ * @param {{input:string,list:string,timerKey:'city'|'fav',pick:(r:object)=>void}} o
+ */
+function bindCitySearch(o) {
+  const inp = $(o.input);
+  const list = $(o.list);
+  if (!inp || !list) return;
+  let timer = null;
+  let seq = 0;          // 每次发起查询自增，回包时比对，过期即丢
+  const render = (res, mySeq) => {
+    if (mySeq !== seq) return;          // 已有更新的查询在飞，本次结果过期
+    // 输入框内容已被清空（用户刚选了城市 / 手动清空）→ 不重建，避免残留列表
+    if (!inp.value.trim()) { list.innerHTML = ''; return; }
+    const wasFocused = document.activeElement === inp;
+    list.innerHTML = '';
+    if (!(res || []).length) {
+      list.innerHTML = '<p class="hint">没有匹配的城市</p>';
+      return;
+    }
+    for (const r of (res || [])) {
+      const row = document.createElement('div');
+      row.className = 'lc-item';
+      row.style.cursor = 'pointer';
+      row.innerHTML = `<span class="lc-name">${escHtml(r.name)}</span>`;
+      row.addEventListener('click', () => {
+        o.pick(r);
+        list.innerHTML = '';
+        inp.value = '';
+      });
+      list.appendChild(row);
+    }
+    // 重建列表有概率把焦点挪走 → 若原本聚焦在输入框，把焦点还回去，保证能接着打字
+    if (wasFocused && document.activeElement !== inp) inp.focus();
+  };
+  inp.addEventListener('input', (e) => {
+    const q = e.target.value.trim();
+    if (timer) clearTimeout(timer);
+    if (!q) { seq++; list.innerHTML = ''; return; }
+    seq++;
+    const mySeq = seq;
+    timer = setTimeout(async () => {
+      timer = null;
+      let res = [];
+      try { res = (await window.api.geocodeCity(q)) || []; } catch (_) { res = []; }
+      // 回包时用户已改过输入 → 结果作废（避免用旧关键词的结果覆盖）
+      if (inp.value.trim() !== q) return;
+      render(res, mySeq);
+    }, 400);
+  });
+  // 失焦时收起列表，避免残留面板遮挡其它设置项（输入内容保留）
+  inp.addEventListener('blur', () => {
+    setTimeout(() => {
+      if (document.activeElement === inp) return;
+      if (!list.querySelector('.lc-item')) return;   // 只有结果时才收，提示文案留着无妨
+      const keep = list.innerHTML;
+      list.innerHTML = '';
+      list._restore = keep;
+    }, 180);
+  });
+  inp.addEventListener('focus', () => {
+    if (list._restore && !list.innerHTML) { list.innerHTML = list._restore; list._restore = ''; }
+  });
 }
 
 // ---------- 音律动效 ----------

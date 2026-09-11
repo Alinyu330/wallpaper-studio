@@ -892,6 +892,28 @@ class WidgetsHost {
           b.weather = { cityName: '', lat: null, lon: null, tz: 'auto', manual: false };
           break;
         }
+        // 常去城市（第二座城市）：桌面看板点标题栏城市名旁边的常去城市行可编辑。
+        // ★ 这两条此前缺失 → 桌面端点「清除常去城市 / 选中常去城市」会静默失败
+        //   （switch 落到 default 返回 ok:false），设置页也因此一直显示「未设置」。
+        case 'favorite-set': {
+          const cityName = String(payload.cityName || '').trim();
+          const lat = Number(payload.lat);
+          const lon = Number(payload.lon);
+          if (cityName && Number.isFinite(lat) && Number.isFinite(lon)) {
+            b.weather = {
+              ...(b.weather || {}),
+              favorite: { cityName, lat, lon, tz: payload.tz || 'auto' },
+            };
+          }
+          break;
+        }
+        case 'favorite-clear': {
+          b.weather = {
+            ...(b.weather || {}),
+            favorite: { cityName: '', lat: null, lon: null, tz: 'auto' },
+          };
+          break;
+        }
         default:
           return { ok: false };
       }
@@ -900,7 +922,10 @@ class WidgetsHost {
       this.store.updateSettings({ board: b });
       this._pushTo(p);
       if (this.hooks.onConfigChanged) this.hooks.onConfigChanged();
-      if ((payload.op === 'city-set' || payload.op === 'city-auto') && this.hooks.onWeatherReload) this.hooks.onWeatherReload();
+      if (this.hooks.onWeatherReload
+        && ['city-set', 'city-auto', 'favorite-set', 'favorite-clear'].includes(payload.op)) {
+        this.hooks.onWeatherReload();
+      }
       return { ok: true, board: b };
     });
     ipcMain.handle('wallpaper-board-geocode', (_e, q) =>

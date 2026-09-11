@@ -60,8 +60,19 @@ const BRIEF_URL = (w) => 'https://api.open-meteo.com/v1/forecast'
   + '&current=temperature_2m,apparent_temperature,weather_code'
   + `&timezone=${encodeURIComponent(w.tz || 'auto')}`;
 
+// —— 城市搜索端点（均免密钥）——
+// ★ Open-Meteo geocoding 的城市库只到「市 / 区（地级以上）」，县级单位常常查不到
+//   （「保德县」「忻府区」实测空结果），导致用户输入区县名时提示「没有匹配的城市」。
+//   Photon（Komoot，基于 OSM）对中文区县覆盖完整，且带 state/city/county/name 字段
+//   可直接拼三级地名，故作为主源；Open-Meteo 作为兜底，保证市级搜索结果不丢。
 const GEOCODE_URL = (n) => 'https://geocoding-api.open-meteo.com/v1/search'
   + `?name=${encodeURIComponent(n)}&count=8&language=zh&format=json`;
+// ★ Photon 的 lang 参数只接受 default/de/en/fr（传 zh 会 400），中文地名靠 OSM 的
+//   name 字段原样返回（实测「保德县」「忻府区」均返回中文），故不传 lang。
+const PHOTON_URL = (n) => 'https://photon.komoot.io/api/'
+  + `?q=${encodeURIComponent(n)}&limit=8`;
+// 区县级 / 乡镇级的行政关键字：命中时优先用 Photon（Open-Meteo 城市库对它基本无覆盖）
+const SUB_CITY_RE = /(县|区|旗|镇|乡|街道|苏木|自治[州县旗])$/;
 
 function httpGetJson(url, extraHeaders, depth = 0) {
   return new Promise((resolve, reject) => {
@@ -119,17 +130,35 @@ function provName(raw) {
 const bareRegion = (s) => String(s || '').trim()
   .replace(/(省|市|县|区|自治区|特别行政区|自治县|自治州|地区|盟)$/, '');
 
+/**
+ * 丢掉地名里的非中文注解段（内蒙古/新疆等地的 OSM 条目会带一大串民族文字，
+ * 如「内蒙古自治区 ᠦᠪᠦᠷ ᠮᠣᠩᠭᠤᠯ ᠤᠨ ᠥᠪᠡᠷᠲᠡᠭᠡᠨ ᠵᠠᠰᠠᠬᠣ ᠣᠷᠣᠨ」）。
+ * 保留首段中文名，避免看板和搜索列表被撑爆。
+ */
+const zhOnly = (s) => {
+  const v = String(s || '').trim();
+  if (!v) return '';
+  // 以首个空格切分，取前面含汉字的部分
+  const head = v.split(/\s+/)[0];
+  return /[\u4e00-\u9fa5]/.test(head) ? head : v;
+};
+
 /** 三级地名拼接：省 · 市 · 区县；空级与同名级（北京市 / 北京）自动省略 */
 function joinRegion(parts) {
   const out = [];
   for (const raw of parts) {
-    const v = String(raw ?? '').trim();
+    const v = zhOnly(raw);
     if (!v || v === '0' || v === '-' || v === '未知') continue;
     const b = bareRegion(v);
     if (!b || out.some((x) => bareRegion(x) === b)) continue;
     out.push(v);
   }
   return out.join(' · ');
+}
+
+/** 结果地名是否已到区县 / 乡镇层级（用于判断搜索源是否给足了粒度） */
+function subCityLevel(name) {
+  return /(?:[县区旗镇乡]|街道|自治[州县旗]|地区|盟)(?:\s*·|$)/.test(String(name || ''));
 }
 
 /**
@@ -421,18 +450,135 @@ class WeatherService {
     };
   }
 
-  /** 城市搜索（客户端设置页用）：结果名统一为「省 · 市」——城市库不含区县，不再带国家段 */
-  async geocode(name) {
-    try {
-      const raw = await httpGetJson(GEOCODE_URL(String(name || '').trim()));
-      return (raw.results || []).map((r) => ({
+  /** Open-Meteo 城市库：市级覆盖好，区县基本没有 */
+  async _geocodeOpenMeteo(q) {
+    const raw = await httpGetJson(GEOCODE_URL(q));
+    return (raw.results || [])
+      // 带 feature_code 的才是真实地名词条（PPL*/ADM*）；机场/机构等无此字段或为 AIRP 之类
+      .filter((r) => {
+        const fc = String(r.feature_code || '');
+        return fc === '' || /^(PPL|ADM|PPLC|PPLA)/.test(fc);
+      })
+      .map((r) => ({
         name: joinRegion([provName(r.admin1), r.admin2 || r.name]) || r.name,
         lat: r.latitude, lon: r.longitude, tz: r.timezone || 'auto',
+        _src: 'open-meteo',
+        _pop: Number(r.population) || 0,
+        _admin: /^(PPLA|ADM|PPLC)/.test(String(r.feature_code || '')),
       }));
-    } catch (e) {
-      console.warn('[weather] 城市搜索失败:', e.message);
-      return [];
+  }
+
+  /**
+   * Photon（OSM）：中文区县 / 乡镇覆盖完整。
+   * properties 里 state=省、county/city=市或区、name=具体地名；按「省 · 市 · 区县」拼装，
+   * 与逆地理定位的展示口径一致。
+   * ★ 必须过滤 osm_value：OSM 里混着大量非行政区划的 POI（法院/学校/工业园…），
+   *   直接按 name 取会把「北京市第三中级人民法院」当成城市塞进列表（实测）。
+   */
+  async _geocodePhoton(q) {
+    const raw = await httpGetJson(PHOTON_URL(q));
+    const feats = (raw && raw.features) || [];
+    return feats.map((f) => {
+      const p = f.properties || {};
+      const geo = (f.geometry && f.geometry.coordinates) || [];
+      const lon = Number(geo[0]);
+      const lat = Number(geo[1]);
+      const city = p.city || p.county || p.district || '';
+      // 县级单位自身就是 name；市级结果 name 与 city 同名时 joinRegion 会自动去重
+      const name = joinRegion([provName(p.state), city, p.name]) || p.name || '';
+      return {
+        name, lat, lon, tz: p.timezone || 'auto',
+        _src: 'photon', _osmKey: p.osm_key || '', _osmValue: p.osm_value || '',
+        _town: !!p.district,
+      };
+    }).filter((r) => r.name && Number.isFinite(r.lat) && Number.isFinite(r.lon)
+      // 只保留行政层级的地名：place=city/town/village/municipality/county/state/district…
+      // 或 high-level 的 boundary；其余（amenity/office/shop/highway…）一律丢弃
+      && (r._osmKey === 'place' || r._osmKey === 'boundary' || r._osmKey === ''));
+  }
+
+  /**
+   * 城市搜索（客户端设置页 / 桌面看板用）。
+   * 多源策略：输入含区县/乡镇关键字（县/区/旗/镇/乡/街道…）→ 先 Photon（区县覆盖完整），
+   * 否则先 Open-Meteo（市级结果更规范）；任一源为空则用另一源兜底。
+   * 结果名统一「省 · 市 · 区县」，按坐标去重（同名不同源只留一条）。
+   */
+  async geocode(name) {
+    const q = String(name || '').trim();
+    if (!q) return [];
+    const preferPhoton = SUB_CITY_RE.test(q);
+    const order = preferPhoton
+      ? [['photon', () => this._geocodePhoton(q)], ['open-meteo', () => this._geocodeOpenMeteo(q)]]
+      : [['open-meteo', () => this._geocodeOpenMeteo(q)], ['photon', () => this._geocodePhoton(q)]];
+
+    let out = [];
+    for (const [src, fn] of order) {
+      try {
+        const res = (await fn()) || [];
+        if (!res.length) continue;
+        out = out.concat(res);
+        // 关键字与结果层级相符（含区县关键字时拿到了带区县的结果）→ 可信，不再叠另一源
+        if (out.some((r) => subCityLevel(r.name))) break;
+      } catch (e) {
+        console.warn(`[weather] 城市搜索（${src}）失败:`, e.message);
+      }
     }
+    if (!out.length) return [];
+
+    // 去重：同一坐标（3 位小数）只保留第一条；再按「归一化地名」去一次重
+    // （Photon 常对同一个县给 2~3 条近似点位，全列出来只会刷屏）
+    const seen = new Set();
+    const seenName = new Set();
+    const uniq = [];
+    for (const r of out) {
+      const k = `${Number(r.lat).toFixed(3)},${Number(r.lon).toFixed(3)}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      const nk = String(r.name || '').replace(/\s/g, '');
+      if (seenName.has(nk)) continue;
+      seenName.add(nk);
+      uniq.push({
+        name: r.name, lat: r.lat, lon: r.lon, tz: r.tz || 'auto',
+        _src: r._src || '', _town: !!r._town,
+      });
+    }
+
+    // 排序：行政粒度越贴合用户输入越靠前
+    //   ① 归一化后与输入完全相等（「保德县」→「山西省 · 保德县」末级就是保德县）
+    //   ② 末级名包含输入
+    //   ③ 其余（同名乡镇、跨省同名等）沉底
+    const norm = (s) => String(s || '').replace(/[省市区县旗镇乡街道\s·]/g, '').toLowerCase();
+    const lastSeg = (s) => {
+      const seg = String(s || '').split('·');
+      return norm(seg[seg.length - 1] || '');
+    };
+    const nq = norm(q);
+    // 拼音 / 拉丁输入（「Suzhou」「Lhasa」）时，末级中文名与查询天然不等：
+    // 此时改用「来源可信度」排序 —— Open-Meteo 命中说明它认这个拉丁名，排前面。
+    const isLatin = /^[a-z][a-z\s'-]*$/i.test(q);
+    const rank = (r) => {
+      const last = lastSeg(r.name);
+      if (last === nq) return 0;
+      if (last.includes(nq) || nq.includes(last)) return 1;
+      if (norm(r.name).includes(nq)) return 2;
+      if (isLatin && r._src === 'open-meteo') return 2.5;
+      return 3;
+    };
+    uniq.sort((a, b) => {
+      const d = rank(a) - rank(b);
+      if (d) return d;
+      // 同档：行政中心 > 普通居民点 > 乡镇 POI；再按人口降序（「苏州」应压过「苏州垌村」）
+      const ad = (b._admin ? 1 : 0) - (a._admin ? 1 : 0);
+      if (ad) return ad;
+      const td = (a._town ? 1 : 0) - (b._town ? 1 : 0);
+      if (td) return td;
+      const pd = (b._pop || 0) - (a._pop || 0);
+      if (pd) return pd;
+      // 最后按来源顺序稳定：Open-Meteo 命中优先于 Photon 的同名项
+      return (a._src === 'open-meteo' ? 0 : 1) - (b._src === 'open-meteo' ? 0 : 1);
+    });
+
+    return uniq.slice(0, 8).map(({ name, lat, lon, tz }) => ({ name, lat, lon, tz }));
   }
 }
 
