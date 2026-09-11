@@ -6,7 +6,7 @@
 
 ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Version](https://img.shields.io/badge/version-1.18.0-7c5cff)
+![Version](https://img.shields.io/badge/version-1.18.1-7c5cff)
 
 ## 官网
 
@@ -15,10 +15,10 @@
 
 ## 下载
 
-**最新版 v1.18.0 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · GPL-3.0 开源并明确禁止闭源商用）：
+**最新版 v1.18.1 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · GPL-3.0 开源并明确禁止闭源商用）：
 
-- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.0/WallpaperStudio-Setup-1.18.0.exe)
-- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.0/WallpaperStudio-Setup-1.18.0.exe)
+- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.1/WallpaperStudio-Setup-1.18.1.exe)
+- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.1/WallpaperStudio-Setup-1.18.1.exe)
 - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
 > 已安装旧版？客户端「设置 → 检查更新」即可应用内一键更新，无需重新下载安装包。
@@ -39,7 +39,7 @@
 
 - **内置精选壁纸**（v1.10.0 新增）：6 部精选动态壁纸随安装包附带（古风美女 / 初音未来 / 夏日绿树 / 圣诞夜 / 冬季雪林 / 大海云影），下载安装打开即可直接使用，已装旧版升级不受影响
 
-- **桌面快捷方式转盘**（v1.5.0，v1.7.0/v1.8.0 增强，v1.15.0 列表搜索置顶）：快捷方式（.lnk/.url）与程序文件（.exe/.bat/.cmd）以转盘形式收纳在桌面（系统项：控制面板 / 回收站 / 网络 / 此电脑 亦可收纳）— 点击图标即可启动对应 App；按住图标条或拖动条左右拖动即可像转盘一样轮换（带惯性甩动）；拖动 ⋮ 手柄自由摆放位置；同屏数量 4~12 可调；图标取系统真实图标（无空白占位）、垂直倒影、去面板边框更沉浸；空闲自动收起为小药丸，悬停药丸展开，不遮挡窗口、不影响壁纸观感；设置页快捷方式列表带搜索栏，输入即过滤，搜到即可点星设为常用排到转盘最前（v1.17.0 修复：搜索不再打断中文输入法组词，命中行点星即生效）
+- **桌面快捷方式转盘**（v1.5.0，v1.7.0/v1.8.0 增强，v1.15.0 列表搜索置顶）：快捷方式（.lnk/.url）与程序文件（.exe/.bat/.cmd）以转盘形式收纳在桌面（系统项：控制面板 / 回收站 / 网络 / 此电脑 亦可收纳）— 点击图标即可启动对应 App；按住图标条或拖动条左右拖动即可像转盘一样轮换（带惯性甩动）；拖动 ⋮ 手柄自由摆放位置；同屏数量 4~12 可调；图标取系统真实图标（无空白占位）、垂直倒影、去面板边框更沉浸；空闲自动收起为小药丸，悬停药丸展开，不遮挡窗口、不影响壁纸观感；设置页快捷方式列表带搜索栏，输入即过滤，搜到即可点星设为常用排到转盘最前（v1.17.0 修复：搜索不再打断中文输入法组词，命中行点星即生效；v1.18.1 修复搜索栏被键盘焦点抢占导致无法输入的问题）
 
 - **桌面文件收纳区**（v1.8.0 新增，v1.9.0 重构，v1.13.0 支持全部文件类型与空文件夹）：桌面上的任意普通文件（含 0 字节空文件、无扩展名与未知类型）与文件夹收进独立浮层，与快捷方式转盘职责分离 — 文件夹 / 文件自动分组排列（支持按名称 / 修改时间 / 手动排序），网格列数与面板透明度可调；文件名完整两行显示；空闲先转半透明毛玻璃、再收缩为单个文件图标，悬停自动展开、点击弹出收纳内容；面板镜像倒影与调色可调；收纳的文件与空文件夹移动隐藏（可一键恢复），非空文件夹仅登记引用不移动内容、点开即进入文件夹；支持自由拖动与九宫格快捷定位
 
@@ -47,7 +47,7 @@
 
 - **音律动效**（v1.7.0，v1.9.0 重写，v1.18.0 参数与交互）：系统音频实时频谱可视化，随音乐律动；绘制走「离屏辉光层 + 两次合成」，每帧上百次高斯模糊填充降为 2 次图像合成，帧率可限（15/24/30/60/不限）；镜像倒影与主体同层绘制，彻底消除倒影区残影 / 撕裂。样式：频谱条 / 波浪 / 圆环 / 山峦 / 圆点 / 同心环 / LED块 / 霓虹。**v1.18.0 新增**：每种样式可调**数量**（柱数 / 灯管数 / 采样点 / 峰点数 / 列数 / 放射条数 / 环数，0 = 自动）、**高度**（0.3~2.0）与**宽度**（柱状类为内容宽度占窗口比例，圆环类为整体尺寸）；**鼠标划过交互** —— 光标附近柱子拉高、波形起涟漪、山体隆起、点阵与 LED 光圈内额外点亮、同心环出现跟手亮段、圆环按角向拉长，另有光标光晕与反馈圆环（动效层仍鼠标穿透，桌面图标照常点击）；渐变方式扩展为**纯色 / 亮色 / 方向多色**，多色支持 8 个方向与 2~6 种自定义颜色（含彩虹 / 日落 / 极光 / 霓虹 / 海洋 / 蜜桃 6 组预设），颜色沿方向依次排布
 
-- **桌面 DIY 组件**（v1.2.0，v1.7.0 重构，v1.9.0~v1.11.0 持续增强，v1.17.0 看板编辑修复）：时钟（12/24 小时制点击切换）、信息看板（日历 / 天气按 IP 自动定位 / 待办，桌面直接编辑）、系统状态监控（网速 / CPU / GPU / 内存）、音量控制条、音律动效 — 每个组件独立小窗口，无边框融入壁纸；毛玻璃 / 液态玻璃样式与全局调色；新增「调整模式」：客户端一键进入拖动调整、桌面默认只显示不误触；组件 / 音律动效 / 转盘均支持九宫格快速定位与拖动吸附
+- **桌面 DIY 组件**（v1.2.0，v1.7.0 重构，v1.9.0~v1.11.0 持续增强，v1.17.0 看板编辑修复，v1.18.1 客户端看板输入修复）：时钟（12/24 小时制点击切换）、信息看板（日历 / 天气按 IP 自动定位 / 待办，桌面直接编辑）、系统状态监控（网速 / CPU / GPU / 内存）、音量控制条、音律动效 — 每个组件独立小窗口，无边框融入壁纸；毛玻璃 / 液态玻璃样式与全局调色；新增「调整模式」：客户端一键进入拖动调整、桌面默认只显示不误触；组件 / 音律动效 / 转盘均支持九宫格快速定位与拖动吸附
 
 - **点选 / 框选收纳**（v1.6.0，v1.7.0 增强）：全屏选择器直接点选或拖框选择桌面快捷方式，一键收纳进转盘 — 原桌面图标随之隐藏（实际移动文件到应用数据目录保管）；支持回收站、此电脑等系统项收纳与过滤无效文件；从转盘移除、一键"全部恢复"或关闭功能时，自动移回桌面原位置（恢复显示）
 
@@ -89,6 +89,7 @@
 
 | 版本 | 国内加速下载 | GitHub 直连 |
 |---|---|---|
+| v1.18.1 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.1/WallpaperStudio-Setup-1.18.1.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.1/WallpaperStudio-Setup-1.18.1.exe) |
 | v1.18.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.0/WallpaperStudio-Setup-1.18.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.0/WallpaperStudio-Setup-1.18.0.exe) |
 | v1.17.2 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.2/WallpaperStudio-Setup-1.17.2.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.2/WallpaperStudio-Setup-1.17.2.exe) |
 | v1.17.1 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.1/WallpaperStudio-Setup-1.17.1.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.1/WallpaperStudio-Setup-1.17.1.exe) |
@@ -121,6 +122,20 @@
 | v1.1.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) |
 
 > 各版本更新内容见下方「新增功能与修复问题」分节与 [官网更新日志](https://wallpaper-studio.pages.dev/#changelog)；更早版本（v1.0.0）见 [Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)。
+
+## v1.18.1 客户端输入焦点修复
+
+**修复问题**
+
+- 修复在客户端里「桌面组件 → 信息看板内容」无法输入与保存的问题 —— 根因是桌面看板编辑会话不会收尾：桌面看板编辑器判不了「点了窗口外面」（覆盖层鼠标穿透，窗口外点击根本收不到），用户从桌面切回客户端后，主进程的看板编辑焦点守卫仍每 150ms 把前台抢回桌面看板 —— 客户端输入框能点出聚焦态、却收不到任何键击，输入法组词反复被取消。现改为「切走即收尾」：编辑焦点守卫发现前台已是本应用客户端界面时不再抢焦点、直接收尾结束编辑会话（恢复窗口 NOACTIVATE 并通知渲染页关闭编辑器）；客户端窗口获得焦点时同样触发收尾；桌面看板渲染页失焦后延迟确认自动关闭编辑器
+- 修复快捷方式列表搜索栏「点击后就被取消、无法输入」的问题 —— 与上一条同根因：键盘焦点被本应用的覆盖层窗口抢走。除上述收尾链路外，本次为客户端窗口补上键盘焦点守卫：客户端失焦后短延时复查，若前台被本应用自己的桌面覆盖层（壁纸窗 / 转盘 / 收纳区 / 组件窗 —— 常见于视频壁纸循环交界等 Windows 重新分配前台的时机）拿走，立即把前台还给客户端；前台在外部程序 = 用户主动切走，尊重不抢
+- 修复客户端每次获得焦点都重设一次窗口不透明度的问题 —— 透视调参对账原先无条件下发「复原 1」，而 Electron 的 setOpacity 只加不减 `WS_EX_LAYERED` 分层样式，客户端窗口因此长期处于分层窗口状态；现按目标值去重（复原请求与淡出请求一样，值变了就一定下发），仅在确实处于 / 可能处于淡出态时才强制对账
+- 信息看板输入框（天气城市 / 添加日程 / 添加待办）补齐深色主题样式：此前完全没有任何样式，在深色界面里是浏览器默认的白底黑字输入框，与整体观感割裂
+
+**测试**
+
+- 渲染层离线验证 100 项全部通过（渲染进程 0 错误 / 0 警告）：动效绘制逻辑 36 项、组件宿主交互推送 15 项、真实设置页 49 项（含搜索栏输入即过滤、看板城市搜索 / 添加待办 / 添加日程的保存链路与列表上屏回归）
+- 真机功能测试 37 项通过：应用启动与 8 个页面、真实 UI 操作落盘到 config.json、看板输入回归、动效窗创建与真实鼠标交互推送（含 DPI 缩放换算）、渲染进程与 engine.log 零错误、进程正常退出
 
 ## v1.18.0 音律动效参数、鼠标交互与方向多色渐变
 
