@@ -108,9 +108,22 @@
     .bd-line .t { opacity: .65; flex: none; font-variant-numeric: tabular-nums; }
     .bd-line .x { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .bd-line .d { flex: none; opacity: .8; font-variant-numeric: tabular-nums; }
-    .bd-wx { display: flex; align-items: baseline; gap: 10px; }
+    .bd-wx { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
     .bd-wx .tmp { font-size: 26px; font-weight: 200; font-variant-numeric: tabular-nums; }
-    .bd-wx .meta { font-size: 11px; opacity: .7; }
+    /* 地名改为「省 · 市 · 区县」后明显变长，与天气/体感挤一行必溢出 → 城市名单独一行 */
+    .bd-wx .meta {
+      font-size: 11px; opacity: .7; flex: 1 1 auto; min-width: 0;
+      display: flex; flex-direction: column; align-items: flex-start;
+    }
+    .bd-wx .wx-desc { line-height: 1.5; }
+    /* 常去城市：看板天气块里的第二座城市，一行小字，点击可改 */
+    .bd-wx-fav { display: flex; align-items: baseline; flex-wrap: wrap; gap: 5px; margin-top: 4px; font-size: 11px; opacity: .85; }
+    .bd-wx-fav .fav-tag {
+      flex: none; font-size: 9px; letter-spacing: 1px; opacity: .6;
+      border: 1px solid currentColor; border-radius: 3px; padding: 0 3px; transform: translateY(-1px);
+    }
+    .bd-wx-fav .bd-fav-city { cursor: pointer; border-bottom: 1px dotted currentColor; opacity: .92; }
+    .bd-wx-fav .fav-val { opacity: .78; font-variant-numeric: tabular-nums; }
     .bd-hours { display: flex; gap: 6px; margin-top: 4px; }
     .bd-hours div { flex: 1; text-align: center; font-size: 9.5px; opacity: .78; }
     .bd-hours .e { font-size: 13px; }
@@ -403,7 +416,14 @@
           } else {
             const c = weather.current;
             let html = `<div class="bd-wx"><span class="tmp">${c.temp ?? '--'}°</span>` +
-              `<span class="meta"><span class="bd-city" id="bd-city" title="点击更换城市">${esc(weather.city || '')}</span> · ${c.emoji} ${esc(c.label)} · 体感 ${c.feels ?? '--'}°</span></div>`;
+              `<span class="meta"><span class="bd-city" id="bd-city" title="点击更换城市">${esc(weather.city || '')}</span>` +
+              `<span class="wx-desc">${c.emoji} ${esc(c.label)} · 体感 ${c.feels ?? '--'}°</span></span></div>`;
+            const fav = weather.favorite;
+            if (fav && fav.city) {
+              html += `<div class="bd-wx-fav"><span class="fav-tag">常去</span>` +
+                `<span class="bd-fav-city" id="bd-fav-city" title="点击设置常去城市">${esc(fav.city)}</span>` +
+                `<span class="fav-val">${fav.temp ?? '--'}° ${fav.emoji || ''} ${esc(fav.label || '')}</span></div>`;
+            }
             if ((weather.hourly || []).length) {
               html += '<div class="bd-hours">' + weather.hourly.slice(0, 6).map((h) =>
                 `<div><div>${esc(h.t)}</div><div class="e">${h.emoji}</div><div>${h.temp ?? '--'}°</div></div>`).join('') + '</div>';
@@ -538,20 +558,23 @@
       scheduleRects();
     }
 
-    function openCityEditor() {
+    function openCityEditor(target = 'main') {
       closeEditor(true);
-      editing = { kind: 'city', token: ++edSeq, at: Date.now() };
+      const isFav = target === 'favorite';
+      editing = { kind: 'city', target, token: ++edSeq, at: Date.now() };
       const token = editing.token;
       const wx = document.getElementById('bd-wx');
       if (!wx) return;
       window.wallpaperHost.boardHeight(window.innerHeight + 96);
       wx.innerHTML = '<input class="bd-input" placeholder="输入城市名搜索，Esc 取消"><div class="bd-citylist">' +
-        '<div class="bd-ci" data-auto="1" style="opacity:.7">📍 恢复自动定位（按 IP 所在地）</div></div>';
+        (isFav
+          ? '<div class="bd-ci" data-auto="1" style="opacity:.7">🗑 清除常去城市</div>'
+          : '<div class="bd-ci" data-auto="1" style="opacity:.7">📍 恢复自动定位（按 IP 所在地）</div>') + '</div>';
       const inp = wx.querySelector('input');
       const list = wx.querySelector('.bd-citylist');
       const autoRow = list.querySelector('[data-auto]');
       autoRow.addEventListener('click', () => {
-        window.wallpaperHost.boardEdit({ op: 'city-auto' })
+        window.wallpaperHost.boardEdit({ op: isFav ? 'favorite-clear' : 'city-auto' })
           .then((b) => editCommit(token, b)).catch(() => closeEditor());
       });
       window.wallpaperHost.setInteracting(true);
@@ -573,7 +596,7 @@
             el.addEventListener('click', () => {
               const r = (res || [])[Number(el.dataset.ci)];
               if (!r) return;
-              window.wallpaperHost.boardEdit({ op: 'city-set', cityName: r.name, lat: r.lat, lon: r.lon, tz: r.tz })
+              window.wallpaperHost.boardEdit({ op: isFav ? 'favorite-set' : 'city-set', cityName: r.name, lat: r.lat, lon: r.lon, tz: r.tz })
                 .then((b) => editCommit(token, b)).catch(() => closeEditor());
             });
           });
@@ -609,6 +632,7 @@
         if (e.target.closest('#bd-add-todo')) { openTodoEditor(); return; }
         if (e.target.closest('#bd-add-ev')) { openEventEditor(); return; }
         if (e.target.closest('#bd-city')) { openCityEditor(); return; }
+        if (e.target.closest('#bd-fav-city')) { openCityEditor('favorite'); return; }
         // 点在看板其它地方 =「点外面」，收起编辑器（窗口外点击看不到，这是最近似的替代）
         if (editing) closeEditor();
       });

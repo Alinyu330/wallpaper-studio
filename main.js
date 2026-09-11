@@ -408,12 +408,16 @@ function applySettingsUpdate(patch) {
   // updateSettings 是裸 Object.assign，局部补丁 {board:{todos}} 会抹掉 sections/weather。
   let boardStructChanged = false;
   let boardCityChanged = false;
+  // 常去城市「无 → 有 / 有 → 无」会改变看板天气块的行数 → 窗口高度需重算
+  let boardFavChanged = false;
   if (patch && patch.board) {
     const old = store.settings.board || {};
     const nb = patch.board;
     boardStructChanged =
       JSON.stringify({ s: old.sections, r: old.rows }) !== JSON.stringify({ s: nb.sections, r: nb.rows });
     boardCityChanged = JSON.stringify(old.weather || {}) !== JSON.stringify(nb.weather || {});
+    boardFavChanged = !!((((old.weather || {}).favorite) || {}).cityName)
+      !== !!((((nb.weather || {}).favorite) || {}).cityName);
     patch = {
       ...patch,
       board: {
@@ -446,7 +450,7 @@ function applySettingsUpdate(patch) {
   if (patch.board !== undefined) {
     // 块开关/行数变了 → 窗口尺寸要变（走 sync 的原地 resize）；
     // 只改内容（待办/日程/城市）→ 原地重推配置，绝不进 _syncNow 的增删窗口逻辑
-    if (boardStructChanged) applyWidgetsConfig();
+    if (boardStructChanged || boardFavChanged) applyWidgetsConfig();
     else if (widgetsHost) widgetsHost.pushConfig();
     syncWeatherService();
     if (boardCityChanged && weatherService) weatherService.reload();

@@ -419,7 +419,12 @@ class WidgetsHost {
         h += headH + 30 * k + Math.min(ev.length, b.rows?.events ?? 4) * rowH
           + Math.min(an.length, 3) * rowH + addH + gap;
       }
-      if (s.weather !== false) h += headH + 64 * k + 7 * rowH * 0.9 + gap;
+      // 天气块：温度行 + 城市名行 + 天气/体感行（城市名单独一行，容纳「省 · 市 · 区县」）
+      //        + 常去城市行（仅配置了常去城市时占高）
+      if (s.weather !== false) {
+        const hasFav = !!(((b.weather || {}).favorite || {}).cityName);
+        h += headH + 64 * k + 7 * rowH * 0.9 + 16 * k + (hasFav ? rowH : 0) + gap;
+      }
       if (s.todo !== false) h += headH + Math.min((b.todos || []).length, b.rows?.todo ?? 6) * rowH + addH + gap;
       const wa = screen.getPrimaryDisplay().workArea;
       return {

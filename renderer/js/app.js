@@ -1463,6 +1463,10 @@ function renderBoardEditor() {
   $('#bd-city-now').textContent = (w.manual && w.cityName)
     ? `当前：${w.cityName}（${Number(w.lat).toFixed(2)}, ${Number(w.lon).toFixed(2)}）`
     : '自动定位（按 IP 所在地）· 搜索可手动指定';
+  const fv = w.favorite || {};
+  $('#bd-fav-now').textContent = fv.cityName
+    ? `当前：${fv.cityName}（${Number(fv.lat).toFixed(2)}, ${Number(fv.lon).toFixed(2)}）`
+    : '未设置 · 设置后看板天气块会额外显示这座城市的实况';
 
   const evSig = evSignature(b);
   if (evSig !== bdEvSig) {
@@ -1508,6 +1512,7 @@ const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 let bdCityTimer = null;
+let bdFavTimer = null;
 function bindBoardEditor() {
   const sec = (key) => (e) => saveBoard({ sections: { [key]: e.target.checked } });
   $('#bd-sec-calendar').addEventListener('change', sec('calendar'));

@@ -108,7 +108,11 @@ const DEFAULT_CONFIG = {
       rows: { events: 4, todo: 6 },   // 面板最多显示几行，窗口高度按此计算
       // 默认自动模式（manual:false）：天气服务按 IP 所在地定位，不落盘；
       // 用户手动选过城市后 manual:true + 坐标持久化，之后以手动为准。
-      weather: { cityName: '', lat: null, lon: null, tz: 'auto', manual: false },
+      // favorite：常去城市（可选）—— 在看板天气块里额外显示一行，与主城市互不影响。
+      weather: {
+        cityName: '', lat: null, lon: null, tz: 'auto', manual: false,
+        favorite: { cityName: '', lat: null, lon: null, tz: 'auto' },
+      },
       events: [],               // [{id,text,date:'2026-10-01',type:'event'|'anniversary'}]
       todos: [],                // [{id,text,done}]
     },
