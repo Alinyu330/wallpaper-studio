@@ -6,7 +6,7 @@
 
 ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Version](https://img.shields.io/badge/version-1.18.1-7c5cff)
+![Version](https://img.shields.io/badge/version-1.19.0-7c5cff)
 
 ## 官网
 
@@ -15,10 +15,10 @@
 
 ## 下载
 
-**最新版 v1.18.1 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · GPL-3.0 开源并明确禁止闭源商用）：
+**最新版 v1.19.0 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · GPL-3.0 开源并明确禁止闭源商用）：
 
-- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.1/WallpaperStudio-Setup-1.18.1.exe)
-- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.1/WallpaperStudio-Setup-1.18.1.exe)
+- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.19.0/WallpaperStudio-Setup-1.19.0.exe)
+- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.19.0/WallpaperStudio-Setup-1.19.0.exe)
 - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
 > 已安装旧版？客户端「设置 → 检查更新」即可应用内一键更新，无需重新下载安装包。
@@ -47,7 +47,7 @@
 
 - **音律动效**（v1.7.0，v1.9.0 重写，v1.18.0 参数与交互）：系统音频实时频谱可视化，随音乐律动；绘制走「离屏辉光层 + 两次合成」，每帧上百次高斯模糊填充降为 2 次图像合成，帧率可限（15/24/30/60/不限）；镜像倒影与主体同层绘制，彻底消除倒影区残影 / 撕裂。样式：频谱条 / 波浪 / 圆环 / 山峦 / 圆点 / 同心环 / LED块 / 霓虹。**v1.18.0 新增**：每种样式可调**数量**（柱数 / 灯管数 / 采样点 / 峰点数 / 列数 / 放射条数 / 环数，0 = 自动）、**高度**（0.3~2.0）与**宽度**（柱状类为内容宽度占窗口比例，圆环类为整体尺寸）；**鼠标划过交互** —— 光标附近柱子拉高、波形起涟漪、山体隆起、点阵与 LED 光圈内额外点亮、同心环出现跟手亮段、圆环按角向拉长，另有光标光晕与反馈圆环（动效层仍鼠标穿透，桌面图标照常点击）；渐变方式扩展为**纯色 / 亮色 / 方向多色**，多色支持 8 个方向与 2~6 种自定义颜色（含彩虹 / 日落 / 极光 / 霓虹 / 海洋 / 蜜桃 6 组预设），颜色沿方向依次排布
 
-- **桌面 DIY 组件**（v1.2.0，v1.7.0 重构，v1.9.0~v1.11.0 持续增强，v1.17.0 看板编辑修复，v1.18.1 客户端看板输入修复）：时钟（12/24 小时制点击切换）、信息看板（日历 / 天气按 IP 自动定位 / 待办，桌面直接编辑）、系统状态监控（网速 / CPU / GPU / 内存）、音量控制条、音律动效 — 每个组件独立小窗口，无边框融入壁纸；毛玻璃 / 液态玻璃样式与全局调色；新增「调整模式」：客户端一键进入拖动调整、桌面默认只显示不误触；组件 / 音律动效 / 转盘均支持九宫格快速定位与拖动吸附
+- **桌面 DIY 组件**（v1.2.0，v1.7.0 重构，v1.9.0~v1.11.0 持续增强，v1.17.0 看板编辑修复，v1.18.1 客户端看板输入修复，v1.19.0 天气地名到区县，v1.19.0 常去城市）：时钟（12/24 小时制点击切换）、信息看板（日历 / 天气按 IP 自动定位（省 · 市 · 区县三级地名，可再加一座常去城市同屏显示）/ 待办，桌面直接编辑）、系统状态监控（网速 / CPU / GPU / 内存）、音量控制条、音律动效 — 每个组件独立小窗口，无边框融入壁纸；毛玻璃 / 液态玻璃样式与全局调色；新增「调整模式」：客户端一键进入拖动调整、桌面默认只显示不误触；组件 / 音律动效 / 转盘均支持九宫格快速定位与拖动吸附
 
 - **点选 / 框选收纳**（v1.6.0，v1.7.0 增强）：全屏选择器直接点选或拖框选择桌面快捷方式，一键收纳进转盘 — 原桌面图标随之隐藏（实际移动文件到应用数据目录保管）；支持回收站、此电脑等系统项收纳与过滤无效文件；从转盘移除、一键"全部恢复"或关闭功能时，自动移回桌面原位置（恢复显示）
 
@@ -89,6 +89,7 @@
 
 | 版本 | 国内加速下载 | GitHub 直连 |
 |---|---|---|
+| v1.19.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.19.0/WallpaperStudio-Setup-1.19.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.19.0/WallpaperStudio-Setup-1.19.0.exe) |
 | v1.18.1 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.1/WallpaperStudio-Setup-1.18.1.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.1/WallpaperStudio-Setup-1.18.1.exe) |
 | v1.18.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.0/WallpaperStudio-Setup-1.18.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.18.0/WallpaperStudio-Setup-1.18.0.exe) |
 | v1.17.2 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.2/WallpaperStudio-Setup-1.17.2.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.17.2/WallpaperStudio-Setup-1.17.2.exe) |
@@ -122,6 +123,26 @@
 | v1.1.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) |
 
 > 各版本更新内容见下方「新增功能与修复问题」分节与 [官网更新日志](https://wallpaper-studio.pages.dev/#changelog)；更早版本（v1.0.0）见 [Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)。
+
+## v1.19.0 信息看板天气地名精确到区县 + 常去城市
+
+**新增功能**
+
+- 信息看板天气城市由「市 · 省」两级升级为**「省 · 市 · 区县」三级** — 例如「山西省 · 忻州市 · 忻府区」。IP 自动定位先取坐标与基础省市，再用坐标做逆地理补齐区县；多源兜底、逆地理不可用时自动降级为两级，任何一级缺失都会被安全省略
+- **常去城市天气**：信息看板可再设一座「常去城市」（客户端 设置 → 桌面组件 → 信息看板内容 → 常去城市，桌面看板点城市名也能直接改），与所在地城市**同屏显示** —— 天气块里多出一行「常去 城市名 温度 天气」，出差 / 两地通勤对照一眼可见。常去城市固定为手选城市、不随 IP 变化；与主城市并发拉取互不影响，拉取失败自动沿用上一次的值
+- 城市名在天气块中**单独成行**，长地名不再与天气 / 体感挤在一行：最小尺寸（255px）下「内蒙古自治区 · 呼和浩特市 · 赛罕区」这类超长地名也完整显示，不截断、不溢出不遮挡下方逐时 / 逐日与待办内容
+- 手动选择的城市名同步升级为「省 · 市」，去掉了原先跟在末尾的国家段（不再出现「广州 · 广东 · 中国」）；旧配置里已保存的旧格式城市名在读取时自动规范化，无需重新设置
+
+**修复与优化**
+
+- IP 定位不再因单个接口波动而串到隔壁城市 — 国内接口遇风控返回 412 时自动重试并逐级降级，HTTP 3xx 重定向自动跟随；定位更稳，实测连续 4 次结果完全一致
+- 看板天气块高度按「城市名单独一行」重新计算，新增的一行不会挤压下方内容
+
+**测试**
+
+- 地名拼装与真实定位链路 56 项全部通过：省级后缀补全（山西→山西省 / 内蒙古→内蒙古自治区 / 北京→北京市）、直辖市同名去重（北京市 · 东城区）、旧配置规范化、真实 IP 定位（连续 4 次结果一致、无英文地名降级）、逆地理（忻州 / 北京 / 广州三地坐标）、城市搜索名称格式
+- 信息看板真实渲染 65 项全部通过：三级地名正确上屏、城市名独立成行、最小尺寸（255px）与超长地名均不截断不溢出、逐时 / 逐日 / 日历 / 待办无回归、点击城市名仍可正常打开搜索编辑器
+- 回归：音律动效绘制 36 项、组件宿主交互 15 项、设置页真实渲染 49 项 — 全部 0 失败、0 控制台错误
 
 ## v1.18.1 客户端输入焦点修复
 
