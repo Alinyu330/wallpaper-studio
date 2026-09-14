@@ -443,6 +443,38 @@
             <div class="av-color-row" id="av-gradcolors" data-page-node-id="av-gradcolors-list"></div>
           </div>
           <div class="preset-row" id="av-gradpresets" data-page-node-id="av-gradpresets"></div>
+          <label class="switch-row" id="av-flow-row">
+            <div>
+              <div class="row-title">颜色流动（滚动）</div>
+              <div class="row-sub" id="av-flow-sub">开启后渐变颜色沿指定方向持续滚动，像流水一样流过整个动效（纯色模式只有一种颜色，看不出流动）</div>
+            </div>
+            <span class="switch"><input type="checkbox" id="av-flow"><i></i></span>
+          </label>
+          <div class="switch-row" id="av-flowdir-row">
+            <div>
+              <div class="row-title">流动方向</div>
+              <div class="row-sub" id="av-flowdir-sub">颜色流动的方向，「跟随渐变」= 与上面的渐变方向一致，也可单独指定 8 个方向中的任意一个</div>
+            </div>
+            <div class="seg" id="av-flowdir" style="flex-wrap:wrap; max-width:270px; justify-content:flex-end">
+              <button data-flowdir="auto" title="与渐变方向一致">跟随渐变</button>
+              <button data-flowdir="lr" title="从左往右">→</button>
+              <button data-flowdir="rl" title="从右往左">←</button>
+              <button data-flowdir="tb" title="从上往下">↓</button>
+              <button data-flowdir="bt" title="从下往上">↑</button>
+              <button data-flowdir="tlbr" title="左上 → 右下">↘</button>
+              <button data-flowdir="bltr" title="左下 → 右上">↗</button>
+              <button data-flowdir="trbl" title="右上 → 左下">↙</button>
+              <button data-flowdir="brtl" title="右下 → 左上">↖</button>
+            </div>
+          </div>
+          <div class="switch-row" id="av-flowspeed-row">
+            <div>
+              <div class="row-title">流动速度 <span class="title-hint" id="av-flowspeed-val"></span></div>
+              <div class="row-sub"><input type="number" id="av-flowspeed-num" min="0.05" max="2" step="0.05" style="width:72px"> 周期/秒（0.05~2，越大颜色流过越快）</div>
+            </div>
+            <input type="range" id="av-flowspeed" min="0.05" max="2" step="0.05" style="width:150px">
+          </div>
+          <div class="preset-row" id="av-flowspeed-presets"></div>
           <div class="switch-row" data-page-node-id="ubAoxwAtUUYrdsDNhq4mlI">
             <div data-page-node-id="rKhlssRxedDY1O8sAneeW9">
               <div class="row-title" data-page-node-id="0hA5PeeU6EGunXc6QGM6C5">不透明度 <span class="title-hint" id="av-opacity-val" data-page-node-id="hz5jXuaB0uuDFFbXncT3qR"></span></div>
@@ -871,7 +903,7 @@
           <div class="switch-row" data-page-node-id="lTlJ0SLiBIKl1wRdnG5ByC">
             <div data-page-node-id="AdNVHec1jGCKf17AkIxqoy">
               <div class="row-title" data-page-node-id="qHwJaiIEzZAkSyDk9acL7G">关于</div>
-              <div class="row-sub" id="about-version" data-page-node-id="H2XSgCQCOd87UQWQVzVCad">壁纸工坊 v1.20.0 — 静态 / 动态 / 网页 / EXE 壁纸 · 平滑轮换过渡 · 音律动效 · 桌面组件（信息看板天气支持县 / 区 / 旗 / 镇搜索）· 快捷方式收纳转盘 · 桌面与锁屏</div>
+              <div class="row-sub" id="about-version" data-page-node-id="H2XSgCQCOd87UQWQVzVCad">壁纸工坊 v1.21.0 — 静态 / 动态 / 网页 / EXE 壁纸 · 平滑轮换过渡 · 音律动效（颜色流动 / 鼠标划过交互 / 8 样式 8 方向多色渐变）· 桌面组件（信息看板天气支持县 / 区 / 旗 / 镇搜索）· 快捷方式收纳转盘 · 桌面与锁屏</div>
             </div>
           </div>
           <div class="switch-row" data-page-node-id="EAXAMNvvxRIAE2Zf7FsS5F">

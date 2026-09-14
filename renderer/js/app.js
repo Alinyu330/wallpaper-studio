@@ -1675,6 +1675,7 @@ function bindCitySearch(o) {
 const AV_DEFAULTS = {
   enabled: false, style: 'bars', color: '#7c5cff', gradient: true,
   gradType: 'auto', gradDir: 'lr', gradColors: [],
+  flow: false, flowDir: 'auto', flowSpeed: 0.45,
   count: 0, height: 1, width: 0, hover: true, hoverStrength: 1,
   opacity: 0.85, size: 1, pos: 'bottom', posX: null, posY: null,
   mirror: true, sensitivity: 1.2,
@@ -1715,6 +1716,11 @@ const AV_GRAD_DIRS = [
   { k: 'tb', n: '↓', t: '从上往下' }, { k: 'bt', n: '↑', t: '从下往上' },
   { k: 'tlbr', n: '↘', t: '左上往右下' }, { k: 'bltr', n: '↗', t: '左下往右上' },
   { k: 'trbl', n: '↙', t: '右上往左下' }, { k: 'brtl', n: '↖', t: '右下往左上' },
+];
+/* 颜色流动方向：auto 跟随渐变方向 + 8 个方向（与渲染页 avFlowDir 的白名单一致） */
+const AV_FLOW_DIRS = [
+  { k: 'auto', n: '跟随渐变', t: '跟随渐变方向' },
+  ...AV_GRAD_DIRS,
 ];
 /* 方向多色的内置配色预设 */
 const AV_GRAD_PRESETS = [
@@ -1797,6 +1803,15 @@ function renderAudioVizSettings() {
   const gmode = avGradMode(av);
   $$('#av-gradtype button').forEach(b => b.classList.toggle('active', b.dataset.gradtype === gmode));
   $$('#av-graddir button').forEach(b => b.classList.toggle('active', b.dataset.graddir === (av.gradDir || 'lr')));
+  // 颜色流动（滚动）：开关 + 方向 + 速度
+  $('#av-flow').checked = av.flow === true;
+  $$('#av-flowdir button').forEach(b => b.classList.toggle('active', b.dataset.flowdir === (av.flowDir || 'auto')));
+  const fsp = Math.max(0.05, Math.min(2, Number(av.flowSpeed) || 0.45));
+  $('#av-flowspeed').value = fsp;
+  if (document.activeElement !== $('#av-flowspeed-num')) $('#av-flowspeed-num').value = fsp;
+  $('#av-flowspeed-val').textContent = fsp.toFixed(2) + ' 周期/秒';
+  highlightPresetRow($('#av-flowspeed-presets'), fsp);
+  avSyncFlowRows(av);
   $('#av-color').value = av.color;
   // 数量 / 高度 / 宽度：范围与文案随样式变化（圆形样式高度不生效）
   const pspec = avParamSpec(av.style);
@@ -1953,6 +1968,24 @@ function renderAvGradColors(av) {
   }
   avUpdateGradHint(av, list.length);
   avSyncGradRows(av);
+}
+
+/**
+ * 颜色流动联动：关闭流动、或纯色模式（无可流动的色序）时，方向/速度置灰并给出说明。
+ */
+function avSyncFlowRows(av) {
+  const mode = avGradMode(av);
+  const on = av.flow === true && mode !== 'none';
+  for (const id of ['#av-flowdir-row', '#av-flowspeed-row', '#av-flowspeed-presets']) {
+    const el = $(id);
+    if (el) el.style.opacity = on ? 1 : 0.5;
+  }
+  const sub = $('#av-flow-sub');
+  if (sub) {
+    sub.textContent = mode === 'none'
+      ? '当前是纯色模式：只有一种颜色，没有可流动的色序。切到「亮色」或「方向多色」就能看到颜色流动'
+      : '开启后渐变颜色沿指定方向持续滚动，像流水一样流过整个动效';
+  }
 }
 
 /** 多色配色预设（点一下整组替换） */
@@ -2155,6 +2188,20 @@ function bindAudioVizSettings() {
       renderAudioVizSettings();
     });
   });
+  // 颜色流动（滚动）：开关 / 方向（跟随渐变 + 8 向）/ 速度
+  $('#av-flow').addEventListener('change', (e) => {
+    saveAudioViz({ flow: e.target.checked });
+    renderAudioVizSettings();
+    toast(e.target.checked ? '颜色流动已开启：颜色会沿指定方向像流水一样持续流过' : '颜色流动已关闭');
+  });
+  $$('#av-flowdir button').forEach(b => {
+    b.addEventListener('click', () => {
+      $$('#av-flowdir button').forEach(x => x.classList.toggle('active', x === b));
+      saveAudioViz({ flowDir: b.dataset.flowdir });
+      renderAudioVizSettings();
+    });
+  });
+  /* 流动速度的滑杆在 bindAvSlider 定义之后绑定（见下） */
   $('#av-color').addEventListener('input', (e) => {
     saveAudioViz({ color: e.target.value });
     renderAvColors(e.target.value);
@@ -2186,6 +2233,8 @@ function bindAudioVizSettings() {
   bindAvSlider('#av-opacity', 'opacity', v => Math.round(v) + '%', $('#av-opacity-presets'), [30, 50, 70, 85, 100]);
   bindAvSlider('#av-size', 'size', v => v.toFixed(1) + '×', $('#av-size-presets'), [0.5, 0.8, 1, 1.5, 2]);
   bindAvSlider('#av-sens', 'sensitivity', v => v.toFixed(1), $('#av-sens-presets'), [0.5, 1, 1.5, 2, 3]);
+  // 颜色流动速度：0.05~2 周期/秒（越小越慢，像缓流；越大越快，像急流）
+  bindAvSlider('#av-flowspeed', 'flowSpeed', v => Number(v).toFixed(2) + ' 周期/秒', $('#av-flowspeed-presets'), [0.15, 0.45, 0.8, 1.2, 2]);
   // 数量 / 高度 / 宽度：范围与语义随样式变化（avParamSpec），滑杆与数字输入双向同步
   const bindAvParam = (key) => {
     const apply = (raw) => {

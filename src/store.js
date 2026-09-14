@@ -83,6 +83,9 @@ const DEFAULT_CONFIG = {
       gradType: 'auto',         // 渐变方式：none 纯色 / auto 主色→亮色 / dir 方向多色序列
       gradDir: 'lr',            // 渐变方向：lr 左→右 / rl 右→左 / tb 上→下 / bt 下→上 / tlbr trbl bltr brtl 四个斜向
       gradColors: [],           // 方向多色序列（2~6 个 #rrggbb；空 = 用内置默认序列）
+      flow: false,              // 颜色流动（滚动）：色序沿方向持续滚动，像流水一样流过
+      flowDir: 'auto',          // 流动方向：auto 跟随 gradDir / 或 8 方向之一（lr rl tb bt tlbr trbl bltr brtl）
+      flowSpeed: 0.45,          // 流动速度：每秒扫过的色序周期数（0.05~2）
       count: 0,                 // 元素数量（0 = 按样式默认：柱/点/列/环数等）
       height: 1,                // 高度系数 0.3~2（圆形样式由宽度统一控制整体尺寸）
       width: 0,                 // 宽度：柱状类 = 内容宽度占窗口比例 0.2~1（0 = 默认 0.86）；圆形类 = 整体尺寸系数 0.3~2（0 = 默认 1）

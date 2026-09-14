@@ -819,6 +819,12 @@
     //   dir 模式用一条「整片方向渐变」—— canvas 渐变按绘制位置取色，所有形状
     //   自然在自己所在处拿到对应颜色，于是从左往右 / 从上往下依次呈现多色。
     //
+    // ★ 颜色流动 / 滚动（v1.21.0）：flow 开启后色序沿方向持续滚动，像流水一样流过
+    //   整个动效。实现见 avFlowGrad —— 把渐变往回延长一个周期、色序按周期无缝循环、
+    //   再按时间相位平移色标。方向 flowDir 复用渐变方向的 8 个方向（auto = 跟随渐变
+    //   方向），速度 flowSpeed 单位为「周期/秒」。圆环 / 同心环 / 山体填充在流动模式下
+    //   也切到方向场渐变（放射渐变没有可流动的色序）。
+    //
     // ★ 性能（v1.9.0）：绘制路径彻底不用 canvas shadowBlur。
     //   旧实现每根柱、每个点都单独带一次阴影 —— 频谱条开镜像是 128 次高斯模糊
     //   填充/帧；圆点与 LED 块更是在内层循环里逐次改 shadowBlur（384 / 392 次）；
@@ -978,11 +984,77 @@
         default: return [x0, cy, x1, cy];   // lr 左→右
       }
     }
+    // ---------- 颜色流动（滚动：颜色像流水一样沿方向持续流过） ----------
+
+    /** 是否开启颜色流动 */
+    function avFlowOn() { return av.cfg.flow === true; }
+    /**
+     * 流动方向：'auto' = 跟随渐变方向（gradDir）；否则取 8 方向之一。
+     * 方向表与渐变方向共用（lr 左→右 / rl 右→左 / tb 上→下 / bt 下→上 + 四个斜向），
+     * 于是「从左往右」等各个方向都能自由选定。
+     */
+    function avFlowDir() {
+      const d = String(av.cfg.flowDir || 'auto');
+      return /^(lr|rl|tb|bt|tlbr|trbl|bltr|brtl)$/.test(d) ? d : String(av.cfg.gradDir || 'lr');
+    }
+    /** 流动速度：每秒扫过多少个色序周期（0.05~2；默认 0.45 ≈ 一轮 2.2 秒） */
+    function avFlowSpeed() {
+      return avClamp(numOr(av.cfg.flowSpeed, 0.45), 0.05, 2);
+    }
+    /**
+     * 当前流动相位 0~1。
+     * ★ 用绝对时间（performance.now）而不是逐帧累加：①与帧率/帧率上限解耦，掉帧也不变速；
+     *   ②改速度只改斜率，相位不跳变，拖速度滑杆时颜色不会突然跳一下。
+     */
+    function avFlowPhase() {
+      return ((performance.now() / 1000) * avFlowSpeed()) % 1;
+    }
+    /**
+     * 流动渐变：让色序沿方向「无缝循环滚动」。
+     * 做法：渐变整体往回延长一个周期 L（内容框正好落在渐变的 [0.5, 1] 区间），
+     * 色序以周期 L 无缝循环（下标取模 → 末色自然接回首色，没有硬接缝），
+     * 再按相位 p 平移色标位置。每帧相位连续后移 → 肉眼即「颜色沿方向流动」。
+     * ⚠️ 相位每帧都变 → 不能走 avLinGrad 缓存（key 会每帧都不同）。这里每帧最多新建
+     *   几条渐变（各样式 ≤ 2 处），与旧实现「每帧上百次新建渐变」仍不在一个量级。
+     * @param {CanvasRenderingContext2D} ctx 实际绘制的 ctx（辉光层或主画布）
+     * @param {number[]} box [x0,y0,x1,y1] 内容外框
+     * @param {number[][]} pal 色序（rgb 数组）
+     * @param {number} alpha 统一透明度
+     */
+    function avFlowGrad(ctx, box, pal, alpha) {
+      const n = pal.length;
+      const [sx, sy, ex, ey] = avGradEnds(avFlowDir(), box);
+      const dx = ex - sx, dy = ey - sy;
+      const p = avFlowPhase();
+      // 色标位置 t = (k/n + m + 1 + p) / 2：k 色序下标、m 周期序号、p 相位。
+      // ★ k 取到 n（含）而不是 n-1：周期边界上的那一色要按「下一轮的首色」再落一次，
+      //   否则 t=1 处缺色标、末端会被 canvas 钳成一片平色（末色 → 首色的回落段丢失）。
+      const pts = [];
+      let last = -1;
+      for (let m = -2; m <= 0; m++) {
+        for (let k = 0; k <= n; k++) {
+          const t = (k / n + m + 1 + p) / 2;
+          if (t < 0 || t > 1 || t <= last) continue;
+          last = t;
+          pts.push([t, pal[k % n]]);
+        }
+      }
+      if (!pts.length) return avRgba(pal[0], alpha);
+      // 首尾补齐，保证整条渐变 0~1 都有色标（相位不一定正好落在色标上）
+      if (pts[0][0] > 0) pts.unshift([0, pts[0][1]]);
+      if (pts[pts.length - 1][0] < 1) pts.push([1, pts[pts.length - 1][1]]);
+      const g = ctx.createLinearGradient(sx - dx, sy - dy, ex, ey);
+      for (const [t, rgb] of pts) g.addColorStop(t, avRgba(rgb, alpha));
+      return g;
+    }
+
     /**
      * 内容色（渐变或纯色）。
      * ★ 关键：canvas 渐变按「绘制位置」取色 —— 所以只需按内容外框建一条方向渐变，
      *   整片形状（每根柱 / 每个点 / 每段波形）自然在自己所在处拿到对应颜色，
      *   这正是「从左往右 / 从上往下依次显示多种不同颜色」。
+     * ★ 开启颜色流动（flow）后改走 avFlowGrad：色序沿方向持续滚动，像流水一样流过。
+     *   纯色模式只有一种颜色，没有可流动的色序（pal.length === 1 直接返回纯色）。
      * @param {CanvasRenderingContext2D} ctx 实际绘制的 ctx（辉光层或主画布）
      * @param {number[]} box [x0,y0,x1,y1] 内容外框
      * @param {number} [a] 统一透明度（面填充用；线/柱保持 1）
@@ -991,6 +1063,7 @@
       const pal = avPalette();
       const alpha = a === undefined ? 1 : a;
       if (pal.length === 1) return avRgba(pal[0], alpha);
+      if (avFlowOn()) return avFlowGrad(ctx, box, pal, alpha);
       const dir = String(av.cfg.gradDir || 'lr');
       const n = pal.length;
       const stops = pal.map((rgb, i) => [i / (n - 1), avRgba(rgb, alpha)]);
@@ -1560,7 +1633,9 @@
         // 「亮色」模式沿用逐条放射渐变（保原观感）；「方向多色」用整片方向渐变，
         // 每条放射条按自己所在位置取色 → 多色沿指定方向依次铺开。
         let grads = null, field = null;
-        if (mode === 'dir') {
+        // ★ 颜色流动是「方向性」的，放射渐变没有可流动的色序 —— 开了流动就一并切到
+        //   方向场渐变（否则圆环类开了流动毫无变化，与其他样式不一致）
+        if (mode === 'dir' || avFlowOn()) {
           field = avFieldStyle(ctx, [cx - R - maxLen, cy - R - maxLen, cx + R + maxLen, cy + R + maxLen]);
         } else {
           // 逐条放射渐变整组缓存：旧实现每帧新建 96 个，是圆环样式的主要开销。
@@ -1667,8 +1742,8 @@
         for (const [x, y] of pts) ctx.lineTo(x, y);
         ctx.lineTo(x0 + span, baseline);
         ctx.closePath();
-        ctx.fillStyle = mode === 'dir'
-          // 方向多色：填充也跟着方向铺色（多色依次排开，与顶部亮线同源）
+        ctx.fillStyle = (mode === 'dir' || avFlowOn())
+          // 方向多色 / 颜色流动：填充也跟着方向铺色（与顶部亮线同源，流动时同步滚动）
           ? avFieldStyle(ctx, [x0, baseline - maxH, x0 + span, baseline], 0.5)
           : avFillVertical(ctx, 'mtnfill', [0, baseline - maxH, 0, baseline], pal);
         ctx.fill();
@@ -1779,7 +1854,7 @@
       }
       avComposite(g, alpha, 10, (ctx) => {
         ctx.lineCap = 'round';
-        const field = mode === 'dir'
+        const field = mode === 'dir' || avFlowOn()
           ? avFieldStyle(ctx, [cx - R * 1.2, cy - R * 1.2, cx + R * 1.2, cy + R * 1.2])
           : null;
         for (let b = 0; b < N; b++) {
