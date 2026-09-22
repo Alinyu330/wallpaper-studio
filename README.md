@@ -6,7 +6,7 @@
 
 ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4)
-![Version](https://img.shields.io/badge/version-1.21.0-7c5cff)
+![Version](https://img.shields.io/badge/version-1.21.1-7c5cff)
 
 ## 官网
 
@@ -15,12 +15,12 @@
 
 ## 下载
 
-**最新版 v1.21.0 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · GPL-3.0 开源并明确禁止闭源商用）：
+**最新版 v1.21.1 安装包**（Windows 10 / 11 · x64 · 约 280 MB · 内置全格式解码器 + 精选壁纸 · GPL-3.0 开源并明确禁止闭源商用）：
 
-> 本版新增：音律动效**颜色流动（滚动）** —— 渐变颜色沿指定方向持续滚动、像流水一样流过整个动效，流动方向可在 8 个方向中自由选定（也可跟随渐变方向），流动速度可调（0.05~2 周期/秒），8 种样式全部生效。默认关闭，不影响既有观感。
+> 本版新增：修复**应用内更新后快捷方式重复** —— 更新（覆盖安装）后桌面上会重新出现一个「壁纸工坊」快捷方式，而转盘里本来就有一个；此时无论用桌面拖拽、点选/框选还是「一键收纳」去收它，转盘里只会多出一个一模一样的条目，把多出来的条目移除它又回到桌面，怎么都清不干净。现在更新不再往桌面重建本应用快捷方式，收纳也会先按快捷方式指向的目标认身份：发现是同一个应用就就地合并、不再追加重复条目，启动时还会自动把历史遗留的重复项与桌面残留一并收干净。
 
-- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.21.0/WallpaperStudio-Setup-1.21.0.exe)
-- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.21.0/WallpaperStudio-Setup-1.21.0.exe)
+- 国内加速①：[gh-proxy.com 下载](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.21.1/WallpaperStudio-Setup-1.21.1.exe)
+- 国内加速②：[ghfast.top 下载](https://ghfast.top/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.21.1/WallpaperStudio-Setup-1.21.1.exe)
 - GitHub 直连：[Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)（含全部历史版本）
 
 > 已安装旧版？客户端「设置 → 检查更新」即可应用内一键更新，无需重新下载安装包。
@@ -41,7 +41,7 @@
 
 - **内置精选壁纸**（v1.10.0 新增）：6 部精选动态壁纸随安装包附带（古风美女 / 初音未来 / 夏日绿树 / 圣诞夜 / 冬季雪林 / 大海云影），下载安装打开即可直接使用，已装旧版升级不受影响
 
-- **桌面快捷方式转盘**（v1.5.0，v1.7.0/v1.8.0 增强，v1.15.0 列表搜索置顶）：快捷方式（.lnk/.url）与程序文件（.exe/.bat/.cmd）以转盘形式收纳在桌面（系统项：控制面板 / 回收站 / 网络 / 此电脑 亦可收纳）— 点击图标即可启动对应 App；按住图标条或拖动条左右拖动即可像转盘一样轮换（带惯性甩动）；拖动 ⋮ 手柄自由摆放位置；同屏数量 4~12 可调；图标取系统真实图标（无空白占位）、垂直倒影、去面板边框更沉浸；空闲自动收起为小药丸，悬停药丸展开，不遮挡窗口、不影响壁纸观感；设置页快捷方式列表带搜索栏，输入即过滤，搜到即可点星设为常用排到转盘最前（v1.17.0 修复：搜索不再打断中文输入法组词，命中行点星即生效；v1.18.1 修复搜索栏被键盘焦点抢占导致无法输入的问题）
+- **桌面快捷方式转盘**（v1.5.0，v1.7.0/v1.8.0 增强，v1.15.0 列表搜索置顶，v1.21.1 重复收纳修复）：快捷方式（.lnk/.url）与程序文件（.exe/.bat/.cmd）以转盘形式收纳在桌面（系统项：控制面板 / 回收站 / 网络 / 此电脑 亦可收纳）— 点击图标即可启动对应 App；按住图标条或拖动条左右拖动即可像转盘一样轮换（带惯性甩动）；拖动 ⋮ 手柄自由摆放位置；同屏数量 4~12 可调；图标取系统真实图标（无空白占位）、垂直倒影、去面板边框更沉浸；空闲自动收起为小药丸，悬停药丸展开，不遮挡窗口、不影响壁纸观感；设置页快捷方式列表带搜索栏，输入即过滤，搜到即可点星设为常用排到转盘最前（v1.17.0 修复：搜索不再打断中文输入法组词，命中行点星即生效；v1.18.1 修复搜索栏被键盘焦点抢占导致无法输入的问题）
 
 - **桌面文件收纳区**（v1.8.0 新增，v1.9.0 重构，v1.13.0 支持全部文件类型与空文件夹）：桌面上的任意普通文件（含 0 字节空文件、无扩展名与未知类型）与文件夹收进独立浮层，与快捷方式转盘职责分离 — 文件夹 / 文件自动分组排列（支持按名称 / 修改时间 / 手动排序），网格列数与面板透明度可调；文件名完整两行显示；空闲先转半透明毛玻璃、再收缩为单个文件图标，悬停自动展开、点击弹出收纳内容；面板镜像倒影与调色可调；收纳的文件与空文件夹移动隐藏（可一键恢复），非空文件夹仅登记引用不移动内容、点开即进入文件夹；支持自由拖动与九宫格快捷定位
 
@@ -91,6 +91,7 @@
 
 | 版本 | 国内加速下载 | GitHub 直连 |
 |---|---|---|
+| v1.21.1 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.21.1/WallpaperStudio-Setup-1.21.1.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.21.1/WallpaperStudio-Setup-1.21.1.exe) |
 | v1.21.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.21.0/WallpaperStudio-Setup-1.21.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.21.0/WallpaperStudio-Setup-1.21.0.exe) |
 | v1.20.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.20.0/WallpaperStudio-Setup-1.20.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.20.0/WallpaperStudio-Setup-1.20.0.exe) |
 | v1.19.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.19.0/WallpaperStudio-Setup-1.19.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.19.0/WallpaperStudio-Setup-1.19.0.exe) |
@@ -127,6 +128,20 @@
 | v1.1.0 | [gh-proxy.com](https://gh-proxy.com/https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) | [直连](https://github.com/Alinyu330/wallpaper-studio/releases/download/v1.1.0/WallpaperStudio-Setup-1.1.0.exe) |
 
 > 各版本更新内容见下方「新增功能与修复问题」分节与 [官网更新日志](https://wallpaper-studio.pages.dev/#changelog)；更早版本（v1.0.0）见 [Releases 页面](https://github.com/Alinyu330/wallpaper-studio/releases)。
+
+## v1.21.1 更新后快捷方式重复修复
+
+**修复问题**
+
+- **更新后桌面重新出现「壁纸工坊」快捷方式，与转盘里的那份重复** —— 根因在安装器：electron-builder 的 `addDesktopLink` 宏在默认配置下**每次覆盖安装 / 应用内静默更新都会无条件重建桌面快捷方式**，而用户此前已把它收进转盘（文件在安装目录的「收纳快捷方式(卸载恢复)」里），于是桌面一个、转盘一个。现改为：收纳目录里已有本应用快捷方式时，安装器不再把刚重建的那份留在桌面；应用启动时还会再兜一层，把安装器重建到桌面的残留收进回收站（可撤销）
+- **收纳后仍然重复、清不干净** —— 旧实现按**文件名**判定，重名就退让命名成「壁纸工坊 (2).lnk」并追加成**第二个转盘条目**：桌面图标是消失了，转盘里却多出一个一模一样的；把多出来的条目移除，文件又被还原回桌面，形成"收了还重复、删了又回来"的死循环。现在收纳前会先解析快捷方式**指向的目标**（`.lnk` 读链接目标 + 启动参数，`.url` 读 URL 行）并按目标认身份：同一个应用只保留一条条目，桌面那份就地合并、不再追加；目标相同但启动参数不同的仍按两个独立快捷方式处理，不会误合并
+- **同一 App 在用户桌面与公共桌面各有一份时会被收成两条** —— 一次「一键收纳」里先收到的那个会登记进本批身份表，后续同一个应用直接合并，不再重复入盘
+- **启动自愈** —— 启动时自动清理历史遗留：转盘内指向同一目标的重复条目塌缩成一条（落败条目的文件**不销毁**，转为「已收纳文件」记录，仍可随「全部恢复到桌面」一起还原），桌面上残留的本应用快捷方式一并收起；自愈幂等，重复执行无副作用
+
+**测试**
+
+- 新增隔离测试台 **21 项全部通过**（临时桌面目录 + 临时保管目录 + 真实 `.lnk` 文件，不触碰真实桌面与用户配置）：重复副本吸收后不新增条目、本应用重复副本收起后转盘仍只有一条、一键收纳一批里同目标只产生一条、启动自愈把重复条目塌缩成一条且不销毁任何文件、桌面残留被收起、自愈幂等且结果落盘、目标同但参数不同不误判
+- 真机功能测试与既有回归用例保持全绿
 
 ## v1.21.0 音律动效颜色流动（滚动）
 
