@@ -85,6 +85,7 @@ class LauncherHost {
     // Shell 图标提取（SHGetFileInfoW，支持 shell: 虚拟项），图标 PNG 落盘缓存
     try { icons.init(app.getPath('userData')); } catch (_) {}
     this._purgeGhostShortcuts();
+    this._healShortcutDuplicates();
     this._registerIpc();
   }
 
@@ -114,6 +115,223 @@ class LauncherHost {
         console.log(`[launcher] 已清理 ${removed} 个幽灵/垃圾快捷方式`);
       }
     } catch (_) {}
+  }
+
+  // ---------- 快捷方式身份识别（同一目标的重复副本） ----------
+  //
+  // 背景（v1.21.1 修「更新后快捷方式桌面一份、转盘里一份，收了还是重复、清不掉」）：
+  // 安装包的 nsis.createDesktopShortcut 由 electron-builder 的 addDesktopLink 宏实现，
+  // 在 $keepShortcuts == "false"（默认）分支里无条件 CreateShortCut —— 每次覆盖安装 /
+  // 应用内自动更新（静默 /S）都会把「壁纸工坊.lnk」重新放回桌面，而转盘里那份还指向
+  // 保管目录，于是桌面与转盘各有一个。此时无论用桌面拖拽、点选/框选还是「一键收纳」
+  // 去收它，旧实现都按文件名退让命名成「壁纸工坊 (2).lnk」再追加成第二个条目 ——
+  // 桌面图标是没了，转盘里却多出一个一模一样的；把多出来的那个条目移除又会把文件
+  // 还原回桌面，用户看到的就是「收纳后仍重复、清不掉」。
+  //
+  // 修法：收纳前先按「解析出的目标 + 参数」认身份（.lnk 走 shell.readShortcutLink，
+  // .url 读 URL= 行），同身份不再新增条目，而是把桌面上那份吸收掉（见 _absorbDuplicate）；
+  // 启动时再做一次自愈（见 _healShortcutDuplicates），把历史遗留的重复条目塌缩成一条、
+  // 把桌面上残留的本应用快捷方式收掉。
+
+  /** 解析 .lnk/.url 的目标与参数；读不出（损坏 / 无权限 / 非快捷方式）返回 null，
+   *  调用方一律退回「按文件路径去重」的旧行为 —— 绝不因解析失败把两件事物误判成重复。 */
+  _resolveLink(file) {
+    const ext = path.extname(String(file || '')).toLowerCase();
+    try {
+      if (ext === '.lnk') {
+        const d = shell.readShortcutLink(file);
+        if (d && d.target) return { target: String(d.target), args: String(d.args || '') };
+      } else if (ext === '.url') {
+        const m = /^\s*URL\s*=\s*(.+?)\s*$/im.exec(fs.readFileSync(file, 'utf8'));
+        if (m && m[1]) return { target: m[1], args: '' };
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /** 目标是否指向本应用（打包态按 exe 名，开发态按应用名判定）。
+   *  安装目录变更会让目标串不同，所以另给一个「自身桶」身份键，见 _linkKeys。 */
+  _isSelfTarget(target) {
+    if (!target) return false;
+    const t = String(target);
+    const base = path.basename(t, path.extname(t)).toLowerCase();
+    if (!base) return false;
+    if (String(app.getName() || '').toLowerCase() === base) return true;
+    return app.isPackaged && path.basename(process.execPath, '.exe').toLowerCase() === base;
+  }
+
+  /** 文件身份键：精确目标键 't:目标|参数'；指向本应用时额外一个自身桶键 's:self' */
+  _linkKeys(file) {
+    try { if (!file || !fs.existsSync(file)) return []; } catch (_) { return []; }
+    const r = this._resolveLink(file);
+    if (!r) return [];
+    const keys = [`t:${r.target.toLowerCase()}|${r.args}`];
+    if (this._isSelfTarget(r.target)) keys.push('s:self');
+    return keys;
+  }
+
+  /** 现有转盘条目（非系统项）的身份索引：身份键 → 条目（先出现者优先） */
+  _identityIndex(shortcuts) {
+    const map = new Map();
+    for (const s of shortcuts || []) {
+      if (!s || s.type === 'system' || !s.path) continue;
+      for (const k of this._linkKeys(s.path)) if (!map.has(k)) map.set(k, s);
+    }
+    return map;
+  }
+
+  /** 条目是否管着「本应用自己的快捷方式」（文件在不在都能判定） */
+  _isSelfEntry(s) {
+    if (!s || s.type === 'system' || !s.path) return false;
+    const r = this._resolveLink(s.path);
+    if (r) return this._isSelfTarget(r.target);
+    return path.basename(s.path, path.extname(s.path)).toLowerCase()
+      === String(app.getName() || '').toLowerCase();
+  }
+
+  /**
+   * 收纳前判定「这份是不是已有条目的重复副本」。命中即吸收，不新增条目：
+   *  - 本应用自己的快捷方式：安装器刚重建的那份是纯冗余 → 进回收站（可撤销），
+   *    转盘保持单一条目、桌面不留图标（即用户要的「只在转盘里，桌面不出现」）。
+   *  - 其它应用：这份可能是另一个桌面位置（公共桌面 / OneDrive / 应用重装后重建）
+   *    的真实文件，不销毁 —— 移进保管目录、只登记为「已收纳文件」(boxed)，
+   *    转盘不新增条目，「全部恢复到桌面」仍能把它放回原处。
+   * @param {Map} idx 身份索引（_identityIndex 的产物；本批内会就地补登记）
+   * @param {string} file 待收纳的文件绝对路径
+   * @param {{notFound:number,noPerm:number}} skipped 跳过计数（就地累加）
+   * @returns {{absorbed:boolean, boxed?:object}} absorbed=false 时调用方走常规收纳
+   */
+  _absorbDuplicate(idx, file, skipped) {
+    const keys = this._linkKeys(file);
+    if (!keys.length) return { absorbed: false };
+    const exist = keys.map((k) => idx.get(k)).find(Boolean);
+    if (!exist || !exist.path) return { absorbed: false };
+    if (path.normalize(exist.path).toLowerCase() === path.normalize(file).toLowerCase()) {
+      return { absorbed: true };            // 同条目同文件：本就无需动作
+    }
+    const name = path.basename(file, path.extname(file));
+    const isSelf = this._isSelfTarget((this._resolveLink(file) || {}).target);
+    if (isSelf) {
+      // 纯冗余（安装器重建）→ 回收站。删不掉就退回常规收纳：宁可多一条也不丢文件。
+      if (desktop.shellDeleteFile(file) || !fs.existsSync(file)) {
+        console.log(`[launcher] 已吸收重复的本应用快捷方式（进回收站）: ${file}`);
+        return { absorbed: true };
+      }
+      try {
+        fs.rmSync(file, { force: true });
+        if (!fs.existsSync(file)) {
+          console.log(`[launcher] 已吸收重复的本应用快捷方式（回收站不可用，直接删除）: ${file}`);
+          return { absorbed: true };
+        }
+      } catch (_) {}
+      skipped.noPerm++;
+      return { absorbed: false };
+    }
+    if (!fs.existsSync(exist.path)) {
+      // 已有条目指向的文件缺失 → 用桌面这份顶上，条目路径不变（记录与文件重归一致）
+      if (this._moveFile(file, exist.path)) {
+        console.log(`[launcher] 已有条目的文件缺失，已用桌面这份补齐: ${exist.path}`);
+        return { absorbed: true, boxed: { name, originPath: file, boxPath: exist.path } };
+      }
+      return { absorbed: false };
+    }
+    const boxPath = this._boxPathFor(path.basename(file));
+    if (!this._moveFile(file, boxPath)) { skipped.noPerm++; return { absorbed: false }; }
+    console.log(`[launcher] 已吸收同名快捷方式的重复副本（不新增条目）: ${file} → ${boxPath}`);
+    return { absorbed: true, boxed: { name, originPath: file, boxPath } };
+  }
+
+  /** 把刚收纳的文件登记进本批身份索引 —— 同一批里再遇到同目标副本即按重复吸收
+   *  （否则一次「一键收纳」会把用户桌面 + 公共桌面的同一个 App 收成两条）。 */
+  _indexAdd(idx, file, entry) {
+    if (!idx || !file || !entry) return;
+    for (const k of this._linkKeys(file)) if (!idx.has(k)) idx.set(k, entry);
+  }
+
+  /**
+   * 启动自愈：消除「桌面 + 转盘重复」与「转盘内重复条目」，全程不销毁用户文件
+   * （除本应用自己的冗余快捷方式进回收站，可撤销）。
+   *  a) 转盘内同身份的重复条目 → 只保留先出现的那条，落败条目的文件转为
+   *     「已收纳文件」记录（转盘不再显示，但「全部恢复到桌面」仍会还原）；
+   *  b) 桌面上残留的本应用快捷方式（旧版安装器重建的）→ 已有条目文件在位则
+   *     移入回收站；文件缺失则用它补齐条目（保持条目可用）。
+   *  读不出目标的（损坏 .lnk / 非快捷方式）一律不动。
+   */
+  _healShortcutDuplicates() {
+    try {
+      const cfg = this.cfg;
+      const boxDirLower = String(this.boxDir).toLowerCase() + path.sep;
+      const inBox = (p) => !!p && String(p).toLowerCase().startsWith(boxDirLower);
+      const desktopFallback = (p) => path.join(app.getPath('desktop'), path.basename(p));
+      let nextShortcuts = [...(cfg.shortcuts || [])];
+      let nextBoxed = [...(cfg.boxed || [])];
+      let nextHidden = [...(cfg.hidden || [])];
+      const notes = [];
+
+      // ---------- a) 转盘内重复条目塌缩 ----------
+      const seen = new Map();
+      const kept = [];
+      const demoted = [];
+      for (const s of nextShortcuts) {
+        if (!s) continue;
+        const keys = s.type === 'system' || !s.path ? [] : this._linkKeys(s.path);
+        const hit = keys.find((k) => seen.has(k));
+        if (hit) { demoted.push(s); continue; }
+        for (const k of keys) seen.set(k, s);
+        kept.push(s);
+      }
+      if (demoted.length) {
+        nextShortcuts = kept;
+        for (const s of demoted) {
+          const bIdx = nextBoxed.findIndex((b) => b && b.boxPath === s.path);
+          const hIdx = nextHidden.findIndex((h) =>
+            (s.path && h.path === s.path) || (s.name && h.name === s.name));
+          if (bIdx >= 0) {
+            // 文件在保管目录：保留 boxed 记录（转盘不显示），不做任何移动
+          } else if (inBox(s.path)) {
+            nextBoxed.push({ name: s.name, originPath: desktopFallback(s.path), boxPath: s.path });
+          } else if (hIdx >= 0) {
+            // 「隐藏到壁纸后」的重复项：恢复图标并丢弃记录，让用户重新决定
+            const h = nextHidden[hIdx];
+            nextHidden.splice(hIdx, 1);
+            if (this._unhideOne(h)) desktop.notifyShellIconRefresh();
+          }
+          notes.push(`合并重复条目「${s.name}」`);
+        }
+      }
+
+      // ---------- b) 桌面上残留的本应用快捷方式 ----------
+      if (cfg.enabled && nextShortcuts.some((s) => this._isSelfEntry(s))) {
+        for (const dir of this._desktopDirs()) {
+          if (String(dir).toLowerCase() === this._publicDesktop().toLowerCase()) continue; // 公共桌面需管理员
+          for (const f of this._collectShortcuts(dir)) {
+            if (!this._isSelfTarget((this._resolveLink(f) || {}).target)) continue;
+            const entry = nextShortcuts.find((s) => this._isSelfEntry(s));
+            if (!entry) break;
+            if (path.normalize(entry.path).toLowerCase() === path.normalize(f).toLowerCase()) continue;
+            if (fs.existsSync(entry.path)) {
+              if (desktop.shellDeleteFile(f) || !fs.existsSync(f)) {
+                console.log(`[launcher] 自愈：移除了安装器重建到桌面的本应用快捷方式: ${f}`);
+                notes.push('收起了安装器重建到桌面的本应用快捷方式');
+              }
+            } else if (this._moveFile(f, entry.path)) {
+              nextBoxed.push({ name: path.basename(f, path.extname(f)), originPath: f, boxPath: entry.path });
+              console.log(`[launcher] 自愈：用桌面这份补齐了本应用快捷方式: ${entry.path}`);
+              notes.push('补齐了缺失的本应用快捷方式');
+            }
+          }
+        }
+      }
+
+      if (!notes.length) return;
+      this.store.updateSettings({ launcher: {
+        ...cfg, shortcuts: nextShortcuts, boxed: nextBoxed, hidden: nextHidden,
+      } });
+      scheduleMirrorSync(app);
+      console.log(`[launcher] 重复快捷方式自愈：${notes.join('；')}`);
+    } catch (err) {
+      console.warn('[launcher] 重复快捷方式自愈失败（不影响启动）:', err && err.message);
+    }
   }
 
   /** 收纳保管目录中不冲突的文件名（同名时加序号） */
@@ -1068,6 +1286,8 @@ class LauncherHost {
     const shortcuts = [];   // 本批新增的转盘条目
     const boxed = [];       // 本批新增的收纳记录（可恢复到 originPath）
     const hidden = [];      // 本批新增的隐藏记录
+    // 本批身份索引：同目标的重复副本（含本批内先收到的）一律吸收，不再追加条目
+    const idIdx = this._identityIndex(cfg.shortcuts);
     // 资源管理器开了「显示隐藏的文件」或「显示受保护的操作系统文件」时，
     // 隐藏属性（HIDDEN|SYSTEM）藏不住图标 → 退回移动收纳
     let hideMode = cfg.collectMode === 'hide' && !desktop.explorerHidingUnusable();
@@ -1111,6 +1331,14 @@ class LauncherHost {
         skipped.noPerm++;
         continue;
       }
+      // ★ v1.21.1：同一快捷方式的重复副本（更新后安装器重建 / 二次收纳 / 同一
+      //   App 在用户桌面与公共桌面各一份）→ 吸收掉，不新增条目（详见 _absorbDuplicate）
+      const dup = this._absorbDuplicate(idIdx, found.file, skipped);
+      if (dup.absorbed) {
+        if (dup.boxed) boxed.push(dup.boxed);
+        done++;
+        continue;
+      }
       if (hideMode) {
         // 原地隐藏：加 HIDDEN|SYSTEM（只加 HIDDEN 视图不重排，见 desktop.js 注释）。
         // ★ 仍要回读校验：这台机能成，别的机器（资源管理器设置不同、Win10 视图实现不同）
@@ -1127,10 +1355,12 @@ class LauncherHost {
         }
         if (gone) {
           const ext = path.extname(found.file).toLowerCase();
+          const entry = { name, path: found.file, type: APP_EXTS.includes(ext) ? 'app' : 'shortcut' };
           if (!existPaths.has(found.file)) {
-            shortcuts.push({ name, path: found.file, type: APP_EXTS.includes(ext) ? 'app' : 'shortcut' });
+            shortcuts.push(entry);
             existPaths.add(found.file);
           }
+          this._indexAdd(idIdx, found.file, entry);
           hidden.push({ name, path: found.file, x: ic ? ic.x : null, y: ic ? ic.y : null, mode: 'attr' });
           done++;
           continue;
@@ -1145,12 +1375,14 @@ class LauncherHost {
         skipped.noPerm++;
         continue;
       }
+      const ext = path.extname(boxPath).toLowerCase();
+      // 与 _addShortcuts 同一规则补 type，否则收纳来的条目缺字段走错分支
+      const entry = { name, path: boxPath, type: APP_EXTS.includes(ext) ? 'app' : 'shortcut' };
       if (!existPaths.has(boxPath)) {
-        // 与 _addShortcuts 同一规则补 type，否则收纳来的条目缺字段走错分支
-        const ext = path.extname(boxPath).toLowerCase();
-        shortcuts.push({ name, path: boxPath, type: APP_EXTS.includes(ext) ? 'app' : 'shortcut' });
+        shortcuts.push(entry);
         existPaths.add(boxPath);
       }
+      this._indexAdd(idIdx, boxPath, entry);
       boxed.push({ name, originPath: found.file, boxPath });
       done++;
     }
@@ -1200,17 +1432,29 @@ class LauncherHost {
     const existIds = new Set(cfg.shortcuts.map(s => s.sysId).filter(Boolean));
     let done = 0;
     let publicLeft = 0; // 公共桌面普通权限收不进的数目（需 boxPublic 管理员授权）
+    let absorbed = 0;   // 其中按「同一快捷方式的重复副本」吸收掉的条数（不新增转盘条目）
+    // 本批身份索引：同目标的重复副本（含本批内先收到的）一律吸收
+    const idIdx = this._identityIndex(cfg.shortcuts);
+    const absSkip = { notFound: 0, noPerm: 0 };
 
     const boxOne = (origin) => {
+      const dup = this._absorbDuplicate(idIdx, origin, absSkip);
+      if (dup.absorbed) {
+        if (dup.boxed) boxed.push(dup.boxed);
+        absorbed++;
+        return true;                    // 桌面图标确实收走了，计入实收
+      }
       const boxPath = this._boxPathFor(path.basename(origin));
       if (!this._moveFile(origin, boxPath)) return false;
       const name = path.basename(origin, path.extname(origin));
       const ext = path.extname(origin).toLowerCase();
       const type = APP_EXTS.includes(ext) ? 'app' : 'shortcut'; // .lnk / .url
+      const entry = { name, path: boxPath, type };
       if (!existPaths.has(boxPath)) {
-        shortcuts.push({ name, path: boxPath, type });
+        shortcuts.push(entry);
         existPaths.add(boxPath);
       }
+      this._indexAdd(idIdx, boxPath, entry);
       boxed.push({ name, originPath: origin, boxPath });
       return true;
     };
@@ -1248,9 +1492,9 @@ class LauncherHost {
       desktop.notifyShellIconRefresh();
     }
     const summary = this._boxSummary();
-    console.log(`[launcher] 一键收纳全部: ${done} 个（含系统项 ${sysAdded}；公共桌面待授权 ${publicLeft} · 桌面剩余文件夹 ${summary.folders}）`);
+    console.log(`[launcher] 一键收纳全部: ${done} 个（含系统项 ${sysAdded}${absorbed ? `；吸收重复副本 ${absorbed}` : ''}；公共桌面待授权 ${publicLeft} · 桌面剩余文件夹 ${summary.folders}）`);
     if (this.onChanged) this.onChanged({ picked: done, skipped: 0 });
-    return { ok: true, boxed: done, publicLeft, ...summary };
+    return { ok: true, boxed: done, absorbed, publicLeft, ...summary };
   }
 
   /** 枚举目录中可收纳的文件（.lnk/.url 快捷方式 + 程序 .exe/.bat/.cmd）。

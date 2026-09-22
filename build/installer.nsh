@@ -42,6 +42,11 @@
 ;     $INSTDIR\收纳快捷方式(卸载恢复)\  ← 转盘收纳的快捷方式
 ;     $INSTDIR\收纳文件(卸载恢复)\      ← 文件收纳区收纳的普通文件
 ;   默认为空，用户在客户端收纳时文件才移入；安装包不含任何个人文件。
+;
+; ★ v1.21.1 补：更新时不再把本应用快捷方式重建到桌面（见 customInstall 末尾）——
+;   安装器默认每次覆盖安装都会 CreateShortCut 桌面 .lnk，而转盘里那份还在，
+;   造成「桌面一个 + 转盘里一个」重复；现在收纳目录里已有本应用快捷方式时删除
+;   安装器刚重建的那份，应用内启动自愈再兜一层。
 ; ============================================================================
 
 !macro customInit
@@ -173,6 +178,25 @@
   CopyFiles /SILENT "$APPDATA\壁纸工坊-update-backup\收纳文件(卸载恢复)\*.*" "$INSTDIR\收纳文件(卸载恢复)\"
   CopyFiles /SILENT "$APPDATA\壁纸工坊-update-backup\launcher-box\*.*" "$INSTDIR\收纳快捷方式(卸载恢复)\"
   CopyFiles /SILENT "$APPDATA\壁纸工坊-update-backup\filebox-box\*.*" "$INSTDIR\收纳文件(卸载恢复)\"
+
+  ; --- 更新场景：不让安装器把本应用快捷方式重建回桌面（v1.21.1）---
+  ; 症状：更新后桌面上多出一个「壁纸工坊」快捷方式，而转盘里本来就有一个
+  ;   （用户此前已把它收纳进 $INSTDIR\收纳快捷方式(卸载恢复)）——桌面与转盘重复。
+  ; 根因：electron-builder 的 addDesktopLink 宏（templates/nsis/include/installer.nsh）
+  ;   在 $keepShortcuts == "false"（默认取值）分支里**无条件** CreateShortCut
+  ;   "$DESKTOP\${SHORTCUT_NAME}.lnk"，覆盖安装与静默更新（/S）同样会执行；
+  ;   而「用户删过快捷方式就不再重建」那套逻辑（${isUpdated} + RECREATE_DESKTOP_SHORTCUT）
+  ;   默认不启用，所以我们改用 customInstall（它在本宏之后、addDesktopLink 之后执行）
+  ;   把这刚重建的桌面快捷方式删掉。
+  ; 判定：收纳目录里存在本应用快捷方式 = 用户已把它收进转盘（不想要桌面那份）。
+  ;   全新安装时收纳目录为空 → 保留桌面快捷方式，与旧行为一致；
+  ;   --updated 升级时该目录由上面的 CopyFiles 还原，故升级只删桌面上新建的那份。
+  ; 兜底：应用内 src/launcher.js 的 _healShortcutDuplicates() 启动时还会再收一次
+  ;   （旧版安装器重建的残留 / 删除失败 / 权限受限场景）。
+  IfFileExists "$INSTDIR\收纳快捷方式(卸载恢复)\${SHORTCUT_NAME}.lnk" 0 ci_keep_desktop_sc
+    Delete "$DESKTOP\${SHORTCUT_NAME}.lnk"
+    System::Call 'Shell32::SHChangeNotify(i 0x8000000, i 0, i 0, i 0)'
+  ci_keep_desktop_sc:
 !macroend
 
 !macro customUnInstall
